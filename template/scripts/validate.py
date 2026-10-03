@@ -8,14 +8,13 @@ Exits non-zero with one human-readable error per line on stderr when the
 config is invalid.
 """
 
-from ipaddress import IPv4Address, IPv4Network
-from pathlib import Path
-from typing import Annotated, Any, Literal, Self
-
 import json
 import re
 import sys
 import tomllib
+from ipaddress import IPv4Address, IPv4Network
+from pathlib import Path
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AfterValidator,
@@ -47,9 +46,7 @@ def _network(value: Any) -> Any:
             fixed = IPv4Network(value, strict=False)
         except ValueError:
             raise ValueError(f"{value!r} is not a valid IPv4 CIDR") from None
-        raise ValueError(
-            f"{value!r} has host bits set; did you mean {fixed}?"
-        ) from None
+        raise ValueError(f"{value!r} has host bits set; did you mean {fixed}?") from None
 
 
 def _asn(value: str) -> str:
@@ -168,7 +165,9 @@ class Bgp(Model):
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        unset = [name for name in ("router_addr", "router_asn", "node_asn") if getattr(self, name) == ""]
+        unset = [
+            name for name in ("router_addr", "router_asn", "node_asn") if getattr(self, name) == ""
+        ]
         if unset and len(unset) < 3:
             raise ValueError(
                 "bgp is partially configured: set router_addr, router_asn and "
@@ -288,7 +287,7 @@ class Config(Model):
         }
         names = list(cidrs)
         for i, a in enumerate(names):
-            for b in names[i + 1:]:
+            for b in names[i + 1 :]:
                 if cidrs[a].overlaps(cidrs[b]):
                     raise ValueError(f"{a} {cidrs[a]} overlaps {b} {cidrs[b]}")
 

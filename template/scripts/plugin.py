@@ -1,10 +1,10 @@
+import base64
+import json
+import re
 from pathlib import Path
 from typing import Any
 
-import base64
-import json
 import makejinja
-import re
 import validate
 
 
@@ -65,11 +65,7 @@ def cloudflare_tunnel_secret(file_path: str = 'cloudflare-tunnel.json') -> str:
             raise KeyError(f"Missing '{field}' key in {file_path}")
         if not data[field]:
             raise ValueError(f"'{field}' is empty in {file_path}")
-    transformed_data = {
-        "a": data["AccountTag"],
-        "t": data["TunnelID"],
-        "s": data["TunnelSecret"]
-    }
+    transformed_data = {"a": data["AccountTag"], "t": data["TunnelID"], "s": data["TunnelSecret"]}
     json_string = json.dumps(transformed_data, separators=(',', ':'))
     return base64.b64encode(json_string.encode('utf-8')).decode('utf-8')
 
@@ -135,12 +131,5 @@ class Plugin(makejinja.plugin.Plugin):
         ).strip()
         return data
 
-
     def functions(self) -> makejinja.plugin.Functions:
-        return [
-            age_key,
-            cloudflare_tunnel_id,
-            cloudflare_tunnel_secret,
-            deploy_key,
-            webhook_token
-        ]
+        return [age_key, cloudflare_tunnel_id, cloudflare_tunnel_secret, deploy_key, webhook_token]
