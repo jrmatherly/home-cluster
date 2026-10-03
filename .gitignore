@@ -1,33 +1,49 @@
 # Secrets
-*.pub
 *.key
+*.pub
 *.decrypted~*.yaml
+.env
 /age.key
 /cloudflare-tunnel.json
 /deploy.key
 /deploy.key.pub
 /flux-webhook-token.txt
-# Template config files
-/cluster.toml
-# Kubernetes
+
+# Cluster access
 kubeconfig
 talosconfig
+
+# Template config and render output
+/cluster.toml
+/talos/output/
+/talos/rendered/
+.private/
+private/
+
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.venv/
+
+# Local tool overrides
+mise.local.toml
+.mise.local.toml
+.mise/config.local.toml
+lefthook-local.toml
+.lefthook-local.toml
+
 # Claude Code (personal settings and auto-memory session state)
 .claude/settings.local.json
 .claude/auto-memory/dirty-files*
 .claude/worktrees/
 .claude/agent-memory-local/
+.remember/
 CLAUDE.local.md
-# Misc.
-.private/
-.venv/
+
+# Code index
+.codegraph/
+
+# OS
 .DS_Store
 Thumbs.db
-/talos/output/
-/talos/rendered/
-.codegraph/
-private/
-.pytest_cache/
