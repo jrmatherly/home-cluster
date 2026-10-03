@@ -13,6 +13,8 @@
 #     and the repo's mise toolchain on PATH.
 #
 # Renders into the working tree like any configure run.
+# envsubst takes a literal list of variable names.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 NAME="${E2E_NAME:-template-e2e}"
@@ -224,12 +226,13 @@ test "$(kubectl get secret e2e-sops --namespace default \
 
 networking() {
 echo "==> asserting pod networking and DNS"
-export E2E_CONTROLPLANE_NODE="$(kubectl get nodes \
+E2E_CONTROLPLANE_NODE="$(kubectl get nodes \
     --selector=node-role.kubernetes.io/control-plane \
     --output jsonpath='{.items[0].metadata.name}')"
-export E2E_WORKER_NODE="$(kubectl get nodes \
+E2E_WORKER_NODE="$(kubectl get nodes \
     --selector='!node-role.kubernetes.io/control-plane' \
     --output jsonpath='{.items[0].metadata.name}')"
+export E2E_CONTROLPLANE_NODE E2E_WORKER_NODE
 NETWORK_CONFIG="$STATE/network.yaml"
 envsubst '${E2E_CONTROLPLANE_NODE} ${E2E_WORKER_NODE}' \
     < "$E2E_DIR/network.yaml.tmpl" > "$NETWORK_CONFIG"
