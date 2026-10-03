@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork of `onedr0p/cluster-template`. You fill in one config file, `cluster.toml`, and makejinja renders it into the Talos, Kubernetes, Flux and bootstrap config.
 
-- The repo is still at the template stage. The rendered directories `bootstrap/`, `kubernetes/`, `talos/` and the `.sops.yaml` file do not exist until `just configure` runs.
+- The repo is still at the template stage, so the template tooling is present. `just configure` has rendered `bootstrap/`, `kubernetes/`, `talos/` and `.sops.yaml`, and the cluster is bootstrapped and live. Flux reconciles `kubernetes/` from Git, so a config change reaches the cluster by re-rendering with `just configure`, then committing and pushing.
 - `just template tidy` ends the template stage. It moves all template tooling to `.private/<timestamp>/`, and you cannot undo it.
 
 <!-- END AUTO-MANAGED -->
@@ -31,7 +31,7 @@ Template stage:
 - `uv run --locked --no-dev template/scripts/validate.py <file.toml>` validates one config and prints it as JSON.
 - `taplo check --schema "file://$PWD/cluster.schema.json" ./cluster.toml` checks the TOML against the schema.
 
-These commands exist only after rendering:
+These commands come from the rendered `mod.just` files, and now work:
 
 - `just bootstrap talos` and `just bootstrap apps` run the two bootstrap phases.
 - `just talos render|diff|apply|apply-node <node>|upgrade-node <node>|upgrade-k8s|reset-node <node>` manage the nodes.
