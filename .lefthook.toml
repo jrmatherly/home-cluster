@@ -34,3 +34,16 @@ run = "mise lock && git add .mise/mise.lock"
 [pre-commit.commands.zizmor]
 glob = [".github/workflows/*.yaml", ".github/actions/**/action.yaml"]
 run = "zizmor --offline {staged_files}"
+
+[pre-commit.commands.ruff]
+glob = ["*.py"]
+run = "uv run --locked ruff format {staged_files} && uv run --locked ruff check {staged_files}"
+stage_fixed = true
+
+[pre-commit.commands.shellcheck]
+glob = ["*.sh"]
+run = "shellcheck {staged_files}"
+
+[pre-commit.commands.markdownlint]
+glob = ["*.md"]
+run = "markdownlint-cli2"
