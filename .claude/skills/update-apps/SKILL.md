@@ -65,6 +65,8 @@ order, and the next app starts only when the current one is healthy.
 - **Both scripts and `helm`, `flux`, `kubectl` and `gh` need network or cluster access.** Inside the Bash sandbox
   they fail with an x509, "connection closed" or "operation not permitted" error. That is the sandbox, not the
   tool. Rerun the same command outside the sandbox through the normal permission prompt.
+- **Run `just configure` on a line of its own.** The sandbox exclusion matches the bare command. With a pipe or a
+  second command it runs sandboxed and fails on the `uv` cache with "operation not permitted".
 - **Never print the validator's full output.** `template/scripts/validate.py cluster.toml` writes the whole
   config, including `dns.token`, to stdout. Pipe it through `jq` and select the fields needed.
 - **A chart that renders is not a chart that upgrades.** Immutable fields, such as a Deployment's selector
