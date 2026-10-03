@@ -26,7 +26,7 @@ A Kubernetes cluster deployed with [Talos Linux](https://github.com/siderolabs/t
 
 Does this sound cool to you? If so, continue to read on! 👇
 
-## 🚀 Let's Go!
+## 🚀 Let's Go
 
 There are **6 stages** outlined below for completing this project, make sure you follow the stages in order.
 

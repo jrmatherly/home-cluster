@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/main/schema/markdownlint-cli2-config-schema.json",
+  "gitignore": true,
+  "globs": ["**/*.md"],
+  "config": {
+    // oxfmt owns layout and does not wrap prose.
+    "MD013": false,
+    // Matches .editorconfig and oxfmt: Markdown indents by 4.
+    "MD007": { "indent": 4 },
+    // Two GitHub alerts in a row need a blank line between them.
+    "MD028": false,
+    "MD033": { "allowed_elements": ["a", "img", "kbd"] }
+  }
+}

@@ -43,7 +43,7 @@ These commands exist only after rendering:
 
 ## Architecture
 
-```
+```text
 cluster.sample.toml        documented config; copy to cluster.toml (gitignored)
 cluster.schema.json        generated from validate.py; editors use it via the #:schema line
 makejinja.toml             inputs template/overrides + template/config, output ./
