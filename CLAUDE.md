@@ -71,13 +71,9 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 
 ## Code Conventions
 
-- Edit the `.j2` source under `template/config/`, never the rendered copy.
-- makejinja uses custom delimiters. A variable is `#{ var }#`, a block is `#% ... %#`, and a comment is `#| ... #|`. Plain `{{ }}` passes through to the output unchanged. Topf Go templates (`{{ .Node.Host }}` in `*.tpl.j2`) and Flux `${VAR}` substitution rely on that.
-- `undefined = "strict"`. Any unknown variable fails the render.
-- Template variables are fields of the validated config, as in `#{ kubernetes.api.addr }#` and `#% for item in nodes %#`.
-- Talos patches in `template/config/talos/all/` start with a two-digit number that sets their order. A `.yaml.tpl.j2` file becomes a per-node topf template.
-- Each Flux app lives at `apps/<namespace>/<app>/ks.yaml.j2`, with its `app/` directory holding `helmrelease`, `kustomization` and `ocirepository` files.
-- Pin each version in a template with a `# renovate: datasource=... depName=...` comment on the line above it.
+- Edit the `.j2` source under `template/config/`, never the rendered copy. makejinja uses `#{ var }#` and `#% block %#`, and plain `{{ }}` passes through to the output.
+- Area rules in `.claude/rules/` load when you open matching files. `templates.md` covers makejinja, `talos.md` covers topf and Talos patches, `flux-apps.md` covers the Flux app layout, and `validator.md` covers schema changes.
+- Renovate updates chart and image versions in `.yaml.j2` files on its own. `# renovate:` comments are only for the Talos and Kubernetes versions in `talos/topf.yaml.j2`.
 - Formatting follows `.editorconfig`: 2 spaces, LF line endings, 4 spaces for Markdown and shell. oxfmt formats YAML, JSON and Markdown at width 100.
 - Python: `validate.py` subclasses `Model` (`extra="forbid"`), uses `Annotated` validators, and reports errors through `ConfigError` and `format_errors`, one per line. `plugin.py` uses single quotes, and `validate.py` uses double quotes.
 - just recipes use `[doc()]`, `[group()]` and `[private]` attributes, and run under bash with `-euo pipefail`. They log through `just log <level> "<msg>" key value`, which calls `gum log`.
@@ -88,9 +84,8 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 
 ## Detected Patterns
 
-- A `cluster.toml` schema change touches four places. Update `validate.py`, update the docs in `cluster.sample.toml`, run `just template schema`, and add fixtures under `.github/template-tests/`. The tests fail when `cluster.schema.json` drifts from the model.
-- When you add an invalid fixture, also add its name to the `validate-invalid` matrix in `.github/workflows/template-e2e.yaml`.
-- Rendered YAML has to be oxfmt-clean, because CI runs `oxfmt --check` on the rendered directories. Write templates so they render already formatted.
+- A `cluster.toml` schema change touches four places: `validate.py`, `cluster.sample.toml`, `cluster.schema.json` (from `just template schema`), and the test fixtures. `.claude/rules/validator.md` has the steps.
+- Rendered YAML has to be oxfmt-clean, because CI runs `oxfmt --check` on the rendered directories.
 - Every file with `.sops.` in its name is encrypted in place during `just configure`.
 
 <!-- END AUTO-MANAGED -->
@@ -109,10 +104,8 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 ## Best Practices
 
 - Never commit secrets or machine config. `.gitignore` covers `cluster.toml`, `age.key`, `deploy.key`, `flux-webhook-token.txt`, `cloudflare-tunnel.json`, `kubeconfig` and `talosconfig`.
-- Before you finish a change, run the checks that match it:
-    - For validator changes, run pytest and then `just template schema`.
-    - For template changes, run `just configure`, then `oxfmt --check ./.sops.yaml ./bootstrap ./kubernetes ./talos`.
-    - For workflow changes, run `zizmor --offline .github/workflows/*.yaml`.
+- The Stop hook (`.claude/hooks/stop.py`) blocks the end of a turn while template changes fail. It renders every valid fixture, runs oxfmt, kubeconform, and topf, and runs pytest when `template/scripts/` changed. For workflow changes, run `zizmor --offline .github/workflows/*.yaml` yourself.
+- `.claude/settings.json` blocks reading the key files and asks before destructive commands: `reset`, `tidy`, `bootstrap`, `apply`, `upgrade`, `sops decrypt`, `kubectl delete`, and similar. Don't work around a prompt, for example with `yes |` or `--yes`.
 - lefthook runs these on pre-commit: oxfmt, `just --fmt`, `mise fmt`, and `mise lock`. After you edit a mise config, commit the updated `.mise/mise.lock`.
 - On macOS, use `sd` for regex replacements instead of `sed -i`.
 

@@ -6,4 +6,4 @@
 - Cluster: Talos (talosctl, topf for config render/apply), Kubernetes, Flux (flux2 + flux-operator/flux-instance), helm/helmfile for bootstrap, kustomize, sops+age for secrets, Cilium, Envoy Gateway, cert-manager, cloudflared/cloudflare-dns, k8s-gateway, spegel.
 - Validation: kubeconform (`template/resources/kubeconform.sh`), taplo (TOML vs schema), flate (Flux test in CI), zizmor (GH Actions audit).
 - Formatting: oxfmt (JSON/YAML/Markdown, printWidth 100), `just --fmt`, `mise fmt`. Git hooks via lefthook (`.lefthook.toml`, installed by mise postinstall).
-- Renovate (`.renovaterc.json5`); `# renovate:` comments annotate pinned versions in templates.
+- Renovate (`.renovaterc.json5`, extends `home-operations/renovate-presets`, whose default scans `.yaml.j2` with the flux/kubernetes/helm-values managers); `# renovate:` comments only in `talos/topf.yaml.j2`.

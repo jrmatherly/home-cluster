@@ -1,8 +1,5 @@
 # Task completion
 
-Pick the checks matching what changed:
-
-- validate.py / plugin.py: `uv run --locked pytest template/scripts/test_validate.py -q`; if model changed, `just template schema` and commit the regenerated `cluster.schema.json`.
-- Templates (`template/config/**`): `just configure` (needs `just init` + filled cluster.toml), then `oxfmt --check ./.sops.yaml ./bootstrap ./kubernetes ./talos`; bootstrap chart changes: `just template test-helmfile`. Don't commit rendered output or secrets unless deliberately moving past the template stage.
-- Workflows: `zizmor --offline .github/workflows/*.yaml`.
-- Formatting runs in lefthook pre-commit (oxfmt, just --fmt, mise fmt, mise lock); mise config edits require `mise lock`.
+Template, validator and fixture changes are checked automatically by the Stop hook (`.claude/hooks/stop.py`, wired in `.claude/settings.json`): it renders every valid fixture and runs oxfmt, kubeconform, topf, and pytest when scripts changed, blocking until green.
+Run manually: `zizmor --offline .github/workflows/*.yaml` for workflow edits; `mise lock` after mise config edits (lefthook also does this on commit).
+See the "Best Practices" section of `CLAUDE.md`.

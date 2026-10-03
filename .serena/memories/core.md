@@ -24,4 +24,6 @@ Fork of onedr0p/cluster-template (origin jrmatherly/home-cluster). Talos + Kuber
 - Secrets (age.key, deploy.key, flux-webhook-token.txt, cloudflare-tunnel.json, kubeconfig, talosconfig, cluster.toml) are gitignored; never commit them. `*.sops.*` files get encrypted in place by `just configure`.
 - `just template tidy` is one-way: archives all template tooling to `.private/<ts>/`.
 
+Claude Code setup: `.claude/settings.json` (secret-file Read denies, ask rules for destructive commands, Stop hook `.claude/hooks/stop.py`), `.claude/rules/` (path-scoped conventions).
+
 See `mem:tech_stack` (tools/versions), `mem:suggested_commands` (just/uv/mise commands), `mem:conventions` (formatting + template style), `mem:task_completion` (checks before done).

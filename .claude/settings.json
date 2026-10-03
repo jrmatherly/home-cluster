@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(/age.key)",
+      "Read(/deploy.key)",
+      "Read(/cloudflare-tunnel.json)",
+      "Read(/flux-webhook-token.txt)",
+      "Read(/kubeconfig)",
+      "Read(/talos/talosconfig)",
+      "Read(**/*.decrypted~*)"
+    ],
+    "ask": [
+      "Bash(just --yes *)",
+      "Bash(just template reset*)",
+      "Bash(just template tidy*)",
+      "Bash(just bootstrap *)",
+      "Bash(just talos apply*)",
+      "Bash(just talos upgrade*)",
+      "Bash(just talos reset*)",
+      "Bash(topf apply *)",
+      "Bash(topf upgrade *)",
+      "Bash(topf reset *)",
+      "Bash(talosctl apply-config *)",
+      "Bash(talosctl upgrade *)",
+      "Bash(talosctl upgrade-k8s *)",
+      "Bash(talosctl reset *)",
+      "Bash(talosctl bootstrap *)",
+      "Bash(sops decrypt *)",
+      "Bash(sops -d *)",
+      "Bash(sops --decrypt *)",
+      "Bash(kubectl apply *)",
+      "Bash(kubectl delete *)",
+      "Bash(kubectl drain *)",
+      "Bash(helmfile *)",
+      "Bash(flux uninstall *)",
+      "Bash(flux delete *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --quiet --script \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop.py\"",
+            "timeout": 180,
+            "statusMessage": "Checking templates against the test fixtures"
+          }
+        ]
+      }
+    ]
+  }
+}
