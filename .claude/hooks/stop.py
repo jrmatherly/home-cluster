@@ -34,15 +34,21 @@ FIXTURES = ROOT / ".github/template-tests/valid"
 # render and format-check, which is where undefined variables in conditional
 # branches show up.
 FULL_FIXTURE = "public"
-STAMP_DIR = Path(tempfile.gettempdir()) / f"home-cluster-stop-{hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]}"
+STAMP_DIR = (
+    Path(tempfile.gettempdir())
+    / f"home-cluster-stop-{hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]}"
+)
 PASS_STAMP = STAMP_DIR / "pass"
 FAIL_STAMP = STAMP_DIR / "fail"
 RENDERED = ["bootstrap", "kubernetes", "talos"]
-NETWORK_ERROR = re.compile(r"no such host|dial tcp|connection refused|i/o timeout|could not (fetch|download)|TLS handshake", re.I)
+NETWORK_ERROR = re.compile(
+    r"no such host|dial tcp|connection refused|i/o timeout|could not (fetch|download)|TLS handshake",
+    re.IGNORECASE,
+)
 
 
 def run(cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, check=False)
 
 
 def tail(result: subprocess.CompletedProcess, lines: int = 20) -> str:
@@ -50,20 +56,33 @@ def tail(result: subprocess.CompletedProcess, lines: int = 20) -> str:
 
 
 def git(*args: str) -> str:
-    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(
+        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
 
 
 def state_hash() -> str | None:
-    if not git("status", "--porcelain", "--", *WATCHED).strip():
+    # Diff against where the branch left main, so committing a broken change
+    # does not hide it from the check.
+    base = subprocess.run(
+        ["git", "merge-base", "HEAD", "main"], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    diff = git("diff", base.stdout.strip() if base.returncode == 0 else "HEAD", "--", *WATCHED)
+    untracked = git("ls-files", "--others", "--exclude-standard", "--", *WATCHED).splitlines()
+    if not diff and not untracked:
         return None
-    digest = hashlib.sha256(git("diff", "HEAD", "--", *WATCHED).encode())
-    for path in git("ls-files", "--others", "--exclude-standard", "--", *WATCHED).splitlines():
+    digest = hashlib.sha256(diff.encode())
+    for path in untracked:
         digest.update(path.encode() + (ROOT / path).read_bytes())
     return digest.hexdigest()
 
 
 def tool_env(scratch: Path) -> dict[str, str]:
-    mise = json.loads(subprocess.run(["mise", "env", "-C", str(ROOT), "--json"], capture_output=True, text=True, check=True).stdout)
+    mise = json.loads(
+        subprocess.run(
+            ["mise", "env", "-C", str(ROOT), "--json"], capture_output=True, text=True, check=True
+        ).stdout
+    )
     return {
         **os.environ,
         **mise,
@@ -73,6 +92,7 @@ def tool_env(scratch: Path) -> dict[str, str]:
         "SOPS_AGE_KEY_FILE": str(scratch / "age.key"),
         "SOPS_CONFIG": str(scratch / ".sops.yaml"),
         "KUBECONFIG": str(scratch / "kubeconfig"),
+        "TALOSCONFIG": str(scratch / "talos/talosconfig"),
     }
 
 
@@ -87,20 +107,30 @@ def make_scratch() -> Path:
 
 
 def seed_secrets(scratch: Path, env: dict[str, str]) -> None:
-    run(["age-keygen", "-o", "age.key"], scratch, env)
-    run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "deploy.key"], scratch, env)
+    run(["age-keygen", "-o", "age.key"], scratch, env).check_returncode()
+    run(
+        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "deploy.key"], scratch, env
+    ).check_returncode()
     (scratch / "flux-webhook-token.txt").write_text("0" * 32 + "\n")
-    (scratch / "cloudflare-tunnel.json").write_text('{"AccountTag":"fake","TunnelSecret":"fake","TunnelID":"fake"}')
+    (scratch / "cloudflare-tunnel.json").write_text(
+        '{"AccountTag":"fake","TunnelSecret":"fake","TunnelID":"fake"}'
+    )
 
 
-def check(scratch: Path, env: dict[str, str]) -> list[str]:
+def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
+    """Return the failures, and whether every check ran (kubeconform is skipped offline)."""
+    if not (FIXTURES / f"{FULL_FIXTURE}.toml").is_file():
+        raise FileNotFoundError(f"full-validation fixture {FULL_FIXTURE}.toml is missing")
+    complete = True
     # (check, output) -> fixtures, so one broken template reports once, not per fixture.
     failures: dict[tuple[str, str], list[str]] = {}
-    changed = git("status", "--porcelain", "--", "template/scripts", "pyproject.toml", "uv.lock")
-    if changed.strip():
-        r = run(["uv", "run", "--quiet", "--locked", "pytest", "template/scripts/test_validate.py", "-q"], scratch, env)
-        if r.returncode:
-            failures[("pytest template/scripts/test_validate.py", tail(r))] = []
+    r = run(
+        ["uv", "run", "--quiet", "--locked", "pytest", "template/scripts/test_validate.py", "-q"],
+        scratch,
+        env,
+    )
+    if r.returncode:
+        failures[("pytest template/scripts/test_validate.py", tail(r))] = []
 
     for fixture in sorted(FIXTURES.glob("*.toml"), key=lambda f: f.stem != FULL_FIXTURE):
         for rendered in RENDERED:
@@ -112,22 +142,34 @@ def check(scratch: Path, env: dict[str, str]) -> list[str]:
         if r.returncode:
             failures.setdefault(("render", tail(r, 5)), []).append(fixture.name)
             continue
-        r = run(["oxfmt", "--check", "./.sops.yaml", "./bootstrap", "./kubernetes", "./talos"], scratch, env)
+        r = run(
+            ["oxfmt", "--check", "./.sops.yaml", "./bootstrap", "./kubernetes", "./talos"],
+            scratch,
+            env,
+        )
         if r.returncode:
-            failures.setdefault(("oxfmt --check on rendered output", tail(r)), []).append(fixture.name)
+            failures.setdefault(("oxfmt --check on rendered output", tail(r)), []).append(
+                fixture.name
+            )
         if fixture.stem != FULL_FIXTURE:
             continue
 
         r = run(["bash", "template/resources/kubeconform.sh", "kubernetes"], scratch, env)
-        if r.returncode and not NETWORK_ERROR.search(r.stdout + r.stderr):
+        if r.returncode and NETWORK_ERROR.search(r.stdout + r.stderr):
+            complete = False
+        elif r.returncode:
             failures.setdefault(("kubeconform", tail(r)), []).append(fixture.name)
-        r = run(["topf", "render", "--confirm=false", "--output", tempfile.mkdtemp()], scratch / "talos", env)
+        r = run(
+            ["topf", "render", "--confirm=false", "--output", str(scratch / ".topf-out")],
+            scratch / "talos",
+            env,
+        )
         if r.returncode:
             failures.setdefault(("topf render", tail(r, 5)), []).append(fixture.name)
     return [
         f"{name}{f' ({", ".join(fixtures)})' if fixtures else ''}\n{output}"
         for (name, output), fixtures in failures.items()
-    ]
+    ], complete
 
 
 def main() -> int:
@@ -139,7 +181,11 @@ def main() -> int:
         return 0
     # Already blocked once and nothing changed since: let the turn end rather
     # than loop on a failure Claude has not touched.
-    if payload.get("stop_hook_active") and FAIL_STAMP.is_file() and FAIL_STAMP.read_text() == current:
+    if (
+        payload.get("stop_hook_active")
+        and FAIL_STAMP.is_file()
+        and FAIL_STAMP.read_text() == current
+    ):
         return 0
     STAMP_DIR.mkdir(exist_ok=True)
 
@@ -147,23 +193,27 @@ def main() -> int:
     try:
         env = tool_env(scratch)
         seed_secrets(scratch, env)
-        failures = check(scratch, env)
+        failures, complete = check(scratch, env)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
     if failures:
-        print("Template checks failed (fixtures in .github/template-tests/valid). Fix these before finishing:\n", file=sys.stderr)
+        print(
+            "Template checks failed (fixtures in .github/template-tests/valid). Fix these before finishing:\n",
+            file=sys.stderr,
+        )
         print("\n\n".join(failures), file=sys.stderr)
         FAIL_STAMP.write_text(current)
         return 2
-    PASS_STAMP.write_text(current)
+    if complete:
+        PASS_STAMP.write_text(current)
     return 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as error:
-        # Fail open: a broken hook must not trap the session.
-        print(f"stop hook skipped: {error!r}", file=sys.stderr)
+    except Exception as error:  # noqa: BLE001
+        # Fail open: a broken hook must not trap the session, but tell the user.
+        print(json.dumps({"systemMessage": f"Template check hook skipped: {error!r}"}))
         sys.exit(0)
