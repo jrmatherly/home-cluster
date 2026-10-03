@@ -1,0 +1,27 @@
+#% if nvidia_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nvidia-device-plugin
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: nvidia-device-plugin
+  interval: 1h
+  values:
+    fullnameOverride: nvidia-device-plugin
+    runtimeClassName: nvidia
+    # Talos labels a node with each system extension it runs, so no feature
+    # discovery is needed to find the GPU nodes.
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: extensions.talos.dev/nvidia-container-toolkit-lts
+                  operator: Exists
+            - matchExpressions:
+                - key: extensions.talos.dev/nvidia-container-toolkit-production
+                  operator: Exists
+#% endif %#

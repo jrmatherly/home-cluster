@@ -245,6 +245,12 @@ class Config(Model):
     def controller_count(self) -> int:
         return sum(1 for node in self.nodes if node.controller)
 
+    # True when a node loads the NVIDIA kernel module; gates the device plugin.
+    @computed_field
+    @property
+    def nvidia_enabled(self) -> bool:
+        return any("nvidia" in node.kernel_modules for node in self.nodes)
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:

@@ -11,6 +11,9 @@ resources:
   - ./cilium/ks.yaml
   - ./coredns/ks.yaml
   - ./metrics-server/ks.yaml
+  #% if nvidia_enabled %#
+  - ./nvidia-device-plugin/ks.yaml
+  #% endif %#
   - ./reloader/ks.yaml
   #% if spegel.enabled %#
   - ./spegel/ks.yaml

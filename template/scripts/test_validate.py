@@ -103,6 +103,15 @@ def test_controller_count_ignores_workers():
     assert _load_raw(raw).controller_count == 2
 
 
+def test_nvidia_enabled_follows_kernel_modules():
+    raw = config_from("public.toml")
+    assert raw["nodes"][1]["kernel_modules"] == ["nvidia", "nvidia_uvm"]
+    assert _load_raw(raw).nvidia_enabled is True
+    raw["nodes"][1]["kernel_modules"] = ["nvidia_uvm"]
+    assert _load_raw(raw).nvidia_enabled is False
+    assert _load_raw(config_from("single-node.toml")).nvidia_enabled is False
+
+
 def test_derived_fields_are_not_settable():
     raw = config_from("public.toml", cilium_bgp_enabled=True)
     with pytest.raises(ConfigError, match="cilium_bgp_enabled"):
