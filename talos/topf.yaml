@@ -1,0 +1,89 @@
+---
+clusterName: kubernetes
+clusterEndpoint: https://192.168.22.10:6443
+
+# renovate: datasource=github-releases depName=siderolabs/talos
+talosVersion: v1.14.1
+# renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+kubernetesVersion: v1.37.1
+
+secretsPath: secrets.sops.yaml
+
+nodes:
+  - host: "k8s-cp-1"
+    ip: "192.168.22.21"
+    role: control-plane
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:21"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
+  - host: "k8s-cp-2"
+    ip: "192.168.22.22"
+    role: control-plane
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:22"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
+  - host: "k8s-worker-1"
+    ip: "192.168.22.32"
+    role: worker
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:32"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
+  - host: "k8s-worker-2"
+    ip: "192.168.22.33"
+    role: worker
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:33"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
+  - host: "k8s-worker-3"
+    ip: "192.168.22.34"
+    role: worker
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:34"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
+  - host: "k8s-cp-3"
+    ip: "192.168.22.23"
+    role: control-plane
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:23"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
+  - host: "k8s-gpu-1"
+    ip: "192.168.22.31"
+    role: worker
+    schematicId: "914b38adefad3d77212f565745ed52013bf3a424e7da2730e9e7dad8ee297342"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:31"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: [nvidia, nvidia_uvm, nvidia_drm, nvidia_modeset]
