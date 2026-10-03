@@ -1,7 +1,7 @@
 # Per-app notes
 
 One row per app this repo templates. Add a row when an app is added, and add a note when an update teaches
-something. Step 9 of the skill keeps this file current.
+something. Step 5 of the skill keeps this file current.
 
 ## Upstream sources
 
