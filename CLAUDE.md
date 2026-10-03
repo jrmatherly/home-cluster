@@ -87,6 +87,7 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 - A `cluster.toml` schema change touches four places: `validate.py`, `cluster.sample.toml`, `cluster.schema.json` (from `just template schema`), and the test fixtures. `.claude/rules/validator.md` has the steps.
 - Rendered YAML has to be oxfmt-clean, because CI runs `oxfmt --check` on the rendered directories.
 - Every file with `.sops.` in its name is encrypted in place during `just configure`.
+- Re-running `just configure` re-encrypts every `*.sops.*` file with new ciphertext, even when the plaintext is unchanged, so they show as modified after any re-render. When the secret inputs did not change, restore them with `git checkout -- ':(glob)**/*.sops.*'` before committing.
 
 <!-- END AUTO-MANAGED -->
 
