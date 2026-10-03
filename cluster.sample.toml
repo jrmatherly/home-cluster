@@ -262,7 +262,9 @@ schematic_id = ""
 # =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
-#    For HA, use 3 controllers.
+#    For HA, use 3 controllers. Controllers run ordinary workloads only when
+#    the cluster has no workers; with at least one worker they keep the
+#    control-plane NoSchedule taint.
 #
 #    Discover hardware details from a node already booted into Talos
 #    maintenance mode:

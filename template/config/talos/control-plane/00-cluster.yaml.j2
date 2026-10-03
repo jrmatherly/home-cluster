@@ -4,13 +4,15 @@ cluster:
       listen-metrics-urls: http://0.0.0.0:2381
     advertisedSubnets:
       - #{ network.node_cidr }#
+#% if controller_count == nodes | length %#
 ---
-# Allow scheduling on control-plane nodes
+# No workers, so workloads have to run on the control-plane nodes
 apiVersion: v1alpha1
 kind: KubeNodeConfig
 taints:
   node-role.kubernetes.io/control-plane:
     $patch: delete
+#% endif %#
 ---
 apiVersion: v1alpha1
 kind: KubeAdmissionControlConfig
