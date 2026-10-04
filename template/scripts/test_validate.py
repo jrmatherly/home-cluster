@@ -220,6 +220,31 @@ def test_influxdb_password_needs_eight_characters():
         _load_raw(raw)
 
 
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/123456789012345678/example-token"
+
+
+def test_discord_webhook_accepted_with_observability():
+    raw = config_from(
+        "private.toml", **OBSERVABILITY | {"observability.discord_webhook": DISCORD_WEBHOOK}
+    )
+    assert _load_raw(raw).observability.discord_webhook == DISCORD_WEBHOOK
+
+
+def test_discord_webhook_requires_observability():
+    raw = config_from("private.toml", **{"observability.discord_webhook": DISCORD_WEBHOOK})
+    with pytest.raises(ConfigError, match=r"discord_webhook requires grafana_password"):
+        _load_raw(raw)
+
+
+def test_discord_webhook_must_be_discord_url():
+    raw = config_from(
+        "private.toml",
+        **OBSERVABILITY | {"observability.discord_webhook": "https://example.com/hook/1/abc"},
+    )
+    with pytest.raises(ConfigError, match=r"observability\.discord_webhook"):
+        _load_raw(raw)
+
+
 UNIFI = {"unifi.host": "https://192.0.2.1", "unifi.api_key": "fake"}
 
 

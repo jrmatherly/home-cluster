@@ -291,7 +291,8 @@ schematic_id = ""
 #    the cluster. Set ALL THREE fields below to enable; leaving them all blank
 #    skips the stack. The values are written to SOPS-encrypted Secrets.
 #    InfluxDB reads its password and token only on first start, so choose
-#    them before the first deploy.
+#    them before the first deploy. Alertmanager sends alerts nowhere until
+#    discord_webhook is set.
 # =============================================================================
 [observability]
 
@@ -309,6 +310,12 @@ schematic_id = ""
 # OPTIONAL. Example: the output of `openssl rand -hex 32`
 
 # influxdb_token = ""
+
+# Discord webhook that Alertmanager sends alerts to. Needs the three fields
+# above. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: "https://discord.com/api/webhooks/<id>/<token>"
+
+# discord_webhook = ""
 
 
 # =============================================================================

@@ -50,6 +50,7 @@ jobs:
           - partial-bgp
           - partial-postgres-backup
           - partial-observability
+          - discord-without-observability
           - partial-unifi
           - pocket-id-without-backup
           - radar-without-pocket-id

@@ -317,6 +317,12 @@
         "influxdb_token": {
           "$ref": "#/$defs/Secret",
           "default": ""
+        },
+        "discord_webhook": {
+          "default": "",
+          "pattern": "^(https://discord(app)?\\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$",
+          "title": "Discord Webhook",
+          "type": "string"
         }
       },
       "title": "Observability",
@@ -552,7 +558,8 @@
       "default": {
         "grafana_password": "",
         "influxdb_password": "",
-        "influxdb_token": ""
+        "influxdb_token": "",
+        "discord_webhook": ""
       }
     },
     "unifi": {

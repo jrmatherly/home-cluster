@@ -227,12 +227,21 @@ class Observability(Model):
     # InfluxDB rejects a password shorter than 8 characters.
     influxdb_password: Secret = Field(default="", pattern=r'^([^"\\\s$]{8,})?$')
     influxdb_token: Secret = ""
+    # Where Alertmanager sends alerts. Unset, every alert goes to the null receiver.
+    discord_webhook: str = Field(
+        default="", pattern=r"^(https://discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$"
+    )
 
     @model_validator(mode="after")
     def check(self) -> Self:
         _all_or_none(
             self, "observability", ("grafana_password", "influxdb_password", "influxdb_token")
         )
+        if self.discord_webhook and not self.grafana_password:
+            raise ValueError(
+                "discord_webhook requires grafana_password, influxdb_password and "
+                "influxdb_token: Alertmanager only runs with the rest of the stack"
+            )
         return self
 
 

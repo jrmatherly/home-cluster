@@ -46,6 +46,7 @@ secret_access_key = "fake"
 grafana_password  = "fake"
 influxdb_password = "fakefake"
 influxdb_token    = "fake"
+discord_webhook   = "https://discord.com/api/webhooks/123456789012345678/example-token"
 
 [unifi]
 host    = "https://192.0.2.1"
