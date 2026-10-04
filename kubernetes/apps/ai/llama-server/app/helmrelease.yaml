@@ -8,34 +8,19 @@ spec:
     kind: OCIRepository
     name: llama-server
   interval: 1h
-  # The first start pulls a multi-gigabyte image and downloads the model.
+  # A node that has neither image cached pulls about 5 GB before the pod starts.
   timeout: 15m
   values:
     controllers:
       llama-server:
         strategy: Recreate
-        initContainers:
-          model:
-            image: &image
-              repository: ghcr.io/ggml-org/llama.cpp
-              tag: server-cuda-v0.5.0@sha256:52192a23c7b258044463aebba78826cdff39a7393b713edc313324b343a7b836
-            command: ["/bin/sh", "-ec"]
-            # Pinned to a commit and checked against the file's sha256, so a
-            # changed upstream file fails the pod instead of loading.
-            args:
-              - |-
-                curl -fsSL --retry 3 -o /models/model.gguf \
-                  https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/resolve/78eb92a46fc37e6b524df991ed9aca9bc6aa7b80/Phi-4-mini-instruct-Q4_K_M.gguf
-                echo "88c00229914083cd112853aab84ed51b87bdf6b9ce42f532d8c85c7c63b1730a  /models/model.gguf" | sha256sum -c
-            securityContext: &securityContext
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
         containers:
           app:
-            image: *image
+            image:
+              repository: ghcr.io/ggml-org/llama.cpp
+              tag: server-cuda-v0.5.0@sha256:52192a23c7b258044463aebba78826cdff39a7393b713edc313324b343a7b836
             env:
-              LLAMA_ARG_MODEL: /models/model.gguf
+              LLAMA_ARG_MODEL: /models/Phi-4-mini-instruct-Q4_K_M.gguf
               LLAMA_ARG_ALIAS: phi-4-mini
               LLAMA_ARG_N_GPU_LAYERS: all
               # Four slots of 2048 tokens each.
@@ -78,7 +63,10 @@ spec:
                   timeoutSeconds: 3
                   failureThreshold: 3
               readiness: *probes
-            securityContext: *securityContext
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
             resources:
               requests:
                 cpu: 500m
@@ -92,7 +80,6 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
         runAsGroup: 65534
-        fsGroup: 65534
         seccompProfile: { type: RuntimeDefault }
     service:
       app:
@@ -100,7 +87,11 @@ spec:
           http:
             port: *port
     persistence:
+      # The model is an image, built from images/phi-4-mini-instruct. The node keeps
+      # it cached, so a restart needs neither a download nor Hugging Face.
       models:
-        type: emptyDir
+        type: image
+        image: ghcr.io/jrmatherly/models/phi-4-mini-instruct:q4_k_m-78eb92a@sha256:61b9c43d604f70404311af23afe16928a952c957a0237ef48de4e96719854beb
         globalMounts:
           - path: /models
+            readOnly: true
