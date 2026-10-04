@@ -1,0 +1,54 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: "Model Images"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - images/**
+
+permissions: {}
+
+jobs:
+  model-images:
+    name: Model Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
+
+      - name: Build and push new tags
+        env:
+          REGISTRY: ghcr.io/${{ github.repository_owner }}/models
+        run: |
+          for dockerfile in images/*/Dockerfile; do
+            dir=$(dirname "$dockerfile")
+            tag=$(sed -n 's/^ARG TAG=//p' "$dockerfile")
+            if [[ -z "$tag" ]]; then
+              echo "::error file=$dockerfile::no 'ARG TAG=' line"
+              exit 1
+            fi
+            image="$REGISTRY/$(basename "$dir"):$tag"
+            # A published tag is never rebuilt, because the cluster pins it by digest.
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "$image exists, skipping"
+              continue
+            fi
+            docker build --platform linux/amd64 --tag "$image" "$dir"
+            docker push "$image"
+            digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+            echo "Pushed \`$image@${digest#*@}\`" >>"$GITHUB_STEP_SUMMARY"
+          done

@@ -61,8 +61,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   from the Talos extension, not from this chart.
 - **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
   (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
-  updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model file is pinned by
-  commit and sha256 in the init container's command, and the inventory does not track it. After an update, time
+  updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model is a second image,
+  mounted as a volume and pinned by digest. Neither the inventory nor Renovate tracks it. To change the model,
+  edit the pins in `images/phi-4-mini-instruct/Dockerfile` and push: the Model Images workflow builds the new tag
+  and prints its digest in the run summary. Then update the reference and `LLAMA_ARG_MODEL` in the HelmRelease. The
+  `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full security context. After an update, time
   one request: the pod restarts, and the startup probe's warm-up request is what keeps the first caller fast.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster. Applying it needs the CRD step of the bootstrap
