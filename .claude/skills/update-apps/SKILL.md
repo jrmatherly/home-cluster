@@ -71,6 +71,9 @@ order, and the next app starts only when the current one is healthy.
   config, including `dns.token`, to stdout. Pipe it through `jq` and select the fields needed.
 - **A chart that renders is not a chart that upgrades.** Immutable fields, such as a Deployment's selector
   labels, render cleanly and then fail on the live release. The comparison script shows them; read the diff.
+- **A release that has never succeeded cannot roll back.** When an install fails and the fix arrives as an
+  upgrade that also fails, the HelmRelease goes `Stalled` with `MissingRollbackTarget` and stops retrying. Once
+  the workload itself is healthy, `flux reconcile hr <app> -n <namespace> --force` runs one upgrade and clears it.
 - **One chart is outside Flux.** `prometheus-operator-crds` is installed only at bootstrap. See
   `references/apps.md` before touching its version.
 - **Pre-releases are ignored on purpose.** The inventory only offers tags shaped like `1.2.3` or `v1.2.3`.

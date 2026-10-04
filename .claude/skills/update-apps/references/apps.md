@@ -61,9 +61,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   from the Talos extension, not from this chart.
 - **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
   (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
-  updating the tag. The inventory cannot read the image's `server-cuda-v*` tags: it reports `?` and exits
-  non-zero, so check <https://github.com/ggml-org/llama.cpp/releases> by hand. The model file is pinned by commit
-  and sha256 in the init container's command, and the inventory does not track it either.
+  updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model file is pinned by
+  commit and sha256 in the init container's command, and the inventory does not track it. After an update, time
+  one request: the pod restarts, and the startup probe's warm-up request is what keeps the first caller fast.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster. Applying it needs the CRD step of the bootstrap
   run by hand, which is the user's decision. Report the pending version and stop.

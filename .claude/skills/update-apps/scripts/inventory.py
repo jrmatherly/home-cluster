@@ -23,7 +23,10 @@ ROOT = Path(
     ).stdout.strip()
 )
 TEMPLATES = ROOT / "template/config"
-STABLE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+# An optional variant prefix, then 1.2.3 or v1.2.3. The prefix covers image
+# tags such as server-cuda-v0.5.0.
+STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)\.(\d+)$")
+PLAIN = ("", "v")
 # Docker Hub serves its registry API from a different host than its image names.
 REGISTRY_HOSTS = {"docker.io": "registry-1.docker.io"}
 
@@ -40,7 +43,8 @@ def pins() -> list[tuple[str, str, str, str, Path]]:
             if url and tag:
                 found.append((path.parts[-3], "chart", url[1], tag[1], rel))
         elif path.name == "helmrelease.yaml.j2":
-            for repo, tag in re.findall(r"repository: (\S+)\n\s+tag: (\S+)", text):
+            # A tag may carry a digest (1.2.3@sha256:...); the table shows the tag alone.
+            for repo, tag in re.findall(r"repository: (\S+)\n\s+tag: ([^\s@]+)", text):
                 found.append((path.parts[-3], "image", repo, tag, rel))
         elif "helmfile" in path.parts:
             for name, repo, version in re.findall(
@@ -82,16 +86,26 @@ def tags(repository: str) -> list[str]:
     return found
 
 
-def version(tag: str) -> tuple[int, ...] | None:
+def parse(tag: str) -> tuple[str, tuple[int, ...]] | None:
+    """Return (prefix, version) for a stable tag, or None."""
     match = STABLE.match(tag)
-    return tuple(int(part) for part in match.groups()) if match else None
+    return (match[1], tuple(int(part) for part in match.groups()[1:])) if match else None
+
+
+def version(tag: str) -> tuple[int, ...] | None:
+    parsed = parse(tag)
+    return parsed[1] if parsed else None
 
 
 def latest_stable(repository: str, current: str) -> str:
-    candidates = [(parsed, tag) for tag in tags(repository) if (parsed := version(tag))]
+    prefix = parsed[0] if (parsed := parse(current)) else ""
+    found = [(parsed, tag) for tag in tags(repository) if (parsed := parse(tag))]
+    same_style = [(number, tag) for (style, number), tag in found if style == prefix]
     # Some repositories publish both 1.2.3 and v1.2.3; keep the style already pinned.
-    same_style = [c for c in candidates if c[1].startswith("v") == current.startswith("v")]
-    return max(same_style or candidates)[1] if candidates else "?"
+    # A variant prefix never falls back, because another variant is a different image.
+    if not same_style and prefix in PLAIN:
+        same_style = [(number, tag) for (style, number), tag in found if style in PLAIN]
+    return max(same_style)[1] if same_style else "?"
 
 
 def bump(current: str, latest: str) -> str:
