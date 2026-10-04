@@ -1,0 +1,7 @@
+# Where local-path-provisioner keeps its volumes: /var/mnt/local-path, a
+# directory on the EPHEMERAL volume. A dedicated disk would add a quota but no
+# redundancy, because every virtual disk sits on the same ZFS mirror.
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: local-path
+volumeType: directory

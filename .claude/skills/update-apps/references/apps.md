@@ -7,26 +7,27 @@ something. Step 5 of the skill keeps this file current.
 
 The chart column is what the template pins. The releases column is where the notes are.
 
-| App                       | Namespace      | Chart pinned                                                   | Release notes                                                     |
-| ------------------------- | -------------- | -------------------------------------------------------------- | ----------------------------------------------------------------- |
-| cilium                    | kube-system    | `quay.io/cilium/charts/cilium`                                 | <https://github.com/cilium/cilium/releases>                       |
-| coredns                   | kube-system    | `ghcr.io/coredns/charts/coredns`                               | <https://github.com/coredns/helm/releases>                        |
-| metrics-server            | kube-system    | `ghcr.io/home-operations/charts-mirror/metrics-server`         | <https://github.com/kubernetes-sigs/metrics-server/releases>      |
-| nvidia-device-plugin      | kube-system    | `ghcr.io/home-operations/charts-mirror/nvidia-device-plugin`   | <https://github.com/NVIDIA/k8s-device-plugin/releases>            |
-| reloader                  | kube-system    | `ghcr.io/stakater/charts/reloader`                             | <https://github.com/stakater/Reloader/releases>                   |
-| spegel                    | kube-system    | `ghcr.io/spegel-org/helm-charts/spegel`                        | <https://github.com/spegel-org/spegel/releases>                   |
-| cert-manager              | cert-manager   | `quay.io/jetstack/charts/cert-manager`                         | <https://github.com/cert-manager/cert-manager/releases>           |
-| flux-operator             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`           | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
-| flux-instance             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`           | same repository as flux-operator                                  |
-| cloudflare-dns            | network        | `ghcr.io/home-operations/charts-mirror/external-dns`           | <https://github.com/kubernetes-sigs/external-dns/releases>        |
-| cloudflare-tunnel         | network        | `ghcr.io/bjw-s-labs/helm/app-template`                         | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| cloudflare-tunnel (image) | network        | `docker.io/cloudflare/cloudflared`                             | <https://github.com/cloudflare/cloudflared/releases>              |
-| envoy-gateway             | network        | `mirror.gcr.io/envoyproxy/gateway-helm`                        | <https://github.com/envoyproxy/gateway/releases>                  |
-| k8s-gateway               | network        | `codeberg.org/k8s-gateway/charts/k8s-gateway`                  | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
-| llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                         | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                   | <https://github.com/ggml-org/llama.cpp/releases>                  |
-| echo                      | default        | `ghcr.io/home-operations/charts/echo`                          | not identified; ask the user or search before a non-patch bump    |
-| prometheus-operator-crds  | bootstrap only | `ghcr.io/prometheus-community/charts/prometheus-operator-crds` | <https://github.com/prometheus-community/helm-charts/releases>    |
+| App                       | Namespace      | Chart pinned                                                           | Release notes                                                     |
+| ------------------------- | -------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| cilium                    | kube-system    | `quay.io/cilium/charts/cilium`                                         | <https://github.com/cilium/cilium/releases>                       |
+| coredns                   | kube-system    | `ghcr.io/coredns/charts/coredns`                                       | <https://github.com/coredns/helm/releases>                        |
+| metrics-server            | kube-system    | `ghcr.io/home-operations/charts-mirror/metrics-server`                 | <https://github.com/kubernetes-sigs/metrics-server/releases>      |
+| nvidia-device-plugin      | kube-system    | `ghcr.io/home-operations/charts-mirror/nvidia-device-plugin`           | <https://github.com/NVIDIA/k8s-device-plugin/releases>            |
+| reloader                  | kube-system    | `ghcr.io/stakater/charts/reloader`                                     | <https://github.com/stakater/Reloader/releases>                   |
+| spegel                    | kube-system    | `ghcr.io/spegel-org/helm-charts/spegel`                                | <https://github.com/spegel-org/spegel/releases>                   |
+| cert-manager              | cert-manager   | `quay.io/jetstack/charts/cert-manager`                                 | <https://github.com/cert-manager/cert-manager/releases>           |
+| flux-operator             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`                   | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
+| flux-instance             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`                   | same repository as flux-operator                                  |
+| cloudflare-dns            | network        | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| cloudflare-tunnel         | network        | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| cloudflare-tunnel (image) | network        | `docker.io/cloudflare/cloudflared`                                     | <https://github.com/cloudflare/cloudflared/releases>              |
+| envoy-gateway             | network        | `mirror.gcr.io/envoyproxy/gateway-helm`                                | <https://github.com/envoyproxy/gateway/releases>                  |
+| k8s-gateway               | network        | `codeberg.org/k8s-gateway/charts/k8s-gateway`                          | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
+| local-path-provisioner    | storage        | `ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` | <https://github.com/rancher/local-path-provisioner/releases>      |
+| llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
+| echo                      | default        | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
+| prometheus-operator-crds  | bootstrap only | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
 
 The charts under `charts-mirror` are copies of the upstream chart, so the upstream project's notes apply.
 
@@ -59,6 +60,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **cloudflare-dns** ships the `DNSEndpoint` CRD, which the cloudflare-tunnel app uses.
 - **nvidia-device-plugin** renders only when a node lists the `nvidia` kernel module. The driver itself comes
   from the Talos extension, not from this chart.
+- **local-path-provisioner** backs every PersistentVolume in the cluster. A volume is a directory under
+  `/var/mnt/local-path` on one node (the Talos user volume in `talos/all/72-volumes.yaml`), so a pod using it is
+  pinned to that node and the volume has no size limit. Before updating, read the notes for a change to the path
+  layout or the helper pod: either could orphan existing volumes.
 - **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
   (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
   updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model is a second image,
@@ -125,6 +130,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses |
 | envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                |
 | k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address             |
+| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`        |
 | llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                        |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                    |
 | reloader, spegel             | the common checks                                                                                                     | pods Running                             |
