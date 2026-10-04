@@ -34,6 +34,14 @@ spec:
     prometheus:
       prometheusSpec:
         retention: 14d
+        # Memory follows the series count, not retention. The limit is three times
+        # the measured peak, because replaying the WAL after a restart needs more
+        # than steady state and a limit that is too tight ends in a crash loop.
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 3Gi
         # Use every monitor and rule in the cluster, not only this release's.
         podMonitorSelectorNilUsesHelmValues: false
         probeSelectorNilUsesHelmValues: false
@@ -61,6 +69,11 @@ spec:
     grafana:
       admin:
         existingSecret: grafana-secret
+      resources:
+        requests:
+          memory: 256Mi
+        limits:
+          memory: 768Mi
       # The volume is ReadWriteOnce, so the old pod has to stop first.
       deploymentStrategy:
         type: Recreate
