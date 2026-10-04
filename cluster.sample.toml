@@ -260,6 +260,32 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Postgres backups. Each database in the cluster backs up to this
+#    S3-compatible object store (Cloudflare R2, Backblaze B2, MinIO, ...).
+#    Set ALL FOUR fields below to enable; leaving them all blank disables
+#    backups. The two keys are written to a SOPS-encrypted Secret.
+# =============================================================================
+[postgres.backup]
+
+# S3 API endpoint of the object store: https and a hostname, no path.
+# OPTIONAL. Example (R2): "https://<account-id>.r2.cloudflarestorage.com"
+
+# endpoint = ""
+
+# Bucket that holds the backups.
+# OPTIONAL. Example: "home-cluster-pg"
+
+# bucket = ""
+
+# Access key pair with read and write access to the bucket's objects. For
+# R2, create an API token with "Object Read & Write" scoped to the bucket.
+# OPTIONAL.
+
+# access_key_id = ""
+# secret_access_key = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

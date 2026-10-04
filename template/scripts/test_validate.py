@@ -158,6 +158,42 @@ def test_partial_bgp_rejected():
         _load_raw(raw)
 
 
+POSTGRES_BACKUP = {
+    "postgres.backup.endpoint": "https://fake.r2.cloudflarestorage.com",
+    "postgres.backup.bucket": "fake",
+    "postgres.backup.access_key_id": "fake",
+    "postgres.backup.secret_access_key": "fake",
+}
+
+
+def test_postgres_backup_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).postgres_backup_enabled is False
+    assert _load_raw(config_from("private.toml", **POSTGRES_BACKUP)).postgres_backup_enabled is True
+
+
+def test_partial_postgres_backup_names_missing_fields():
+    raw = config_from("private.toml", **POSTGRES_BACKUP | {"postgres.backup.bucket": None})
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: bucket\)"):
+        _load_raw(raw)
+
+
+def test_postgres_backup_endpoint_must_be_https_host():
+    raw = config_from(
+        "private.toml",
+        **POSTGRES_BACKUP | {"postgres.backup.endpoint": "https://fake.example.com/bucket"},
+    )
+    with pytest.raises(ConfigError, match=r"postgres\.backup\.endpoint"):
+        _load_raw(raw)
+
+
+def test_postgres_backup_key_rejects_yaml_escapes():
+    raw = config_from(
+        "private.toml", **POSTGRES_BACKUP | {"postgres.backup.secret_access_key": "a\\tb"}
+    )
+    with pytest.raises(ConfigError, match=r"postgres\.backup\.secret_access_key"):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]

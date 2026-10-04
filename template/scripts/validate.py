@@ -191,6 +191,31 @@ class Cilium(Model):
     bgp: Bgp = Bgp()
 
 
+class PostgresBackup(Model):
+    # S3 API endpoint of the object store, without a path.
+    endpoint: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
+    bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
+    # Rendered inside a double-quoted YAML string, where a quote or a
+    # backslash would change the value.
+    access_key_id: str = Field(default="", pattern=r'^[^"\\\s]*$')
+    secret_access_key: str = Field(default="", pattern=r'^[^"\\\s]*$')
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        names = ("endpoint", "bucket", "access_key_id", "secret_access_key")
+        unset = [name for name in names if getattr(self, name) == ""]
+        if unset and len(unset) < len(names):
+            raise ValueError(
+                "backup is partially configured: set endpoint, bucket, "
+                f"access_key_id and secret_access_key together (missing: {', '.join(unset)})"
+            )
+        return self
+
+
+class Postgres(Model):
+    backup: PostgresBackup = PostgresBackup()
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -230,6 +255,7 @@ class Config(Model):
     cilium: Cilium = Cilium()
     talos: Talos = Talos()
     spegel: Spegel = Spegel()
+    postgres: Postgres = Postgres()
     nodes: list[Node]
 
     @computed_field
@@ -250,6 +276,12 @@ class Config(Model):
     @property
     def nvidia_enabled(self) -> bool:
         return any("nvidia" in node.kernel_modules for node in self.nodes)
+
+    # The backup fields are set all together or not at all.
+    @computed_field
+    @property
+    def postgres_backup_enabled(self) -> bool:
+        return self.postgres.backup.endpoint != ""
 
     @computed_field
     @property

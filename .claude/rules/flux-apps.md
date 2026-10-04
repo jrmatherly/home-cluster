@@ -16,7 +16,7 @@ Flux reconciles `kubernetes/` from Git. During the template stage, edit the `.j2
     - `targetNamespace: <namespace>`
     - `sourceRef` set to the `flux-system` GitRepository
     - `postBuild.substituteFrom` set to the `cluster-secrets` Secret, which provides `${SECRET_DOMAIN}` and the other cluster values
-- `wait: false` is the default. Two apps set `wait: true` (`flux-operator`, `cloudflare-dns`), and `cert-manager` uses `healthChecks`. Use `dependsOn` only for a real ordering need. `flux-instance` depending on `flux-operator` is the one case today.
+- `wait: false` is the default. Four apps set `wait: true` (`flux-operator`, `cloudflare-dns`, `cloudnative-pg`, `plugin-barman-cloud`), and `cert-manager` uses `healthChecks`. Use `dependsOn` only for a real ordering need: `flux-instance` depends on `flux-operator`, and an app with a Postgres database depends on `cloudnative-pg` and `plugin-barman-cloud` (both in `cnpg-system`), because its manifests use their CRDs.
 - `apps/<namespace>/<app>/app/` holds a `kustomization.yaml` that lists `helmrelease.yaml`, `ocirepository.yaml`, and any extra manifests. The `HelmRelease` uses `chartRef: {kind: OCIRepository, name: <app>}`, and the `OCIRepository` pins the chart with `ref.tag`.
 - Renovate updates chart tags and images in these files without annotations, because the `home-operations/renovate-presets` default extends the flux, kubernetes, and helm-values managers to `.yaml.j2`. Don't add `# renovate:` comments here.
 - A Secret goes in `secret.sops.yaml`. sops encrypts only `data` and `stringData`, per the `.sops.yaml` creation rules, so keep the keys readable. Never commit a decrypted secret.

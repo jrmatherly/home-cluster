@@ -303,6 +303,53 @@
       "title": "Node",
       "type": "object"
     },
+    "Postgres": {
+      "additionalProperties": false,
+      "properties": {
+        "backup": {
+          "$ref": "#/$defs/PostgresBackup",
+          "default": {
+            "endpoint": "",
+            "bucket": "",
+            "access_key_id": "",
+            "secret_access_key": ""
+          }
+        }
+      },
+      "title": "Postgres",
+      "type": "object"
+    },
+    "PostgresBackup": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "default": "",
+          "pattern": "^(https://[^/\\s]+)?$",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "bucket": {
+          "default": "",
+          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
+          "title": "Bucket",
+          "type": "string"
+        },
+        "access_key_id": {
+          "default": "",
+          "pattern": "^[^\"\\\\\\s]*$",
+          "title": "Access Key Id",
+          "type": "string"
+        },
+        "secret_access_key": {
+          "default": "",
+          "pattern": "^[^\"\\\\\\s]*$",
+          "title": "Secret Access Key",
+          "type": "string"
+        }
+      },
+      "title": "PostgresBackup",
+      "type": "object"
+    },
     "Repository": {
       "additionalProperties": false,
       "properties": {
@@ -417,6 +464,17 @@
       "$ref": "#/$defs/Spegel",
       "default": {
         "enabled": null
+      }
+    },
+    "postgres": {
+      "$ref": "#/$defs/Postgres",
+      "default": {
+        "backup": {
+          "access_key_id": "",
+          "bucket": "",
+          "endpoint": "",
+          "secret_access_key": ""
+        }
       }
     },
     "nodes": {

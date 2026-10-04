@@ -1,0 +1,9 @@
+#% if postgres_backup_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ./imagecatalog.yaml
+  - ./objectstore.yaml
+  - ./secret.sops.yaml
+#% endif %#
