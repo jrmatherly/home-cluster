@@ -1,0 +1,28 @@
+#% if postgres_backup_enabled %#
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-drill
+spec:
+  instances: 1
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: postgresql
+    major: 18
+  bootstrap:
+    initdb:
+      postInitApplicationSQL:
+        - CREATE TABLE drill (note text)
+        - INSERT INTO drill VALUES ('written before the first backup')
+        - ALTER TABLE drill OWNER TO app
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: postgres-backup
+  storage:
+    storageClass: local-path
+    size: 1Gi
+#% endif %#

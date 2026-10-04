@@ -1,0 +1,15 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: pg-drill
+spec:
+  # Six fields, seconds first: every hour.
+  schedule: "0 0 * * * *"
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: pg-drill
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
