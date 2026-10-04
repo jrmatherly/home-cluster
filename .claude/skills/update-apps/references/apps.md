@@ -23,6 +23,8 @@ The chart column is what the template pins. The releases column is where the not
 | cloudflare-tunnel (image) | network        | `docker.io/cloudflare/cloudflared`                             | <https://github.com/cloudflare/cloudflared/releases>              |
 | envoy-gateway             | network        | `mirror.gcr.io/envoyproxy/gateway-helm`                        | <https://github.com/envoyproxy/gateway/releases>                  |
 | k8s-gateway               | network        | `codeberg.org/k8s-gateway/charts/k8s-gateway`                  | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
+| llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                         | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                   | <https://github.com/ggml-org/llama.cpp/releases>                  |
 | echo                      | default        | `ghcr.io/home-operations/charts/echo`                          | not identified; ask the user or search before a non-patch bump    |
 | prometheus-operator-crds  | bootstrap only | `ghcr.io/prometheus-community/charts/prometheus-operator-crds` | <https://github.com/prometheus-community/helm-charts/releases>    |
 
@@ -57,6 +59,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **cloudflare-dns** ships the `DNSEndpoint` CRD, which the cloudflare-tunnel app uses.
 - **nvidia-device-plugin** renders only when a node lists the `nvidia` kernel module. The driver itself comes
   from the Talos extension, not from this chart.
+- **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
+  (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
+  updating the tag. The inventory cannot read the image's `server-cuda-v*` tags: it reports `?` and exits
+  non-zero, so check <https://github.com/ggml-org/llama.cpp/releases> by hand. The model file is pinned by commit
+  and sha256 in the init container's command, and the inventory does not track it either.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster. Applying it needs the CRD step of the bootstrap
   run by hand, which is the user's decision. Report the pending version and stop.
@@ -115,5 +122,6 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses |
 | envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                |
 | k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address             |
+| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                        |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                    |
 | reloader, spegel             | the common checks                                                                                                     | pods Running                             |

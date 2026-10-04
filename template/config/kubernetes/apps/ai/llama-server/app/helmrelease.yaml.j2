@@ -1,0 +1,89 @@
+#% if nvidia_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: llama-server
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: llama-server
+  interval: 1h
+  # The first start pulls a multi-gigabyte image and downloads the model.
+  timeout: 15m
+  values:
+    controllers:
+      llama-server:
+        strategy: Recreate
+        initContainers:
+          model:
+            image: &image
+              repository: ghcr.io/ggml-org/llama.cpp
+              tag: server-cuda-v0.5.0
+            command: ["/bin/sh", "-ec"]
+            # Pinned to a commit and checked against the file's sha256, so a
+            # changed upstream file fails the pod instead of loading.
+            args:
+              - |-
+                curl -fsSL --retry 3 -o /models/model.gguf \
+                  https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/resolve/78eb92a46fc37e6b524df991ed9aca9bc6aa7b80/Phi-4-mini-instruct-Q4_K_M.gguf
+                echo "88c00229914083cd112853aab84ed51b87bdf6b9ce42f532d8c85c7c63b1730a  /models/model.gguf" | sha256sum -c
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *image
+            args:
+              - --model=/models/model.gguf
+              - --n-gpu-layers=all
+              - --ctx-size=4096
+              - --parallel=2
+              - --predict=200
+              - --port=8080
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: &health
+                    path: /health
+                    port: &port 8080
+                  periodSeconds: 5
+                  failureThreshold: 60
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: *health
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 500m
+                memory: 4Gi
+              limits:
+                memory: 8Gi
+                nvidia.com/gpu: 1
+    defaultPodOptions:
+      runtimeClassName: nvidia
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      models:
+        type: emptyDir
+        globalMounts:
+          - path: /models
+#% endif %#
