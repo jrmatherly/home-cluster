@@ -1,0 +1,12 @@
+#% if observability_enabled %#
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    # node-exporter runs on the host network and mounts the host's root filesystem.
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+#% endif %#

@@ -1,0 +1,85 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: influxdb
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: influxdb
+  interval: 1h
+  values:
+    controllers:
+      influxdb:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: docker.io/library/influxdb
+              tag: 2.9.1-alpine
+            env:
+              # Read on the first start only, when the data volume is empty.
+              DOCKER_INFLUXDB_INIT_MODE: setup
+              DOCKER_INFLUXDB_INIT_USERNAME: admin
+              DOCKER_INFLUXDB_INIT_ORG: home
+              DOCKER_INFLUXDB_INIT_BUCKET: proxmox
+              DOCKER_INFLUXDB_INIT_RETENTION: 52w
+            envFrom:
+              - secretRef:
+                  name: influxdb-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: &port 8086
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    route:
+      app:
+        hostnames:
+          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        globalMounts:
+          - path: /var/lib/influxdb2
+            subPath: data
+          - path: /etc/influxdb2
+            subPath: config
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

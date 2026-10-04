@@ -286,6 +286,32 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Observability stack: Prometheus, Alertmanager and Grafana
+#    (kube-prometheus-stack), plus InfluxDB 2 for metrics pushed from outside
+#    the cluster. Set ALL THREE fields below to enable; leaving them all blank
+#    skips the stack. The values are written to SOPS-encrypted Secrets.
+#    InfluxDB reads its password and token only on first start, so choose
+#    them before the first deploy.
+# =============================================================================
+[observability]
+
+# Password of the Grafana "admin" user.
+# OPTIONAL.
+
+# grafana_password = ""
+
+# Password of the InfluxDB "admin" user, at least 8 characters.
+# OPTIONAL.
+
+# influxdb_password = ""
+
+# InfluxDB admin API token. Grafana reads InfluxDB with it.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# influxdb_token = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

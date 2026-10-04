@@ -62,10 +62,24 @@ def _asn(value: str) -> str:
 type Cidr = Annotated[IPv4Network, BeforeValidator(_network)]
 type Asn = Annotated[str, AfterValidator(_asn)]
 type Fqdn = Annotated[str, Field(pattern=FQDN_PATTERN)]
+# A secret rendered inside a double-quoted YAML string, where a quote or a
+# backslash would change the value. Flux substitutes ${...} in the rendered
+# manifest, so a dollar sign is out too.
+type Secret = Annotated[str, Field(pattern=r'^[^"\\\s$]*$')]
 
 
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+# Reject a section where only some of the fields in names are set.
+def _all_or_none(model: Model, label: str, names: tuple[str, ...]) -> None:
+    unset = [name for name in names if getattr(model, name) == ""]
+    if unset and len(unset) < len(names):
+        raise ValueError(
+            f"{label} is partially configured: set {', '.join(names[:-1])} and "
+            f"{names[-1]} together (missing: {', '.join(unset)})"
+        )
 
 
 class Network(Model):
@@ -195,25 +209,31 @@ class PostgresBackup(Model):
     # S3 API endpoint of the object store, without a path.
     endpoint: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
     bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    # Rendered inside a double-quoted YAML string, where a quote or a
-    # backslash would change the value.
-    access_key_id: str = Field(default="", pattern=r'^[^"\\\s]*$')
-    secret_access_key: str = Field(default="", pattern=r'^[^"\\\s]*$')
+    access_key_id: Secret = ""
+    secret_access_key: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        names = ("endpoint", "bucket", "access_key_id", "secret_access_key")
-        unset = [name for name in names if getattr(self, name) == ""]
-        if unset and len(unset) < len(names):
-            raise ValueError(
-                "backup is partially configured: set endpoint, bucket, "
-                f"access_key_id and secret_access_key together (missing: {', '.join(unset)})"
-            )
+        _all_or_none(self, "backup", ("endpoint", "bucket", "access_key_id", "secret_access_key"))
         return self
 
 
 class Postgres(Model):
     backup: PostgresBackup = PostgresBackup()
+
+
+class Observability(Model):
+    grafana_password: Secret = ""
+    # InfluxDB rejects a password shorter than 8 characters.
+    influxdb_password: Secret = Field(default="", pattern=r'^([^"\\\s$]{8,})?$')
+    influxdb_token: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(
+            self, "observability", ("grafana_password", "influxdb_password", "influxdb_token")
+        )
+        return self
 
 
 class Node(Model):
@@ -256,6 +276,7 @@ class Config(Model):
     talos: Talos = Talos()
     spegel: Spegel = Spegel()
     postgres: Postgres = Postgres()
+    observability: Observability = Observability()
     nodes: list[Node]
 
     @computed_field
@@ -282,6 +303,12 @@ class Config(Model):
     @property
     def postgres_backup_enabled(self) -> bool:
         return self.postgres.backup.endpoint != ""
+
+    # Gates the observability namespace, whose apps need all three secrets.
+    @computed_field
+    @property
+    def observability_enabled(self) -> bool:
+        return self.observability.grafana_password != ""
 
     @computed_field
     @property

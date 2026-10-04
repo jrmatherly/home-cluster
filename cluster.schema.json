@@ -303,6 +303,25 @@
       "title": "Node",
       "type": "object"
     },
+    "Observability": {
+      "additionalProperties": false,
+      "properties": {
+        "grafana_password": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "influxdb_password": {
+          "$ref": "#/$defs/Secret_________s___8_______",
+          "default": ""
+        },
+        "influxdb_token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "Observability",
+      "type": "object"
+    },
     "Postgres": {
       "additionalProperties": false,
       "properties": {
@@ -335,16 +354,12 @@
           "type": "string"
         },
         "access_key_id": {
-          "default": "",
-          "pattern": "^[^\"\\\\\\s]*$",
-          "title": "Access Key Id",
-          "type": "string"
+          "$ref": "#/$defs/Secret",
+          "default": ""
         },
         "secret_access_key": {
-          "default": "",
-          "pattern": "^[^\"\\\\\\s]*$",
-          "title": "Secret Access Key",
-          "type": "string"
+          "$ref": "#/$defs/Secret",
+          "default": ""
         }
       },
       "title": "PostgresBackup",
@@ -379,6 +394,14 @@
       "required": ["url"],
       "title": "Repository",
       "type": "object"
+    },
+    "Secret": {
+      "pattern": "^[^\"\\\\\\s$]*$",
+      "type": "string"
+    },
+    "Secret_________s___8_______": {
+      "pattern": "^([^\"\\\\\\s$]{8,})?$",
+      "type": "string"
     },
     "Spegel": {
       "additionalProperties": false,
@@ -475,6 +498,14 @@
           "endpoint": "",
           "secret_access_key": ""
         }
+      }
+    },
+    "observability": {
+      "$ref": "#/$defs/Observability",
+      "default": {
+        "grafana_password": "",
+        "influxdb_password": "",
+        "influxdb_token": ""
       }
     },
     "nodes": {

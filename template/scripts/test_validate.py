@@ -194,6 +194,32 @@ def test_postgres_backup_key_rejects_yaml_escapes():
         _load_raw(raw)
 
 
+OBSERVABILITY = {
+    "observability.grafana_password": "fake",
+    "observability.influxdb_password": "fakefake",
+    "observability.influxdb_token": "fake",
+}
+
+
+def test_observability_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).observability_enabled is False
+    assert _load_raw(config_from("private.toml", **OBSERVABILITY)).observability_enabled is True
+
+
+def test_partial_observability_names_missing_fields():
+    raw = config_from("private.toml", **OBSERVABILITY | {"observability.influxdb_token": None})
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: influxdb_token\)"):
+        _load_raw(raw)
+
+
+def test_influxdb_password_needs_eight_characters():
+    raw = config_from(
+        "private.toml", **OBSERVABILITY | {"observability.influxdb_password": "short"}
+    )
+    with pytest.raises(ConfigError, match=r"observability\.influxdb_password"):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]

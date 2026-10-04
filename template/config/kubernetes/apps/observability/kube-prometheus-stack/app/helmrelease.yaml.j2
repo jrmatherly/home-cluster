@@ -1,0 +1,85 @@
+#% if observability_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: kube-prometheus-stack
+  interval: 1h
+  timeout: 15m
+  values:
+    # Cilium replaces kube-proxy.
+    kubeProxy:
+      enabled: false
+    # Talos runs etcd as a host service, not a pod, so there is nothing to select.
+    kubeEtcd:
+      endpoints:
+        #% for node in nodes if node.controller %#
+        - #{ node.address }#
+        #% endfor %#
+    prometheus:
+      prometheusSpec:
+        retention: 14d
+        # Use every monitor and rule in the cluster, not only this release's.
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        scrapeConfigSelectorNilUsesHelmValues: false
+        serviceMonitorSelectorNilUsesHelmValues: false
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local-path
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 20Gi
+    alertmanager:
+      alertmanagerSpec:
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local-path
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
+    grafana:
+      admin:
+        existingSecret: grafana-secret
+      # The volume is ReadWriteOnce, so the old pod has to stop first.
+      deploymentStrategy:
+        type: Recreate
+      persistence:
+        enabled: true
+        storageClassName: local-path
+        size: 2Gi
+      route:
+        main:
+          enabled: true
+          hostnames:
+            - "grafana.${SECRET_DOMAIN}"
+          parentRefs:
+            - name: envoy-internal
+              namespace: network
+      envValueFrom:
+        INFLUXDB_TOKEN:
+          secretKeyRef:
+            name: grafana-secret
+            key: INFLUXDB_TOKEN
+      additionalDataSources:
+        - name: InfluxDB
+          type: influxdb
+          access: proxy
+          url: http://influxdb.observability.svc.cluster.local:8086
+          jsonData:
+            version: Flux
+            organization: home
+            defaultBucket: proxmox
+          secureJsonData:
+            # Grafana expands this from its environment. Flux leaves $VAR without braces alone.
+            token: $INFLUXDB_TOKEN
+#% endif %#
