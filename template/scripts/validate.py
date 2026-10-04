@@ -288,8 +288,9 @@ class Matherlynet(Model):
     # Signs the site's sessions.
     better_auth_secret: Secret = ""
     admin_email: str = Field(default="", pattern=r'^([^@\s"\\$]+@[^@\s"\\$]+\.[^@\s"\\$]+)?$')
-    # Where the site sends mail. Unset, it sends none.
-    smtp_url: Secret = ""
+    # Where the site sends mail. Unset, it sends none. A bare host name makes the
+    # site's mail library throw on every request, so require the URL form.
+    smtp_url: str = Field(default="", pattern=r'^(smtps?://[^"\\\s$]+)?$')
     # Sender address, which may carry a display name: "Name <a@b.c>".
     mail_from: str = Field(default="", pattern=r'^[^"\\$\r\n]*$')
     # OAuth apps for signing in with GitHub or Google.

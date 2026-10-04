@@ -413,10 +413,12 @@ schematic_id = ""
 
 # admin_email = ""
 
-# SMTP server the site sends mail through. Percent-encode any character in
-# the username or password that is a quote, a backslash, a space or a dollar
-# sign. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: "smtps://user:password@smtp.example.com:465"
+# SMTP server the site sends mail through, as a URL: smtps:// for implicit TLS
+# (port 465), smtp:// for STARTTLS (port 587). A bare host name is rejected.
+# Percent-encode any character in the username or password that is a quote, a
+# backslash, a space, a dollar sign or an at sign (%40).
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: "smtp://user%40example.com:password@smtp.example.com:587"
 
 # smtp_url = ""
 

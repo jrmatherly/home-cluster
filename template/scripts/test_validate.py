@@ -430,6 +430,12 @@ def test_matherlynet_option_requires_section(field, value):
         _load_raw(raw)
 
 
+def test_matherlynet_smtp_url_must_be_a_url():
+    raw = config_from("public.toml", **{"matherlynet.smtp_url": "smtp.example.com"})
+    with pytest.raises(ConfigError, match=r"matherlynet\.smtp_url"):
+        _load_raw(raw)
+
+
 def test_matherlynet_mail_from_rejects_dollar():
     raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.mail_from": "a$b@example.com"})
     with pytest.raises(ConfigError, match=r"matherlynet\.mail_from"):

@@ -201,8 +201,10 @@
           "type": "string"
         },
         "smtp_url": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+          "default": "",
+          "pattern": "^(smtps?://[^\"\\\\\\s$]+)?$",
+          "title": "Smtp Url",
+          "type": "string"
         },
         "mail_from": {
           "default": "",
