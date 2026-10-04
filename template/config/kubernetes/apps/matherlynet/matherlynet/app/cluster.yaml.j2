@@ -1,0 +1,24 @@
+#% if matherlynet_enabled %#
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: matherlynet-db
+spec:
+  # Each instance is pinned to a node by its local-path volume, so a second one
+  # keeps the site up when a node goes down.
+  instances: 2
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: postgresql
+    major: 18
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: postgres-backup
+  storage:
+    storageClass: local-path
+    size: 5Gi
+#% endif %#

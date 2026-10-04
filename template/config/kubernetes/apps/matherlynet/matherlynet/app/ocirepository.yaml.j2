@@ -1,0 +1,15 @@
+#% if matherlynet_enabled %#
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: matherlynet
+spec:
+  interval: 15m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    tag: 0.29.1
+  url: oci://ghcr.io/jrmatherly/matherlynet/charts/matherlynet
+#% endif %#

@@ -393,6 +393,60 @@ schematic_id = ""
 
 
 # =============================================================================
+#    matherlynet, the public website, at https://<domain.name> (www redirects
+#    there) through the Cloudflare tunnel, with its own Postgres database.
+#    Needs [postgres.backup], because its database holds accounts, and
+#    ingress.mode "cloudflare-tunnel", because the site trusts the client
+#    address Cloudflare reports. Set better_auth_secret and admin_email to
+#    enable; leaving them blank skips it.
+# =============================================================================
+[matherlynet]
+
+# Signs the site's sessions. Changing it signs everyone out.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 32`
+
+# better_auth_secret = ""
+
+# Email address of the site's admin account.
+# OPTIONAL. Example: "you@example.com"
+
+# admin_email = ""
+
+# SMTP server the site sends mail through. Percent-encode any character in
+# the username or password that is a quote, a backslash, a space or a dollar
+# sign. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: "smtps://user:password@smtp.example.com:465"
+
+# smtp_url = ""
+
+# Sender of the site's mail.
+# OPTIONAL. Example: "matherlynet <noreply@example.com>"
+
+# mail_from = ""
+
+# OAuth app for signing in with GitHub. Set both fields or neither. The
+# secret is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# github_client_id = ""
+# github_client_secret = ""
+
+# OAuth client for signing in with Google. Set both fields or neither. The
+# secret is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# google_client_id = ""
+# google_client_secret = ""
+
+# Lets the site call llama-server for its playground. Needs a node that loads
+# the nvidia kernel module.
+# OPTIONAL. Default: false
+
+# playground = false
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

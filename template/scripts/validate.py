@@ -284,6 +284,43 @@ class Radar(Model):
         return self
 
 
+class Matherlynet(Model):
+    # Signs the site's sessions.
+    better_auth_secret: Secret = ""
+    admin_email: str = Field(default="", pattern=r'^([^@\s"\\$]+@[^@\s"\\$]+\.[^@\s"\\$]+)?$')
+    # Where the site sends mail. Unset, it sends none.
+    smtp_url: Secret = ""
+    # Sender address, which may carry a display name: "Name <a@b.c>".
+    mail_from: str = Field(default="", pattern=r'^[^"\\$\r\n]*$')
+    # OAuth apps for signing in with GitHub or Google.
+    github_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    github_client_secret: Secret = ""
+    google_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    google_client_secret: Secret = ""
+    # Lets the site call the in-cluster llama-server.
+    playground: bool = False
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "matherlynet", ("better_auth_secret", "admin_email"))
+        _all_or_none(self, "matherlynet", ("github_client_id", "github_client_secret"))
+        _all_or_none(self, "matherlynet", ("google_client_id", "google_client_secret"))
+        if not self.better_auth_secret:
+            for name in (
+                "smtp_url",
+                "mail_from",
+                "github_client_id",
+                "google_client_id",
+                "playground",
+            ):
+                if getattr(self, name):
+                    raise ValueError(
+                        f"{name} requires better_auth_secret and admin_email: "
+                        "the site only runs when both are set"
+                    )
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -328,6 +365,7 @@ class Config(Model):
     unifi: Unifi = Unifi()
     pocket_id: PocketId = PocketId()
     radar: Radar = Radar()
+    matherlynet: Matherlynet = Matherlynet()
     nodes: list[Node]
 
     @computed_field
@@ -380,6 +418,12 @@ class Config(Model):
     def radar_enabled(self) -> bool:
         return self.radar.oidc_client_id != ""
 
+    # Gates the matherlynet website and its database.
+    @computed_field
+    @property
+    def matherlynet_enabled(self) -> bool:
+        return self.matherlynet.better_auth_secret != ""
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -425,6 +469,21 @@ class Config(Model):
             raise ValueError(
                 "observability.grafana_oidc_client_id requires pocket_id: "
                 "Pocket ID is the OIDC provider Grafana signs in with"
+            )
+        if self.matherlynet_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "matherlynet requires postgres.backup: its database holds accounts, "
+                "which cannot be recreated"
+            )
+        if self.matherlynet_enabled and self.ingress.mode != "cloudflare-tunnel":
+            raise ValueError(
+                "matherlynet requires ingress.mode 'cloudflare-tunnel': the site trusts "
+                "the client address header Cloudflare sets"
+            )
+        if self.matherlynet.playground and not self.nvidia_enabled:
+            raise ValueError(
+                "matherlynet.playground requires an NVIDIA node: llama-server only "
+                "runs when a node loads the nvidia kernel module"
             )
 
         cidrs = {

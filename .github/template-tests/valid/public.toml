@@ -61,6 +61,15 @@ encryption_key = "fakefakefakefake"
 oidc_client_id     = "fake"
 oidc_client_secret = "fake"
 
+[matherlynet]
+better_auth_secret   = "fake"
+admin_email          = "admin@example.com"
+smtp_url             = "smtps://fake:fake@smtp.example.com:465"
+mail_from            = "matherlynet <noreply@example.com>"
+github_client_id     = "fake-github-client"
+github_client_secret = "fake"
+playground           = true
+
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
 

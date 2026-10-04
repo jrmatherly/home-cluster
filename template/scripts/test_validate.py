@@ -104,7 +104,7 @@ def test_controller_count_ignores_workers():
 
 
 def test_nvidia_enabled_follows_kernel_modules():
-    raw = config_from("public.toml")
+    raw = config_from("public.toml", **{"matherlynet.playground": False})
     assert raw["nodes"][1]["kernel_modules"] == ["nvidia", "nvidia_uvm"]
     assert _load_raw(raw).nvidia_enabled is True
     raw["nodes"][1]["kernel_modules"] = ["nvidia_uvm"]
@@ -361,3 +361,100 @@ def test_schema_file_matches_model():
 
 def test_schema_omits_computed_fields():
     assert "cluster_issuer" not in schema()["properties"]
+
+
+MATHERLYNET = POSTGRES_BACKUP | {
+    "matherlynet.better_auth_secret": "fake",
+    "matherlynet.admin_email": "admin@example.com",
+}
+GITHUB_OAUTH = {
+    "matherlynet.github_client_id": "fake-github-client",
+    "matherlynet.github_client_secret": "fake",
+}
+
+
+def test_matherlynet_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).matherlynet_enabled is False
+    assert _load_raw(config_from("private.toml", **MATHERLYNET)).matherlynet_enabled is True
+
+
+def test_partial_matherlynet_names_missing_field():
+    raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.admin_email": None})
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: admin_email\)"):
+        _load_raw(raw)
+
+
+def test_partial_matherlynet_oauth_names_missing_field():
+    raw = config_from(
+        "private.toml",
+        **MATHERLYNET | GITHUB_OAUTH | {"matherlynet.github_client_secret": None},
+    )
+    with pytest.raises(
+        ConfigError, match=r"partially configured.*\(missing: github_client_secret\)"
+    ):
+        _load_raw(raw)
+
+
+def test_matherlynet_optional_fields_accepted():
+    raw = config_from(
+        "private.toml",
+        **MATHERLYNET
+        | GITHUB_OAUTH
+        | {
+            "matherlynet.smtp_url": "smtps://user:p%40ss@smtp.example.com:465",
+            "matherlynet.mail_from": "matherlynet <noreply@example.com>",
+            "matherlynet.playground": True,
+        },
+    )
+    matherlynet = _load_raw(raw).matherlynet
+    assert matherlynet.mail_from == "matherlynet <noreply@example.com>"
+    assert matherlynet.github_client_id == "fake-github-client"
+    assert matherlynet.playground is True
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("smtp_url", "smtps://smtp.example.com"),
+        ("mail_from", "noreply@example.com"),
+        ("google_client_id", "fake"),
+        ("playground", True),
+    ],
+)
+def test_matherlynet_option_requires_section(field, value):
+    overrides = {f"matherlynet.{field}": value}
+    if field == "google_client_id":
+        overrides["matherlynet.google_client_secret"] = "fake"
+    raw = config_from("private.toml", **overrides)
+    with pytest.raises(ConfigError, match=rf"{field} requires better_auth_secret and admin_email"):
+        _load_raw(raw)
+
+
+def test_matherlynet_mail_from_rejects_dollar():
+    raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.mail_from": "a$b@example.com"})
+    with pytest.raises(ConfigError, match=r"matherlynet\.mail_from"):
+        _load_raw(raw)
+
+
+def test_matherlynet_requires_postgres_backup():
+    raw = config_from(
+        "private.toml",
+        **{"matherlynet.better_auth_secret": "fake", "matherlynet.admin_email": "a@example.com"},
+    )
+    with pytest.raises(ConfigError, match=r"matherlynet requires postgres\.backup"):
+        _load_raw(raw)
+
+
+def test_matherlynet_requires_cloudflare_tunnel():
+    raw = config_from("private.toml", **MATHERLYNET | {"ingress.mode": "direct"})
+    with pytest.raises(
+        ConfigError, match=r"matherlynet requires ingress\.mode 'cloudflare-tunnel'"
+    ):
+        _load_raw(raw)
+
+
+def test_matherlynet_playground_requires_nvidia():
+    raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.playground": True})
+    raw["nodes"][1]["kernel_modules"] = []
+    with pytest.raises(ConfigError, match=r"matherlynet\.playground requires an NVIDIA node"):
+        _load_raw(raw)

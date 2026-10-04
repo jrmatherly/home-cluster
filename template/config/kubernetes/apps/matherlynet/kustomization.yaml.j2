@@ -1,0 +1,13 @@
+#% if matherlynet_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: matherlynet
+
+components:
+  - ../../components/sops
+
+resources:
+  - ./namespace.yaml
+  - ./matherlynet/ks.yaml
+#% endif %#
