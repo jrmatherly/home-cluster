@@ -56,7 +56,24 @@ spec:
                 requests:
                   storage: 20Gi
     alertmanager:
+      # Helm merges this over the chart's config, so its grouping and inhibit rules stay.
+      config:
+        route:
+          receiver: discord
+          routes:
+            # Watchdog always fires, and InfoInhibitor only exists to mute info alerts.
+            - receiver: "null"
+              matchers:
+                - alertname =~ "Watchdog|InfoInhibitor"
+        receivers:
+          - name: "null"
+          - name: discord
+            discord_configs:
+              - webhook_url_file: /etc/alertmanager/secrets/alertmanager-secret/discord-webhook
       alertmanagerSpec:
+        # Mounted at /etc/alertmanager/secrets/alertmanager-secret.
+        secrets:
+          - alertmanager-secret
         storage:
           volumeClaimTemplate:
             spec:
