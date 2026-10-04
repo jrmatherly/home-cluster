@@ -24,6 +24,8 @@ The chart column is what the template pins. The releases column is where the not
 | envoy-gateway             | network        | `mirror.gcr.io/envoyproxy/gateway-helm`                                | <https://github.com/envoyproxy/gateway/releases>                  |
 | k8s-gateway               | network        | `codeberg.org/k8s-gateway/charts/k8s-gateway`                          | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
 | local-path-provisioner    | storage        | `ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` | <https://github.com/rancher/local-path-provisioner/releases>      |
+| cloudnative-pg            | cnpg-system    | `ghcr.io/cloudnative-pg/charts/cloudnative-pg`                         | <https://github.com/cloudnative-pg/cloudnative-pg/releases>       |
+| plugin-barman-cloud       | cnpg-system    | `ghcr.io/cloudnative-pg/charts/plugin-barman-cloud`                    | <https://github.com/cloudnative-pg/plugin-barman-cloud/releases>  |
 | llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
 | echo                      | default        | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
@@ -64,6 +66,13 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `/var/mnt/local-path` on one node (the Talos user volume in `talos/all/72-volumes.yaml`), so a pod using it is
   pinned to that node and the volume has no size limit. Before updating, read the notes for a change to the path
   layout or the helper pod: either could orphan existing volumes.
+- **cloudnative-pg** is the Postgres operator, and its chart ships the CNPG CRDs. An operator update restarts the
+  pods of every Postgres cluster it manages, one cluster at a time with a switchover, so update it when a short
+  database interruption is acceptable. Read the upgrade notes for the target version first.
+- **plugin-barman-cloud** takes the Postgres backups and archives WAL. It must run in the operator's namespace,
+  and it talks to the operator over mutual TLS with certificates from cert-manager. It needs operator 1.26 or
+  newer, and its notes name any higher minimum: check that before updating either one. The chart also sets the
+  sidecar image that runs in every backed-up Postgres pod.
 - **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
   (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
   updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model is a second image,
@@ -131,6 +140,8 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                |
 | k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address             |
 | local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`        |
+| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                          | every cluster in a healthy state         |
+| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                 |
 | llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                        |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                    |
 | reloader, spegel             | the common checks                                                                                                     | pods Running                             |
