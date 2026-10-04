@@ -39,6 +39,15 @@ spec:
               fallthrough in-addr.arpa ip6.arpa
           - name: autopath
             parameters: "@kubernetes"
+          #% if pocket_id_enabled %#
+          # Pods can't resolve names that exist only on the internal gateway, because
+          # the node resolvers are on the internet. Answer Pocket ID's name here, so
+          # an OIDC client in the cluster can use the issuer URL with the WAN down.
+          - name: hosts
+            configBlock: |-
+              #{ gateways.internal }# auth.${SECRET_DOMAIN}
+              fallthrough
+          #% endif %#
           - name: forward
             parameters: . /etc/resolv.conf
           - name: cache

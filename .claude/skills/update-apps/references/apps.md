@@ -31,6 +31,8 @@ The chart column is what the template pins. The releases column is where the not
 | kube-prometheus-stack     | observability  | `ghcr.io/prometheus-community/charts/kube-prometheus-stack`            | <https://github.com/prometheus-community/helm-charts/releases>    |
 | influxdb                  | observability  | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | influxdb (image)          | observability  | `docker.io/library/influxdb`                                           | <https://github.com/influxdata/influxdb/releases>                 |
+| pocket-id                 | security       | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| pocket-id (image)         | security       | `ghcr.io/pocket-id/pocket-id`                                          | <https://github.com/pocket-id/pocket-id/releases>                 |
 | llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
 | echo                      | default        | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
@@ -96,6 +98,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **influxdb** stays on 2.x: InfluxDB 3 is a different database with no Flux, and a Renovate rule holds the image
   below 3. The admin password and token are read on the first start only, so changing them in `cluster.toml`
   later changes nothing in the database. The Proxmox hosts write to it over the internal gateway.
+- **pocket-id** is the identity provider, so a broken update locks every login that goes through it. Stay on the
+  `-distroless` image variant. It migrates its database on start and refuses to start on a database a newer
+  version migrated, so a rollback after a migration means restoring `pocket-id-db` from its backup: read the notes
+  for a migration before updating, and confirm a recent backup with `kubectl -n security get backup`. Its hostname
+  must never change, because passkeys are bound to it. Recovery after losing every passkey is
+  `kubectl -n security exec deploy/pocket-id -- /app/pocket-id one-time-access-token <user>`.
 - **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
   (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
   updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model is a second image,
@@ -174,6 +182,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                    |
 | kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"`    |
 | influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                           |
+| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `200`, and the passkey sign-in works        |
 | llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                           |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                       |
 | reloader, spegel             | the common checks                                                                                                     | pods Running                                |

@@ -1,0 +1,91 @@
+#% if pocket_id_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pocket-id
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: pocket-id
+  interval: 1h
+  values:
+    controllers:
+      pocket-id:
+        # Only one Pocket ID instance may use a database.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/pocket-id/pocket-id
+              tag: v2.17.0-distroless
+            env:
+              # Passkeys are bound to this hostname, so it must never change.
+              APP_URL: https://auth.${SECRET_DOMAIN}
+              TRUST_PROXY: "#{ kubernetes.pod_cidr }#"
+              # Uploads go in the backed-up database, so the pod needs no volume.
+              FILE_BACKEND: database
+              ALLOW_INSECURE_CALLBACK_URLS: "false"
+              # No outbound calls, so a login never depends on the internet.
+              ANALYTICS_DISABLED: "true"
+              VERSION_CHECK_DISABLED: "true"
+              DB_CONNECTION_STRING:
+                valueFrom:
+                  secretKeyRef:
+                    name: pocket-id-db-app
+                    key: uri
+            envFrom:
+              - secretRef:
+                  name: pocket-id-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: &port 1411
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    route:
+      app:
+        hostnames:
+          - auth.${SECRET_DOMAIN}
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+    persistence:
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /app/data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+#% endif %#
