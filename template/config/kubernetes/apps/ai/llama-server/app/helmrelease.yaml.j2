@@ -19,7 +19,7 @@ spec:
           model:
             image: &image
               repository: ghcr.io/ggml-org/llama.cpp
-              tag: server-cuda-v0.5.0
+              tag: server-cuda-v0.5.0@sha256:52192a23c7b258044463aebba78826cdff39a7393b713edc313324b343a7b836
             command: ["/bin/sh", "-ec"]
             # Pinned to a commit and checked against the file's sha256, so a
             # changed upstream file fails the pod instead of loading.
@@ -37,26 +37,44 @@ spec:
             image: *image
             env:
               LLAMA_ARG_MODEL: /models/model.gguf
+              LLAMA_ARG_ALIAS: phi-4-mini
               LLAMA_ARG_N_GPU_LAYERS: all
-              LLAMA_ARG_CTX_SIZE: 4096
-              LLAMA_ARG_N_PARALLEL: 2
+              # Four slots of 2048 tokens each.
+              LLAMA_ARG_CTX_SIZE: 8192
+              LLAMA_ARG_N_PARALLEL: 4
+              # The default when a request sets no max_tokens. It is not a cap.
               LLAMA_ARG_N_PREDICT: 200
               LLAMA_ARG_PORT: 8080
+              LLAMA_ARG_UI: false
             probes:
+              # The first request with a prompt of realistic length takes about 9 s after
+              # a model load, and a trivial one does not absorb that. This sends one, so
+              # the pod is Ready only when it is warm.
               startup:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet: &health
-                    path: /health
-                    port: &port 8080
+                  exec:
+                    command:
+                      - curl
+                      - -fsS
+                      - --output
+                      - /dev/null
+                      - --header
+                      - "Content-Type: application/json"
+                      - --data
+                      - '{"max_tokens":8,"messages":[{"role":"system","content":"You are a concise assistant. Answer in two or three sentences."},{"role":"user","content":"In plain words, what does a reverse proxy do for a small web app, and when is it worth adding one in front of a single server?"}]}'
+                      - http://localhost:8080/v1/chat/completions
                   periodSeconds: 5
+                  timeoutSeconds: 20
                   failureThreshold: 60
               liveness: &probes
                 enabled: true
                 custom: true
                 spec:
-                  httpGet: *health
+                  httpGet:
+                    path: /health
+                    port: &port 8080
                   periodSeconds: 10
                   timeoutSeconds: 3
                   failureThreshold: 3
@@ -76,6 +94,7 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
     service:
       app:
         ports:
