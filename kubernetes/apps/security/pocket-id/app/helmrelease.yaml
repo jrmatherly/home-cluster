@@ -78,6 +78,9 @@ spec:
         parentRefs:
           - name: envoy-internal
             namespace: network
+          - name: envoy-external
+            namespace: network
+            sectionName: https
     persistence:
       data:
         type: emptyDir
