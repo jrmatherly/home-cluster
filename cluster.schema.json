@@ -441,6 +441,23 @@
       },
       "title": "Talos",
       "type": "object"
+    },
+    "Unifi": {
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "default": "",
+          "pattern": "^(https://[^/\\s]+)?$",
+          "title": "Host",
+          "type": "string"
+        },
+        "api_key": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "Unifi",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -506,6 +523,13 @@
         "grafana_password": "",
         "influxdb_password": "",
         "influxdb_token": ""
+      }
+    },
+    "unifi": {
+      "$ref": "#/$defs/Unifi",
+      "default": {
+        "host": "",
+        "api_key": ""
       }
     },
     "nodes": {

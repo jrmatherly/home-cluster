@@ -220,6 +220,20 @@ def test_influxdb_password_needs_eight_characters():
         _load_raw(raw)
 
 
+UNIFI = {"unifi.host": "https://192.0.2.1", "unifi.api_key": "fake"}
+
+
+def test_unifi_dns_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).unifi_dns_enabled is False
+    assert _load_raw(config_from("private.toml", **UNIFI)).unifi_dns_enabled is True
+
+
+def test_partial_unifi_names_missing_field():
+    raw = config_from("private.toml", **UNIFI | {"unifi.api_key": None})
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: api_key\)"):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]

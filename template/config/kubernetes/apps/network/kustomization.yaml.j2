@@ -16,3 +16,6 @@ resources:
   #% endif %#
   - ./envoy-gateway/ks.yaml
   - ./k8s-gateway/ks.yaml
+  #% if unifi_dns_enabled %#
+  - ./unifi-dns/ks.yaml
+  #% endif %#

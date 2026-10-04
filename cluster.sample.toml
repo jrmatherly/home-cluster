@@ -312,6 +312,26 @@ schematic_id = ""
 
 
 # =============================================================================
+#    UniFi console. When set, the cluster writes a local DNS record to the
+#    console for every app on the internal gateway, so internal names resolve
+#    on your network without manual records. Needs UniFi Network 10.3.58 or
+#    newer. Set BOTH fields below to enable; leaving them blank skips it.
+# =============================================================================
+[unifi]
+
+# Address of the console: https and a hostname or IP, no path.
+# OPTIONAL. Example: "https://192.168.1.1"
+
+# host = ""
+
+# API key from the console: Settings > Control Plane > Integrations.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# api_key = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

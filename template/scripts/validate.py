@@ -236,6 +236,17 @@ class Observability(Model):
         return self
 
 
+class Unifi(Model):
+    # Address of the UniFi console, without a path.
+    host: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
+    api_key: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "unifi", ("host", "api_key"))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -277,6 +288,7 @@ class Config(Model):
     spegel: Spegel = Spegel()
     postgres: Postgres = Postgres()
     observability: Observability = Observability()
+    unifi: Unifi = Unifi()
     nodes: list[Node]
 
     @computed_field
@@ -309,6 +321,12 @@ class Config(Model):
     @property
     def observability_enabled(self) -> bool:
         return self.observability.grafana_password != ""
+
+    # Gates the ExternalDNS instance that writes internal names to the UniFi console.
+    @computed_field
+    @property
+    def unifi_dns_enabled(self) -> bool:
+        return self.unifi.host != ""
 
     @computed_field
     @property

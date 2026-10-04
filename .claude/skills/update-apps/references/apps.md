@@ -19,6 +19,8 @@ The chart column is what the template pins. The releases column is where the not
 | flux-operator             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`                   | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
 | flux-instance             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`                   | same repository as flux-operator                                  |
 | cloudflare-dns            | network        | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| unifi-dns                 | network        | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| unifi-dns (image)         | network        | `ghcr.io/home-operations/external-dns-unifi-webhook`                   | <https://github.com/home-operations/external-dns-unifi-webhook>   |
 | cloudflare-tunnel         | network        | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | cloudflare-tunnel (image) | network        | `docker.io/cloudflare/cloudflared`                                     | <https://github.com/cloudflare/cloudflared/releases>              |
 | envoy-gateway             | network        | `mirror.gcr.io/envoyproxy/gateway-helm`                                | <https://github.com/envoyproxy/gateway/releases>                  |
@@ -63,6 +65,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   also pulls its images through a mirror, set in two places: `global.imageRegistry` in its `helmrelease.yaml.j2`
   and `imageRepository` in `envoy.yaml.j2`. When the chart moves or renames an image, both need checking.
 - **cloudflare-dns** ships the `DNSEndpoint` CRD, which the cloudflare-tunnel app uses.
+- **unifi-dns** is a second ExternalDNS, with a webhook sidecar that writes local DNS records to the UniFi
+  console for routes on the internal gateway. It has two pins: the `external-dns` chart, shared with
+  cloudflare-dns, and the webhook image. The webhook's README lists the minimum ExternalDNS and UniFi Network
+  versions: check both before updating either pin. A broken update leaves the existing records in place, so
+  names keep resolving, but new routes get no record.
 - **nvidia-device-plugin** renders only when a node lists the `nvidia` kernel module. The driver itself comes
   from the Talos extension, not from this chart.
 - **local-path-provisioner** backs every PersistentVolume in the cluster. A volume is a directory under
@@ -136,26 +143,27 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
     | jq '{domain: .domain.name, gateways, api: .kubernetes.api.addr}'
 ```
 
-| App                          | Check                                                                                                                 | Healthy result                           |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                  | `OK`                                     |
-| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                       | session `established`                    |
-| cilium                       | `kubectl get nodes`                                                                                                   | every node `Ready`                       |
-| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.37 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                   |
-| metrics-server               | `kubectl top nodes`                                                                                                   | a row per node                           |
-| nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                      | at least `1`                             |
-| cert-manager                 | `kubectl get certificates -A`                                                                                         | every certificate `True`                 |
-| flux-operator, flux-instance | `flux check`                                                                                                          | all checks passed                        |
-| cloudflare-dns               | `kubectl -n network logs deploy/cloudflare-dns --since=5m`                                                            | no errors, records in sync               |
-| cloudflare-tunnel            | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                    |
-| envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses |
-| envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                |
-| k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address             |
-| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`        |
-| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                          | every cluster in a healthy state         |
-| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                 |
-| kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"` |
-| influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                        |
-| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                        |
-| echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                    |
-| reloader, spegel             | the common checks                                                                                                     | pods Running                             |
+| App                          | Check                                                                                                                 | Healthy result                              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                  | `OK`                                        |
+| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                       | session `established`                       |
+| cilium                       | `kubectl get nodes`                                                                                                   | every node `Ready`                          |
+| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.37 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                      |
+| metrics-server               | `kubectl top nodes`                                                                                                   | a row per node                              |
+| nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                      | at least `1`                                |
+| cert-manager                 | `kubectl get certificates -A`                                                                                         | every certificate `True`                    |
+| flux-operator, flux-instance | `flux check`                                                                                                          | all checks passed                           |
+| cloudflare-dns               | `kubectl -n network logs deploy/cloudflare-dns --since=5m`                                                            | no errors, records in sync                  |
+| unifi-dns                    | `kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m` and `dig +short grafana.<domain>`               | no errors, and the internal gateway address |
+| cloudflare-tunnel            | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                       |
+| envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses    |
+| envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                   |
+| k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address                |
+| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`           |
+| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                          | every cluster in a healthy state            |
+| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                    |
+| kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"`    |
+| influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                           |
+| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                           |
+| echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                       |
+| reloader, spegel             | the common checks                                                                                                     | pods Running                                |
