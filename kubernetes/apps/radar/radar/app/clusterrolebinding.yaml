@@ -1,0 +1,16 @@
+---
+# Radar acts as the signed-in user through impersonation, so this binding is what
+# decides what the UI may do. The group is the Pocket ID group `cluster_admins`,
+# with the prefix Radar adds to every group it reads from the token.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: radar-cluster-admins
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:cluster_admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
