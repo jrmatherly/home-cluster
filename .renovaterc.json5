@@ -44,6 +44,12 @@
       minimumGroupSize: 2,
     },
     {
+      description: "llama.cpp tags are <variant>-v<semver>; stay on the CUDA 12 variant",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/ggml-org/llama.cpp"],
+      versioning: "regex:^(?<compatibility>server-cuda)-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+    },
+    {
       matchUpdateTypes: ["major"],
       addLabels: ["type/major"],
     },
