@@ -200,9 +200,21 @@ class Spegel(Model):
     enabled: bool | None = None
 
 
+class Hubble(Model):
+    # The OIDC client created for the Hubble UI in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "cilium.hubble", ("oidc_client_id", "oidc_client_secret"))
+        return self
+
+
 class Cilium(Model):
     loadbalancer_mode: Literal["dsr", "snat"] = "dsr"
     bgp: Bgp = Bgp()
+    hubble: Hubble = Hubble()
 
 
 class PostgresBackup(Model):
@@ -375,6 +387,12 @@ class Config(Model):
         bgp = self.cilium.bgp
         return bgp.router_addr != "" and bgp.router_asn != "" and bgp.node_asn != ""
 
+    # The UI has no login of its own, so Hubble is only turned on when its gateway login exists.
+    @computed_field
+    @property
+    def hubble_enabled(self) -> bool:
+        return self.cilium.hubble.oidc_client_id != ""
+
     # Replica counts for control-plane-only workloads key off this rather
     # than len(nodes); a cluster can have many workers but one controller.
     @computed_field
@@ -466,6 +484,10 @@ class Config(Model):
             )
         if self.radar_enabled and not self.pocket_id_enabled:
             raise ValueError("radar requires pocket_id: Pocket ID is Radar's only login")
+        if self.hubble_enabled and not self.pocket_id_enabled:
+            raise ValueError(
+                "cilium.hubble requires pocket_id: Pocket ID is the Hubble UI's only login"
+            )
         if self.observability.grafana_oidc_client_id and not self.pocket_id_enabled:
             raise ValueError(
                 "observability.grafana_oidc_client_id requires pocket_id: "

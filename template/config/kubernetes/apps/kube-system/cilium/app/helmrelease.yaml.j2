@@ -36,7 +36,22 @@ spec:
     gatewayAPI:
       enabled: false
     hubble:
+      #% if hubble_enabled %#
+      enabled: true
+      relay:
+        enabled: true
+        rollOutPods: true
+      # The default method keeps the certificates it finds in the cluster, so
+      # they would expire after a year. The CronJob renews them every four months.
+      tls:
+        auto:
+          method: cronJob
+      ui:
+        enabled: true
+        rollOutPods: true
+      #% else %#
       enabled: false
+      #% endif %#
     ipam:
       mode: kubernetes
     ipv4NativeRoutingCIDR: "#{ kubernetes.pod_cidr }#"

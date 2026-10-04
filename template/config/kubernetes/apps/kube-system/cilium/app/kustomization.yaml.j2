@@ -5,3 +5,8 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./networks.yaml
+  #% if hubble_enabled %#
+  - ./hubble-httproute.yaml
+  - ./hubble-secret.sops.yaml
+  - ./hubble-securitypolicy.yaml
+  #% endif %#

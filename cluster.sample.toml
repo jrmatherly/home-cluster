@@ -247,6 +247,28 @@ token = ""
 
 # node_asn = ""
 
+# Hubble, Cilium's network flow observer, with its relay and its UI at
+# https://hubble.<domain.name> on the internal gateway. The UI has no login,
+# so the gateway signs users in with Pocket ID and admits only members of the
+# Pocket ID group `cluster_admins`. Needs [pocket_id]. Create the OIDC client
+# in the Pocket ID admin UI first, with the callback URL
+# https://hubble.<domain.name>/oauth2/callback, then set BOTH fields below to
+# enable; leaving them blank skips it. Enabling it restarts the Cilium agent
+# on every node once.
+# REF: https://docs.cilium.io/en/stable/observability/hubble/
+[cilium.hubble]
+
+# Client ID of the OIDC client created for Hubble in Pocket ID.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
 
 # =============================================================================
 #    Talos Image Factory settings shared by all nodes.

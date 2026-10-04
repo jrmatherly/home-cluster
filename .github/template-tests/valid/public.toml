@@ -36,6 +36,10 @@ router_addr = "10.10.1.1"
 router_asn  = "64513"
 node_asn    = "64514"
 
+[cilium.hubble]
+oidc_client_id     = "fake-hubble-client"
+oidc_client_secret = "fake-hubble-client-secret"
+
 [postgres.backup]
 endpoint          = "https://fake.r2.cloudflarestorage.com"
 bucket            = "fake"

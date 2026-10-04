@@ -81,6 +81,13 @@
             "router_asn": "",
             "node_asn": ""
           }
+        },
+        "hubble": {
+          "$ref": "#/$defs/Hubble",
+          "default": {
+            "oidc_client_id": "",
+            "oidc_client_secret": ""
+          }
         }
       },
       "title": "Cilium",
@@ -148,6 +155,23 @@
       },
       "required": ["internal", "dns"],
       "title": "Gateways",
+      "type": "object"
+    },
+    "Hubble": {
+      "additionalProperties": false,
+      "properties": {
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "Hubble",
       "type": "object"
     },
     "Ingress": {
@@ -591,6 +615,10 @@
           "node_asn": "",
           "router_addr": "",
           "router_asn": ""
+        },
+        "hubble": {
+          "oidc_client_id": "",
+          "oidc_client_secret": ""
         }
       }
     },

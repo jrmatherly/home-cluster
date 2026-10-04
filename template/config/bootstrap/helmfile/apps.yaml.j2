@@ -22,6 +22,15 @@ releases:
     namespace: kube-system
     inherit:
       - template: default
+    #% if hubble_enabled %#
+    # Hubble's relay finds its peers through cluster DNS, and CoreDNS is
+    # installed after Cilium. Flux adds the relay and the UI once it takes over.
+    set:
+      - name: hubble.relay.enabled
+        value: false
+      - name: hubble.ui.enabled
+        value: false
+    #% endif %#
 
   - name: coredns
     namespace: kube-system

@@ -297,6 +297,31 @@ def test_radar_requires_pocket_id():
         _load_raw(raw)
 
 
+HUBBLE = POCKET_ID | {
+    "cilium.hubble.oidc_client_id": "hubble",
+    "cilium.hubble.oidc_client_secret": "fake",
+}
+
+
+def test_hubble_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POCKET_ID)).hubble_enabled is False
+    assert _load_raw(config_from("private.toml", **HUBBLE)).hubble_enabled is True
+
+
+def test_partial_hubble_names_missing_field():
+    raw = config_from("private.toml", **HUBBLE | {"cilium.hubble.oidc_client_id": None})
+    with pytest.raises(
+        ConfigError, match=r"cilium\.hubble is partially configured.*\(missing: oidc_client_id\)"
+    ):
+        _load_raw(raw)
+
+
+def test_hubble_requires_pocket_id():
+    raw = config_from("private.toml", **HUBBLE | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"cilium\.hubble requires pocket_id"):
+        _load_raw(raw)
+
+
 GRAFANA_OIDC = {
     "observability.grafana_oidc_client_id": "grafana",
     "observability.grafana_oidc_client_secret": "fake",

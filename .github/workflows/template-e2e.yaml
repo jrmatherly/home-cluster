@@ -55,6 +55,8 @@ jobs:
           - pocket-id-without-backup
           - radar-without-pocket-id
           - partial-radar
+          - hubble-without-pocket-id
+          - partial-hubble
           - grafana-oidc-without-pocket-id
           - partial-grafana-oidc
           - matherlynet-without-backup
