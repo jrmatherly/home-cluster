@@ -91,6 +91,12 @@ spec:
         data:
           config.yaml: |-
             ingress:
+              # The wildcard below does not match the apex.
+              - hostname: "${SECRET_DOMAIN}"
+                originRequest:
+                  http2Origin: true
+                  originServerName: external.${SECRET_DOMAIN}
+                service: https://envoy-external.{{ .Release.Namespace }}.svc.cluster.local:443
               - hostname: "*.${SECRET_DOMAIN}"
                 originRequest:
                   http2Origin: true

@@ -1,0 +1,36 @@
+---
+# ExternalDNS creates the apex record but cannot own it: its ownership record
+# would be named k8s.cname-<domain>, which is outside the zone, so it is skipped.
+# The apex record is therefore never updated or deleted. Remove it by hand in
+# Cloudflare if this route ever goes away.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: matherlynet
+spec:
+  hostnames: ["${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: web-service
+          port: 4321
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: matherlynet-www
+spec:
+  hostnames: ["www.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: ${SECRET_DOMAIN}
+            statusCode: 301

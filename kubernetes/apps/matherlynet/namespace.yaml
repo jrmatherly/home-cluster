@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: matherlynet
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    llama-server.ai/client: "true"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
