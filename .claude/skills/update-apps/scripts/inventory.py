@@ -23,9 +23,10 @@ ROOT = Path(
     ).stdout.strip()
 )
 TEMPLATES = ROOT / "template/config"
-# An optional variant prefix, then 1.2.3 or v1.2.3. The prefix covers image
-# tags such as server-cuda-v0.5.0.
-STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)\.(\d+)$")
+# An optional variant prefix, then 1.2.3 or v1.2.3, then an optional variant
+# suffix. The prefix covers image tags such as server-cuda-v0.5.0, and the
+# suffix covers ones such as 2.9.1-alpine.
+STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)\.(\d+)(-[a-z][a-z0-9.]*)?$")
 PLAIN = ("", "v")
 # Docker Hub serves its registry API from a different host than its image names.
 REGISTRY_HOSTS = {"docker.io": "registry-1.docker.io"}
@@ -47,8 +48,10 @@ def pins() -> list[tuple[str, str, str, str, Path]]:
             for repo, tag in re.findall(r"repository: (\S+)\n\s+tag: ([^\s@]+)", text):
                 found.append((path.parts[-3], "image", repo, tag, rel))
         elif "helmfile" in path.parts:
+            # A "# renovate:" comment may sit between the chart and its version.
             for name, repo, version in re.findall(
-                r"name: (\S+)\n(?:.*\n){0,3}?\s+chart: oci://(\S+)\n\s+version: (\S+)", text
+                r"name: (\S+)\n(?:.*\n){0,3}?\s+chart: oci://(\S+)\n(?:\s*#.*\n)*\s+version: (\S+)",
+                text,
             ):
                 found.append((name, "chart", repo, version, rel))
     return found
@@ -86,10 +89,22 @@ def tags(repository: str) -> list[str]:
     return found
 
 
-def parse(tag: str) -> tuple[str, tuple[int, ...]] | None:
-    """Return (prefix, version) for a stable tag, or None."""
+def parse(tag: str) -> tuple[tuple[str, str], tuple[int, ...]] | None:
+    """Return ((prefix, suffix), version) for a stable tag, or None.
+
+    >>> parse("v1.21.2")
+    (('v', ''), (1, 21, 2))
+    >>> parse("server-cuda-v0.5.0")
+    (('server-cuda-v', ''), (0, 5, 0))
+    >>> parse("2.9.1-alpine")
+    (('', '-alpine'), (2, 9, 1))
+    >>> parse("latest"), parse("3.7"), parse("1.2.3-4")
+    (None, None, None)
+    """
     match = STABLE.match(tag)
-    return (match[1], tuple(int(part) for part in match.groups()[1:])) if match else None
+    if not match:
+        return None
+    return (match[1], match[5] or ""), tuple(int(part) for part in match.groups()[1:4])
 
 
 def version(tag: str) -> tuple[int, ...] | None:
@@ -98,13 +113,34 @@ def version(tag: str) -> tuple[int, ...] | None:
 
 
 def latest_stable(repository: str, current: str) -> str:
-    prefix = parsed[0] if (parsed := parse(current)) else ""
+    prefix, suffix = parsed[0] if (parsed := parse(current)) else ("", "")
     found = [(parsed, tag) for tag in tags(repository) if (parsed := parse(tag))]
-    same_style = [(number, tag) for (style, number), tag in found if style == prefix]
+    return newest(found, prefix, suffix)
+
+
+def newest(found: list, prefix: str, suffix: str) -> str:
+    """Return the highest tag in found that has the pinned prefix and suffix, or "?".
+
+    >>> found = [(parse(tag), tag) for tag in ("2.9.1", "2.9.1-alpine", "2.9.0-alpine", "3.5.0-core")]
+    >>> newest(found, "", "-alpine")
+    '2.9.1-alpine'
+    >>> newest([(parse(tag), tag) for tag in ("v1.3.0", "1.2.0", "1.4.0-rc1")], "", "")
+    '1.2.0'
+    >>> newest([(parse("v1.3.0"), "v1.3.0")], "", "")
+    'v1.3.0'
+    >>> newest(found, "server-cuda-v", "")
+    '?'
+    """
+    same_style = [(number, tag) for (style, number), tag in found if style == (prefix, suffix)]
     # Some repositories publish both 1.2.3 and v1.2.3; keep the style already pinned.
-    # A variant prefix never falls back, because another variant is a different image.
+    # A variant never falls back, because another variant is a different image, and
+    # a pre-release such as 1.4.0-rc1 reads as a variant, so it is never offered.
     if not same_style and prefix in PLAIN:
-        same_style = [(number, tag) for (style, number), tag in found if style in PLAIN]
+        same_style = [
+            (number, tag)
+            for (style, number), tag in found
+            if style[0] in PLAIN and style[1] == suffix
+        ]
     return max(same_style)[1] if same_style else "?"
 
 

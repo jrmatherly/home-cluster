@@ -16,7 +16,8 @@ dir="$root/kubernetes/apps/$ns/$app/app"
 url=$(yq -r '.spec.url' "$dir/ocirepository.yaml")
 out=$(mktemp -d)
 
-yq '.spec.values // {}' "$dir/helmrelease.yaml" > "$out/values.yaml"
+# explode resolves aliases such as *app, whose anchors sit outside .spec.values.
+yq 'explode(.) | .spec.values // {}' "$dir/helmrelease.yaml" > "$out/values.yaml"
 for version in "$old" "$new"; do
     helm show values "$url" --version "$version" > "$out/defaults-$version.yaml"
     helm template "$app" "$url" --version "$version" --namespace "$ns" \

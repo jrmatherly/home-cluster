@@ -76,7 +76,9 @@ order, and the next app starts only when the current one is healthy.
   the workload itself is healthy, `flux reconcile hr <app> -n <namespace> --force` runs one upgrade and clears it.
 - **One chart is outside Flux.** `prometheus-operator-crds` is installed only at bootstrap. See
   `references/apps.md` before touching its version.
-- **Pre-releases are ignored on purpose.** The inventory only offers tags shaped like `1.2.3` or `v1.2.3`.
+- **Pre-releases are ignored on purpose.** The inventory only offers tags shaped like `1.2.3` or `v1.2.3`. A pin
+  with a variant prefix or suffix, such as `server-cuda-v0.5.0` or `2.9.1-alpine`, is only compared with tags of
+  that same variant.
 
 ## Resources
 

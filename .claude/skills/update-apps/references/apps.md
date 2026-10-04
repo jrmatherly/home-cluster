@@ -69,7 +69,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   console for routes on the internal gateway. It has two pins: the `external-dns` chart, shared with
   cloudflare-dns, and the webhook image. The webhook's README lists the minimum ExternalDNS and UniFi Network
   versions: check both before updating either pin. A broken update leaves the existing records in place, so
-  names keep resolving, but new routes get no record.
+  names keep resolving, but new routes get no record. It cannot be dry-run: ExternalDNS leaves `--dry-run` to
+  each provider, and the webhook provider ignores it. Before a chart update, run the old and the new ExternalDNS
+  image once each with this app's sources and `--provider=inmemory --inmemory-zone=<domain> --dry-run --once`,
+  and compare the `CREATE` lines. The same record set from both means the update changes nothing on the console.
+  cloudflare-dns can use a real `--dry-run --once`, which the Cloudflare provider honors.
 - **nvidia-device-plugin** renders only when a node lists the `nvidia` kernel module. The driver itself comes
   from the Talos extension, not from this chart.
 - **local-path-provisioner** backs every PersistentVolume in the cluster. A volume is a directory under
@@ -101,8 +105,14 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full security context. After an update, time
   one request: the pod restarts, and the startup probe's warm-up request is what keeps the first caller fast.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
-  version in the template changes nothing on a running cluster. Applying it needs the CRD step of the bootstrap
-  run by hand, which is the user's decision. Report the pending version and stop.
+  version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
+  The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator
+  version kube-prometheus-stack ships. Compare the two with `helm show chart <url> --version <version>`. When
+  the newest CRD chart is ahead of that operator version, leave the pin and move it with the
+  kube-prometheus-stack update that catches up. An update is the edit, the render and
+  `just template test-helmfile`. There is nothing to wait for or check on the cluster.
+  Renovate tracks the pin through the `# renovate:` comment above it, which must stay on the line directly above
+  `version:`.
 
 ## Wait for the release
 
