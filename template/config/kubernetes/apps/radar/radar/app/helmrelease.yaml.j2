@@ -26,6 +26,16 @@ spec:
         groupsPrefix: "oidc:"
     usageReporting:
       enabled: false
+    # Radar starts in a disconnected mode when its database is unreachable and
+    # does not retry, so hold it back until the database accepts connections.
+    initContainers:
+      - name: wait-for-database
+        image: docker.io/library/busybox:1.37
+        command: ["sh", "-c", "until nc -z -w 2 radar-db-rw 5432; do sleep 2; done"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: { drop: ["ALL"] }
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65532
