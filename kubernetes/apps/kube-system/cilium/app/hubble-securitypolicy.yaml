@@ -1,0 +1,48 @@
+---
+# Hubble UI has no login, so the gateway signs users in with Pocket ID.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: hubble-ui
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: hubble-ui
+  oidc:
+    # Set explicitly so the policy does not depend on Pocket ID answering its
+    # discovery document when the gateway reconciles.
+    provider:
+      issuer: https://auth.${SECRET_DOMAIN}
+      authorizationEndpoint: https://auth.${SECRET_DOMAIN}/authorize
+      tokenEndpoint: https://auth.${SECRET_DOMAIN}/api/oidc/token
+    clientID: "cb4498c3-92bf-41a9-a873-400f029470c4"
+    clientSecret:
+      name: hubble-oidc
+    redirectURL: https://hubble.${SECRET_DOMAIN}/oauth2/callback
+    logoutPath: /logout
+    scopes: ["openid", "profile", "email", "groups"]
+    # A fixed name, so the JWT provider below can read the ID token.
+    cookieNames:
+      idToken: hubble-id-token
+  # Claim checks need a verified token from a JWT provider in the same policy.
+  jwt:
+    providers:
+      - name: pocket-id
+        issuer: https://auth.${SECRET_DOMAIN}
+        remoteJWKS:
+          uri: https://auth.${SECRET_DOMAIN}/.well-known/jwks.json
+        extractFrom:
+          cookies: ["hubble-id-token"]
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: cluster-admins
+        action: Allow
+        principal:
+          jwt:
+            provider: pocket-id
+            claims:
+              - name: groups
+                valueType: StringArray
+                values: ["cluster_admins"]

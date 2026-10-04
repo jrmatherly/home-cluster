@@ -5,3 +5,6 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./networks.yaml
+  - ./hubble-httproute.yaml
+  - ./hubble-secret.sops.yaml
+  - ./hubble-securitypolicy.yaml
