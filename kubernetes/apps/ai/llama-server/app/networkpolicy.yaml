@@ -1,0 +1,21 @@
+---
+# The server has no API key, so reach is the access control: pods in this
+# namespace, and namespaces that opt in with the label below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: llama-server
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: llama-server
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              llama-server.ai/client: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
