@@ -1,0 +1,53 @@
+#% if radar_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: radar
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: radar
+  interval: 1h
+  values:
+    fullnameOverride: radar
+    auth:
+      # Radar signs users in itself and acts as them through impersonation. In this
+      # mode the chart also lets its ServiceAccount read every Secret and
+      # impersonate any user, so treat the pod as cluster-admin.
+      mode: oidc
+      oidc:
+        issuerURL: https://auth.${SECRET_DOMAIN}
+        clientID: "#{ radar.oidc_client_id }#"
+        existingSecret: radar-oidc
+        redirectURL: https://radar.${SECRET_DOMAIN}/auth/callback
+        # Keeps a Pocket ID user or group from matching a built-in Kubernetes one.
+        usernamePrefix: "oidc:"
+        groupsPrefix: "oidc:"
+    usageReporting:
+      enabled: false
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      fsGroup: 65532
+      # The chart leaves this out, and the namespace enforces `restricted`.
+      seccompProfile: { type: RuntimeDefault }
+    httpRoute:
+      enabled: true
+      hostnames:
+        - radar.${SECRET_DOMAIN}
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+    timeline:
+      storage: postgres
+      retention: 168h
+      postgres:
+        existingSecret: radar-db-app
+        secretKey: uri
+    #% if observability_enabled %#
+    traffic:
+      prometheusUrl: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+    #% endif %#
+#% endif %#

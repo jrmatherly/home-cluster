@@ -1,0 +1,20 @@
+#% if radar_enabled %#
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: radar-db
+spec:
+  # Radar does not start without its database, and each instance is pinned to a
+  # node by its local-path volume, so a second one keeps Radar up when a node is
+  # down. The timeline is seven days of history, so it is not backed up.
+  instances: 2
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: postgresql
+    major: 18
+  storage:
+    storageClass: local-path
+    size: 5Gi
+#% endif %#
