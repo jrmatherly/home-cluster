@@ -6,7 +6,7 @@
 ARG FILE=Phi-4-mini-instruct-Q4_K_M.gguf
 ARG TAG=q4_k_m-78eb92a
 
-FROM alpine:3.22 AS fetch
+FROM alpine:3.24 AS fetch
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 ARG REPO=unsloth/Phi-4-mini-instruct-GGUF
 ARG REVISION=78eb92a46fc37e6b524df991ed9aca9bc6aa7b80
