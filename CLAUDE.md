@@ -60,7 +60,8 @@ template/
   resources/kubeconform.sh validation run by `just configure`
   mod.just                 `just template ...` recipes
 .github/template-tests/    valid/ and invalid/ cluster.toml fixtures, e2e/ helpers
-.github/workflows/         template-e2e and template-release CI, plus label sync and flate
+.github/workflows/         template-e2e and template-release CI, plus label sync, flate and model-images
+images/<model>/Dockerfile  model image recipes, built by the model-images workflow
 ```
 
 The data flows in one direction. `cluster.toml` goes through `validate.load()`, then `Plugin.data()`, then the makejinja render. The output lands in `bootstrap/`, `kubernetes/` and `talos/`, and Flux reconciles `kubernetes/` from Git.
