@@ -39,7 +39,7 @@ spec:
               apiVersion: apps/v1
               kind: Deployment
               metadata:
-                name: web-deployment
+                name: matherlynet-web-deployment
                 annotations:
                   reloader.stakater.com/auto: "true"
               spec:

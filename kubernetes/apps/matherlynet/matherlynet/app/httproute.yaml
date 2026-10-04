@@ -15,7 +15,7 @@ spec:
       sectionName: https
   rules:
     - backendRefs:
-        - name: web-service
+        - name: matherlynet-web-service
           port: 4321
 ---
 apiVersion: gateway.networking.k8s.io/v1
