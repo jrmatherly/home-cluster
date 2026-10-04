@@ -394,6 +394,14 @@ schematic_id = ""
 
 # encryption_key = ""
 
+# Also serves Pocket ID on the external gateway, which exposes its sign-in
+# page and its API to the internet. LAN clients and pods keep using the
+# internal gateway. The hostname stays https://auth.<domain.name>, so passkeys
+# keep working. Needs encryption_key and an ingress.mode other than "none".
+# OPTIONAL. Default: false
+
+# public = false
+
 
 # =============================================================================
 #    Radar, a Kubernetes UI with a timeline, behind the Pocket ID login. Needs
@@ -468,6 +476,60 @@ schematic_id = ""
 # OPTIONAL. Default: false
 
 # playground = false
+
+
+# =============================================================================
+#    Reactive Resume, a resume builder, at https://resume.<domain.name> on the
+#    external gateway, with its own Postgres database and its uploads in an
+#    S3-compatible bucket. Pocket ID is its only login. Needs
+#    [postgres.backup], [pocket_id] and an ingress.mode other than "none".
+#    Create the OIDC client in the Pocket ID admin UI first, with the callback
+#    URL https://resume.<domain.name>/api/auth/callback/custom, and create the
+#    bucket before the first deploy. Set ALL EIGHT fields below to enable;
+#    leaving them all blank skips it. Every field except oidc_client_id and
+#    s3_bucket is written to a SOPS-encrypted Secret.
+# =============================================================================
+[reactive_resume]
+
+# Signs sessions and encrypts two-factor secrets. Never change it once people
+# use the app: that signs everyone out and breaks their two-factor secrets.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# auth_secret = ""
+
+# Encrypts the AI keys users save, at least 32 characters, different from
+# auth_secret. Never change it: that makes every saved key unreadable.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# encryption_secret = ""
+
+# Client ID of the OIDC client created for Reactive Resume in Pocket ID.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
+# S3 API endpoint of the bucket for uploads: https and a hostname, no path.
+# OPTIONAL. Example (R2): "https://<account-id>.r2.cloudflarestorage.com"
+
+# s3_endpoint = ""
+
+# Bucket that holds uploads. It must exist before the app starts.
+# OPTIONAL. Example: "reactive-resume"
+
+# s3_bucket = ""
+
+# Access key pair with read and write access to the bucket's objects. For
+# R2, create an API token with "Object Read & Write" scoped to the bucket.
+# OPTIONAL.
+
+# s3_access_key_id = ""
+# s3_secret_access_key = ""
 
 
 # =============================================================================

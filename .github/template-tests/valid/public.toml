@@ -60,6 +60,7 @@ api_key = "fake"
 
 [pocket_id]
 encryption_key = "fakefakefakefake"
+public         = true
 
 [radar]
 oidc_client_id     = "fake"
@@ -73,6 +74,16 @@ mail_from            = "matherlynet <noreply@example.com>"
 github_client_id     = "fake-github-client"
 github_client_secret = "fake"
 playground           = true
+
+[reactive_resume]
+auth_secret          = "fake"
+encryption_secret    = "fakefakefakefakefakefakefakefake"
+oidc_client_id       = "fake-resume-client"
+oidc_client_secret   = "fake"
+s3_endpoint          = "https://fake.r2.cloudflarestorage.com"
+s3_bucket            = "fake-resume"
+s3_access_key_id     = "fake"
+s3_secret_access_key = "fake"
 
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"

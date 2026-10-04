@@ -283,6 +283,8 @@ class PocketId(Model):
     # Encrypts the token signing keys in Pocket ID's database. Pocket ID rejects
     # a key under 16 bytes. The characters are the ones Secret allows.
     encryption_key: str = Field(default="", pattern=r'^([^"\\\s$]{16,})?$')
+    # Also attaches the route to the external gateway, so the internet reaches it.
+    public: bool = False
 
 
 class Radar(Model):
@@ -334,6 +336,39 @@ class Matherlynet(Model):
         return self
 
 
+class ReactiveResume(Model):
+    # Signs sessions and encrypts two-factor secrets; changing it signs everyone out.
+    auth_secret: Secret = ""
+    # Encrypts users' saved AI keys. The server refuses to start on fewer than 32 characters.
+    encryption_secret: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    # The OIDC client created for Reactive Resume in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+    # S3 API endpoint of the bucket that holds uploads, without a path.
+    s3_endpoint: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
+    s3_bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
+    s3_access_key_id: Secret = ""
+    s3_secret_access_key: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(
+            self,
+            "reactive_resume",
+            (
+                "auth_secret",
+                "encryption_secret",
+                "oidc_client_id",
+                "oidc_client_secret",
+                "s3_endpoint",
+                "s3_bucket",
+                "s3_access_key_id",
+                "s3_secret_access_key",
+            ),
+        )
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -379,6 +414,7 @@ class Config(Model):
     pocket_id: PocketId = PocketId()
     radar: Radar = Radar()
     matherlynet: Matherlynet = Matherlynet()
+    reactive_resume: ReactiveResume = ReactiveResume()
     nodes: list[Node]
 
     @computed_field
@@ -443,6 +479,12 @@ class Config(Model):
     def matherlynet_enabled(self) -> bool:
         return self.matherlynet.better_auth_secret != ""
 
+    # Gates Reactive Resume and its database. The fields are set all together or not at all.
+    @computed_field
+    @property
+    def reactive_resume_enabled(self) -> bool:
+        return self.reactive_resume.auth_secret != ""
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -482,6 +524,16 @@ class Config(Model):
                 "pocket_id requires postgres.backup: its database holds passkeys and "
                 "signing keys, which cannot be recreated"
             )
+        if self.pocket_id.public and not self.pocket_id_enabled:
+            raise ValueError(
+                "pocket_id.public requires pocket_id.encryption_key: Pocket ID only runs "
+                "when the key is set"
+            )
+        if self.pocket_id.public and self.ingress.mode == "none":
+            raise ValueError(
+                "pocket_id.public requires ingress.mode other than 'none': there is no "
+                "external gateway to attach it to"
+            )
         if self.radar_enabled and not self.pocket_id_enabled:
             raise ValueError("radar requires pocket_id: Pocket ID is Radar's only login")
         if self.hubble_enabled and not self.pocket_id_enabled:
@@ -502,6 +554,15 @@ class Config(Model):
             raise ValueError(
                 "matherlynet requires ingress.mode 'cloudflare-tunnel': the site trusts "
                 "the client address header Cloudflare sets"
+            )
+        if self.reactive_resume_enabled and not self.pocket_id_enabled:
+            raise ValueError(
+                "reactive_resume requires pocket_id: Pocket ID is Reactive Resume's only login"
+            )
+        if self.reactive_resume_enabled and self.ingress.mode == "none":
+            raise ValueError(
+                "reactive_resume requires ingress.mode other than 'none': it is served on "
+                "the external gateway"
             )
         if self.matherlynet.playground and not self.nvidia_enabled:
             raise ValueError(

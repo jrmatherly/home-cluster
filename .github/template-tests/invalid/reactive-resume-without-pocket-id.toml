@@ -1,0 +1,45 @@
+# Negative fixture: Reactive Resume set without Pocket ID.
+# Expected to be rejected by the reactive_resume requires pocket_id check.
+[network]
+node_cidr = "10.10.10.0/24"
+
+[kubernetes.api]
+addr = "10.10.10.254"
+
+[gateways]
+internal = "10.10.10.252"
+dns      = "10.10.10.253"
+external = "10.10.10.251"
+
+[domain]
+name = "example.com"
+
+[dns]
+token = "fake"
+
+[repository]
+url = "https://github.com/onedr0p/cluster-template.git"
+
+[postgres.backup]
+endpoint          = "https://fake.r2.cloudflarestorage.com"
+bucket            = "fake"
+access_key_id     = "fake"
+secret_access_key = "fake"
+
+[reactive_resume]
+auth_secret          = "fake"
+encryption_secret    = "fakefakefakefakefakefakefakefake"
+oidc_client_id       = "fake"
+oidc_client_secret   = "fake"
+s3_endpoint          = "https://fake.r2.cloudflarestorage.com"
+s3_bucket            = "fake"
+s3_access_key_id     = "fake"
+s3_secret_access_key = "fake"
+
+[[nodes]]
+name         = "k8s-0"
+address      = "10.10.10.100"
+controller   = true
+disk         = "/dev/sdfake"
+mac_addr     = "00:00:00:00:00:00"
+schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"

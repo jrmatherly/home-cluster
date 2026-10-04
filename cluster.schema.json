@@ -424,6 +424,11 @@
           "pattern": "^([^\"\\\\\\s$]{16,})?$",
           "title": "Encryption Key",
           "type": "string"
+        },
+        "public": {
+          "default": false,
+          "title": "Public",
+          "type": "boolean"
         }
       },
       "title": "PocketId",
@@ -487,6 +492,53 @@
         }
       },
       "title": "Radar",
+      "type": "object"
+    },
+    "ReactiveResume": {
+      "additionalProperties": false,
+      "properties": {
+        "auth_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "encryption_secret": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{32,})?$",
+          "title": "Encryption Secret",
+          "type": "string"
+        },
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "s3_endpoint": {
+          "default": "",
+          "pattern": "^(https://[^/\\s]+)?$",
+          "title": "S3 Endpoint",
+          "type": "string"
+        },
+        "s3_bucket": {
+          "default": "",
+          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
+          "title": "S3 Bucket",
+          "type": "string"
+        },
+        "s3_access_key_id": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "s3_secret_access_key": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "ReactiveResume",
       "type": "object"
     },
     "Repository": {
@@ -666,7 +718,8 @@
     "pocket_id": {
       "$ref": "#/$defs/PocketId",
       "default": {
-        "encryption_key": ""
+        "encryption_key": "",
+        "public": false
       }
     },
     "radar": {
@@ -688,6 +741,19 @@
         "google_client_id": "",
         "google_client_secret": "",
         "playground": false
+      }
+    },
+    "reactive_resume": {
+      "$ref": "#/$defs/ReactiveResume",
+      "default": {
+        "auth_secret": "",
+        "encryption_secret": "",
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "s3_endpoint": "",
+        "s3_bucket": "",
+        "s3_access_key_id": "",
+        "s3_secret_access_key": ""
       }
     },
     "nodes": {

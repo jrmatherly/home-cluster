@@ -280,6 +280,25 @@ def test_pocket_id_requires_postgres_backup():
         _load_raw(raw)
 
 
+def test_pocket_id_public_accepted_with_pocket_id():
+    raw = config_from("private.toml", **POCKET_ID | {"pocket_id.public": True})
+    assert _load_raw(raw).pocket_id.public is True
+
+
+def test_pocket_id_public_requires_pocket_id():
+    raw = config_from("private.toml", **{"pocket_id.public": True})
+    with pytest.raises(ConfigError, match=r"pocket_id\.public requires pocket_id\.encryption_key"):
+        _load_raw(raw)
+
+
+def test_pocket_id_public_requires_ingress():
+    raw = config_from(
+        "private.toml", **POCKET_ID | {"pocket_id.public": True, "ingress.mode": "none"}
+    )
+    with pytest.raises(ConfigError, match=r"pocket_id\.public requires ingress\.mode"):
+        _load_raw(raw)
+
+
 def test_radar_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **POCKET_ID)).radar_enabled is False
     assert _load_raw(config_from("private.toml", **RADAR)).radar_enabled is True
@@ -488,4 +507,50 @@ def test_matherlynet_playground_requires_nvidia():
     raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.playground": True})
     raw["nodes"][1]["kernel_modules"] = []
     with pytest.raises(ConfigError, match=r"matherlynet\.playground requires an NVIDIA node"):
+        _load_raw(raw)
+
+
+REACTIVE_RESUME = POCKET_ID | {
+    "reactive_resume.auth_secret": "fake",
+    "reactive_resume.encryption_secret": "x" * 32,
+    "reactive_resume.oidc_client_id": "resume",
+    "reactive_resume.oidc_client_secret": "fake",
+    "reactive_resume.s3_endpoint": "https://fake.r2.cloudflarestorage.com",
+    "reactive_resume.s3_bucket": "resume",
+    "reactive_resume.s3_access_key_id": "fake",
+    "reactive_resume.s3_secret_access_key": "fake",
+}
+
+
+def test_reactive_resume_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POCKET_ID)).reactive_resume_enabled is False
+    raw = config_from("private.toml", **REACTIVE_RESUME)
+    assert _load_raw(raw).reactive_resume_enabled is True
+
+
+def test_partial_reactive_resume_names_missing_field():
+    raw = config_from("private.toml", **REACTIVE_RESUME | {"reactive_resume.s3_bucket": None})
+    with pytest.raises(
+        ConfigError, match=r"reactive_resume is partially configured.*\(missing: s3_bucket\)"
+    ):
+        _load_raw(raw)
+
+
+def test_reactive_resume_encryption_secret_needs_32_characters():
+    raw = config_from(
+        "private.toml", **REACTIVE_RESUME | {"reactive_resume.encryption_secret": "x" * 31}
+    )
+    with pytest.raises(ConfigError, match=r"reactive_resume\.encryption_secret"):
+        _load_raw(raw)
+
+
+def test_reactive_resume_requires_pocket_id():
+    raw = config_from("private.toml", **REACTIVE_RESUME | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"reactive_resume requires pocket_id"):
+        _load_raw(raw)
+
+
+def test_reactive_resume_requires_ingress():
+    raw = config_from("private.toml", **REACTIVE_RESUME | {"ingress.mode": "none"})
+    with pytest.raises(ConfigError, match=r"reactive_resume requires ingress\.mode"):
         _load_raw(raw)
