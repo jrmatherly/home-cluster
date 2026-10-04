@@ -1,0 +1,51 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: postgres-backup
+spec:
+  groups:
+    - name: postgres-backup
+      rules:
+        # Every instance reports the same backup timestamps, so take one per cluster.
+        - alert: PostgresBackupFailed
+          expr: |
+            max by (namespace, cnpg_io_cluster) (barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp)
+              > max by (namespace, cnpg_io_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: The last backup of {{ $labels.cnpg_io_cluster }} failed
+            description: >-
+              The most recent backup of Postgres cluster {{ $labels.cnpg_io_cluster }} in
+              {{ $labels.namespace }} failed, and no backup has succeeded since.
+        # A failure before anything reaches the object store may not be recorded as a
+        # failed backup, so also alert on age. Backups run daily. A new cluster reports
+        # 0 until its first backup lands. Its ScheduledBackup sets `immediate: true`, so
+        # that takes about a minute, and `for` rides it out.
+        - alert: PostgresBackupTooOld
+          expr: |
+            time() - max by (namespace, cnpg_io_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)
+              > 36 * 3600
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: No recent backup of {{ $labels.cnpg_io_cluster }}
+            description: >-
+              Postgres cluster {{ $labels.cnpg_io_cluster }} in {{ $labels.namespace }} has no
+              successful backup in the last 36 hours.
+        # From CloudNativePG's sample rules. Only the primary archives WAL.
+        - alert: PostgresWalArchivingFailing
+          expr: |
+            (cnpg_pg_stat_archiver_last_failed_time - cnpg_pg_stat_archiver_last_archived_time) > 1
+              and on (namespace, pod) cnpg_pg_replication_in_recovery == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: WAL archiving is failing on {{ $labels.pod }}
+            description: >-
+              Postgres instance {{ $labels.pod }} in {{ $labels.namespace }} cannot archive WAL,
+              so point-in-time recovery is falling behind.

@@ -4,4 +4,5 @@ kind: Component
 resources:
   - ./imagecatalog.yaml
   - ./objectstore.yaml
+  - ./podmonitor.yaml
   - ./secret.sops.yaml

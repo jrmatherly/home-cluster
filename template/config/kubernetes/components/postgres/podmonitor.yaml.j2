@@ -1,0 +1,17 @@
+#% if postgres_backup_enabled %#
+---
+# Scrapes every Postgres instance in the namespace that includes this component.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgres
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/podRole: instance
+  # The backup metrics carry no cluster label of their own.
+  podTargetLabels:
+    - cnpg.io/cluster
+  podMetricsEndpoints:
+    - port: metrics
+#% endif %#
