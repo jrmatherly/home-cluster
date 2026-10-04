@@ -20,6 +20,17 @@ spec:
         #% for node in nodes if node.controller %#
         - #{ node.address }#
         #% endfor %#
+    kubelet:
+      serviceMonitor:
+        cAdvisorRelabelings:
+          # The chart's default. Its rules and dashboards need it.
+          - action: replace
+            sourceLabels: [__metrics_path__]
+            targetLabel: metrics_path
+          # Freelens filters container metrics by instance=<node name> in its cluster view.
+          - action: replace
+            sourceLabels: [node]
+            targetLabel: instance
     prometheus:
       prometheusSpec:
         retention: 14d

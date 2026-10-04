@@ -19,6 +19,17 @@ spec:
         - 192.168.22.21
         - 192.168.22.22
         - 192.168.22.23
+    kubelet:
+      serviceMonitor:
+        cAdvisorRelabelings:
+          # The chart's default. Its rules and dashboards need it.
+          - action: replace
+            sourceLabels: [__metrics_path__]
+            targetLabel: metrics_path
+          # Freelens filters container metrics by instance=<node name> in its cluster view.
+          - action: replace
+            sourceLabels: [node]
+            targetLabel: instance
     prometheus:
       prometheusSpec:
         retention: 14d
