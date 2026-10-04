@@ -297,6 +297,47 @@ def test_radar_requires_pocket_id():
         _load_raw(raw)
 
 
+GRAFANA_OIDC = {
+    "observability.grafana_oidc_client_id": "grafana",
+    "observability.grafana_oidc_client_secret": "fake",
+}
+
+
+def test_grafana_oidc_accepted_with_observability_and_pocket_id():
+    raw = config_from("private.toml", **POCKET_ID | OBSERVABILITY | GRAFANA_OIDC)
+    observability = _load_raw(raw).observability
+    assert observability.grafana_oidc_client_id == "grafana"
+    assert observability.grafana_oidc_client_secret == "fake"
+
+
+def test_partial_grafana_oidc_names_missing_field():
+    raw = config_from(
+        "private.toml",
+        **POCKET_ID
+        | OBSERVABILITY
+        | GRAFANA_OIDC
+        | {"observability.grafana_oidc_client_secret": None},
+    )
+    with pytest.raises(
+        ConfigError, match=r"partially configured.*\(missing: grafana_oidc_client_secret\)"
+    ):
+        _load_raw(raw)
+
+
+def test_grafana_oidc_requires_observability():
+    raw = config_from("private.toml", **POCKET_ID | GRAFANA_OIDC)
+    with pytest.raises(ConfigError, match=r"grafana_oidc_client_id requires grafana_password"):
+        _load_raw(raw)
+
+
+def test_grafana_oidc_requires_pocket_id():
+    raw = config_from("private.toml", **OBSERVABILITY | GRAFANA_OIDC)
+    with pytest.raises(
+        ConfigError, match=r"observability\.grafana_oidc_client_id requires pocket_id"
+    ):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]

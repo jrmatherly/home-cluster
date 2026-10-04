@@ -90,6 +90,9 @@ spec:
     grafana:
       admin:
         existingSecret: grafana-secret
+      # Grafana reads grafana-secret into its environment only at start.
+      annotations:
+        reloader.stakater.com/auto: "true"
       resources:
         requests:
           memory: 256Mi
@@ -115,6 +118,12 @@ spec:
           secretKeyRef:
             name: grafana-secret
             key: INFLUXDB_TOKEN
+        #% if observability.grafana_oidc_client_id %#
+        GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+          secretKeyRef:
+            name: grafana-secret
+            key: OIDC_CLIENT_SECRET
+        #% endif %#
       additionalDataSources:
         - name: InfluxDB
           type: influxdb
@@ -127,4 +136,24 @@ spec:
           secureJsonData:
             # Grafana expands this from its environment. Flux leaves $VAR without braces alone.
             token: $INFLUXDB_TOKEN
+      #% if observability.grafana_oidc_client_id %#
+      # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
+      grafana.ini:
+        server:
+          # Without this Grafana builds its OAuth callback from http and port 3000.
+          root_url: https://grafana.${SECRET_DOMAIN}
+        auth.generic_oauth:
+          enabled: true
+          name: Pocket ID
+          client_id: "#{ observability.grafana_oidc_client_id }#"
+          scopes: openid profile email groups
+          auth_url: https://auth.${SECRET_DOMAIN}/authorize
+          token_url: https://auth.${SECRET_DOMAIN}/api/oidc/token
+          api_url: https://auth.${SECRET_DOMAIN}/api/oidc/userinfo
+          use_pkce: true
+          # Only the Pocket ID group cluster_admins gets a role. Strict mode refuses everyone else.
+          role_attribute_path: "contains(groups[*], 'cluster_admins') && 'GrafanaAdmin'"
+          role_attribute_strict: true
+          allow_assign_grafana_admin: true
+      #% endif %#
 #% endif %#

@@ -231,6 +231,9 @@ class Observability(Model):
     discord_webhook: str = Field(
         default="", pattern=r"^(https://discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$"
     )
+    # The OIDC client created for Grafana in the Pocket ID admin UI.
+    grafana_oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    grafana_oidc_client_secret: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -241,6 +244,14 @@ class Observability(Model):
             raise ValueError(
                 "discord_webhook requires grafana_password, influxdb_password and "
                 "influxdb_token: Alertmanager only runs with the rest of the stack"
+            )
+        _all_or_none(
+            self, "observability", ("grafana_oidc_client_id", "grafana_oidc_client_secret")
+        )
+        if self.grafana_oidc_client_id and not self.grafana_password:
+            raise ValueError(
+                "grafana_oidc_client_id requires grafana_password, influxdb_password and "
+                "influxdb_token: Grafana only runs with the rest of the stack"
             )
         return self
 
@@ -410,6 +421,11 @@ class Config(Model):
             )
         if self.radar_enabled and not self.pocket_id_enabled:
             raise ValueError("radar requires pocket_id: Pocket ID is Radar's only login")
+        if self.observability.grafana_oidc_client_id and not self.pocket_id_enabled:
+            raise ValueError(
+                "observability.grafana_oidc_client_id requires pocket_id: "
+                "Pocket ID is the OIDC provider Grafana signs in with"
+            )
 
         cidrs = {
             "network.node_cidr": self.network.node_cidr,

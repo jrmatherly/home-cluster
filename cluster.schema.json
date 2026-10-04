@@ -323,6 +323,16 @@
           "pattern": "^(https://discord(app)?\\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$",
           "title": "Discord Webhook",
           "type": "string"
+        },
+        "grafana_oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Grafana Oidc Client Id",
+          "type": "string"
+        },
+        "grafana_oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
         }
       },
       "title": "Observability",
@@ -559,7 +569,9 @@
         "grafana_password": "",
         "influxdb_password": "",
         "influxdb_token": "",
-        "discord_webhook": ""
+        "discord_webhook": "",
+        "grafana_oidc_client_id": "",
+        "grafana_oidc_client_secret": ""
       }
     },
     "unifi": {

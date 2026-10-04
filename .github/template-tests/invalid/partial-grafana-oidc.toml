@@ -1,0 +1,44 @@
+# Negative fixture: the Grafana OIDC client ID set without its secret.
+# Expected to be rejected by the observability all-or-nothing check.
+[network]
+node_cidr = "10.10.10.0/24"
+
+[kubernetes.api]
+addr = "10.10.10.254"
+
+[gateways]
+internal = "10.10.10.252"
+dns      = "10.10.10.253"
+external = "10.10.10.251"
+
+[domain]
+name = "example.com"
+
+[dns]
+token = "fake"
+
+[repository]
+url = "https://github.com/onedr0p/cluster-template.git"
+
+[postgres.backup]
+endpoint          = "https://fake.r2.cloudflarestorage.com"
+bucket            = "fake"
+access_key_id     = "fake"
+secret_access_key = "fake"
+
+[pocket_id]
+encryption_key = "fakefakefakefake"
+
+[observability]
+grafana_password       = "fake"
+influxdb_password      = "fakefake"
+influxdb_token         = "fake"
+grafana_oidc_client_id = "fake"
+
+[[nodes]]
+name         = "k8s-0"
+address      = "10.10.10.100"
+controller   = true
+disk         = "/dev/sdfake"
+mac_addr     = "00:00:00:00:00:00"
+schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"

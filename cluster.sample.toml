@@ -317,6 +317,22 @@ schematic_id = ""
 
 # discord_webhook = ""
 
+# Client ID of the OIDC client created for Grafana in the Pocket ID admin UI,
+# with callback URL "https://grafana.<domain>/login/generic_oauth". Adds a
+# Pocket ID button to the Grafana login page, next to the password form. Only
+# members of the Pocket ID group "cluster_admins" can sign in with it, as
+# Grafana server admins. Needs the three fields above and [pocket_id]; set it
+# together with grafana_oidc_client_secret.
+# OPTIONAL.
+
+# grafana_oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# grafana_oidc_client_secret = ""
+
 
 # =============================================================================
 #    UniFi console. When set, the cluster writes a local DNS record to the
