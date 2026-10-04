@@ -182,7 +182,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                    |
 | kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"`    |
 | influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                           |
-| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `200`, and the passkey sign-in works        |
+| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `204`, and the passkey sign-in works        |
 | llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                           |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                       |
 | reloader, spegel             | the common checks                                                                                                     | pods Running                                |
