@@ -247,6 +247,23 @@ class Unifi(Model):
         return self
 
 
+class PocketId(Model):
+    # Encrypts the token signing keys in Pocket ID's database. Pocket ID rejects
+    # a key under 16 bytes. The characters are the ones Secret allows.
+    encryption_key: str = Field(default="", pattern=r'^([^"\\\s$]{16,})?$')
+
+
+class Radar(Model):
+    # The OIDC client created for Radar in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "radar", ("oidc_client_id", "oidc_client_secret"))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -289,6 +306,8 @@ class Config(Model):
     postgres: Postgres = Postgres()
     observability: Observability = Observability()
     unifi: Unifi = Unifi()
+    pocket_id: PocketId = PocketId()
+    radar: Radar = Radar()
     nodes: list[Node]
 
     @computed_field
@@ -328,6 +347,19 @@ class Config(Model):
     def unifi_dns_enabled(self) -> bool:
         return self.unifi.host != ""
 
+    # Gates Pocket ID, the identity provider, and its database.
+    @computed_field
+    @property
+    def pocket_id_enabled(self) -> bool:
+        return self.pocket_id.encryption_key != ""
+
+    # Gates Radar. The client is created in Pocket ID first, so its ID being set
+    # means the login Radar is served behind already exists.
+    @computed_field
+    @property
+    def radar_enabled(self) -> bool:
+        return self.radar.oidc_client_id != ""
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -362,6 +394,13 @@ class Config(Model):
             raise ValueError(
                 f"gateways.external is required when ingress.mode is {self.ingress.mode!r}"
             )
+        if self.pocket_id_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "pocket_id requires postgres.backup: its database holds passkeys and "
+                "signing keys, which cannot be recreated"
+            )
+        if self.radar_enabled and not self.pocket_id_enabled:
+            raise ValueError("radar requires pocket_id: Pocket ID is Radar's only login")
 
         cidrs = {
             "network.node_cidr": self.network.node_cidr,

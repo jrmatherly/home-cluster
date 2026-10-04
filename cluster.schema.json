@@ -322,6 +322,19 @@
       "title": "Observability",
       "type": "object"
     },
+    "PocketId": {
+      "additionalProperties": false,
+      "properties": {
+        "encryption_key": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{16,})?$",
+          "title": "Encryption Key",
+          "type": "string"
+        }
+      },
+      "title": "PocketId",
+      "type": "object"
+    },
     "Postgres": {
       "additionalProperties": false,
       "properties": {
@@ -363,6 +376,23 @@
         }
       },
       "title": "PostgresBackup",
+      "type": "object"
+    },
+    "Radar": {
+      "additionalProperties": false,
+      "properties": {
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "Radar",
       "type": "object"
     },
     "Repository": {
@@ -530,6 +560,19 @@
       "default": {
         "host": "",
         "api_key": ""
+      }
+    },
+    "pocket_id": {
+      "$ref": "#/$defs/PocketId",
+      "default": {
+        "encryption_key": ""
+      }
+    },
+    "radar": {
+      "$ref": "#/$defs/Radar",
+      "default": {
+        "oidc_client_id": "",
+        "oidc_client_secret": ""
       }
     },
     "nodes": {

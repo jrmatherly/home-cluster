@@ -51,6 +51,13 @@ influxdb_token    = "fake"
 host    = "https://192.0.2.1"
 api_key = "fake"
 
+[pocket_id]
+encryption_key = "fakefakefakefake"
+
+[radar]
+oidc_client_id     = "fake"
+oidc_client_secret = "fake"
+
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
 

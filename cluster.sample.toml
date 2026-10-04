@@ -332,6 +332,44 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Pocket ID, a passkey login (OpenID Connect provider) for apps in the
+#    cluster. Setting the key below deploys it at https://auth.<domain.name> on
+#    the internal gateway, with its own Postgres database. Needs
+#    [postgres.backup], because its passkeys and signing keys cannot be
+#    recreated. Open https://auth.<domain.name>/setup right after the first
+#    deploy: until an admin exists, anyone on your network can claim it.
+# =============================================================================
+[pocket_id]
+
+# Encrypts the token signing keys in the database, at least 16 characters.
+# It is written to a SOPS-encrypted Secret. To change it later, run
+# `pocket-id encryption-key-rotate` in the pod first; editing it here alone
+# makes the stored keys unreadable.
+# OPTIONAL. Example: the output of `openssl rand -base64 32`
+
+# encryption_key = ""
+
+
+# =============================================================================
+#    Radar, a Kubernetes UI with a timeline, behind the Pocket ID login. Needs
+#    [pocket_id]. Create the OIDC client for Radar in the Pocket ID admin UI
+#    first, then set BOTH fields below to enable; leaving them blank skips it.
+# =============================================================================
+[radar]
+
+# Client ID of the OIDC client created for Radar in Pocket ID.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

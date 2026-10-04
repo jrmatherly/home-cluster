@@ -234,6 +234,44 @@ def test_partial_unifi_names_missing_field():
         _load_raw(raw)
 
 
+POCKET_ID = POSTGRES_BACKUP | {"pocket_id.encryption_key": "fakefakefakefake"}
+RADAR = POCKET_ID | {"radar.oidc_client_id": "fake", "radar.oidc_client_secret": "fake"}
+
+
+def test_pocket_id_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).pocket_id_enabled is False
+    assert _load_raw(config_from("private.toml", **POCKET_ID)).pocket_id_enabled is True
+
+
+def test_pocket_id_key_needs_sixteen_characters():
+    raw = config_from("private.toml", **POCKET_ID | {"pocket_id.encryption_key": "fifteen-chars-x"})
+    with pytest.raises(ConfigError, match=r"pocket_id\.encryption_key"):
+        _load_raw(raw)
+
+
+def test_pocket_id_requires_postgres_backup():
+    raw = config_from("private.toml", **{"pocket_id.encryption_key": "fakefakefakefake"})
+    with pytest.raises(ConfigError, match=r"pocket_id requires postgres\.backup"):
+        _load_raw(raw)
+
+
+def test_radar_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POCKET_ID)).radar_enabled is False
+    assert _load_raw(config_from("private.toml", **RADAR)).radar_enabled is True
+
+
+def test_partial_radar_names_missing_field():
+    raw = config_from("private.toml", **RADAR | {"radar.oidc_client_secret": None})
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: oidc_client_secret\)"):
+        _load_raw(raw)
+
+
+def test_radar_requires_pocket_id():
+    raw = config_from("private.toml", **RADAR | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"radar requires pocket_id"):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]
