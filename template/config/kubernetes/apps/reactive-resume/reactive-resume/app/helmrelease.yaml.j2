@@ -50,8 +50,9 @@ spec:
                   name: reactive-resume-secret
             probes:
               # The probes ask for the page, not /api/health. That check writes to
-              # the bucket inside a fixed 1.5 s limit and takes over a second on a
-              # good day, so a slow bucket takes the only pod out of the Service.
+              # the bucket inside a fixed 1.5 s limit, and the write has taken from
+              # 0.3 s to over 20 s, so a slow bucket takes the only pod out of the
+              # Service.
               # No liveness probe: a restart does not fix a database or bucket
               # outage.
               liveness:
