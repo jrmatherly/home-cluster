@@ -1,0 +1,22 @@
+---
+# Traceroute and path discovery depend on the ICMP errors (Time Exceeded,
+# Destination Unreachable) that routers beyond the cluster send back for the
+# app's own probes. The NetworkPolicy admits only the gateways and Kubernetes
+# policies cannot name ICMP, so this admits those two types from outside.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: network-optimizer-icmp-errors
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: network-optimizer
+      app.kubernetes.io/controller: network-optimizer
+  ingress:
+    - fromEntities: ["world"]
+      icmps:
+        - fields:
+            - type: 3
+              family: IPv4
+            - type: 11
+              family: IPv4
