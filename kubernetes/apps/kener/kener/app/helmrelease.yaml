@@ -1,0 +1,121 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kener
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: kener
+  interval: 1h
+  values:
+    controllers:
+      kener:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          # The image's ping carries the NET_RAW file capability, and a binary
+          # that cannot get its capability does not start, which fails every ping
+          # monitor. A copy loses the capability and pings through an ICMP socket,
+          # which the nodes let any pod open (net.ipv4.ping_group_range).
+          copy-ping:
+            image: &image
+              repository: ghcr.io/rajnandan1/kener
+              tag: v4.1.5@sha256:b5c201062531fe3dd56df96bd906a5e462247c5a6f537712fa955c047e702b6c
+            command: ["cp", "/usr/bin/ping", "/ping/ping"]
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+          # Kener exits when its migrations cannot reach the database, so hold it
+          # back until the database and Redis accept connections.
+          wait-for-stores:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.37"
+            command:
+              - sh
+              - -c
+              - until nc -z -w 2 kener-db-rw 5432 && nc -z -w 2 redis 6379; do sleep 2; done
+            securityContext: *securityContext
+        containers:
+          app:
+            image: *image
+            env:
+              ORIGIN: https://status.${SECRET_DOMAIN}
+              # Kener keeps its check schedule in Redis and only writes it at
+              # startup. If Redis ever comes back empty, the checks stop while
+              # /healthcheck still says ok: restart Kener.
+              REDIS_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: redis-auth
+                    key: password
+              REDIS_URL: redis://:$(REDIS_PASSWORD)@redis:6379
+              DATABASE_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: kener-db-app
+                    key: uri
+            envFrom:
+              - secretRef:
+                  name: kener-secret
+            probes:
+              # /healthcheck answers 200 while the database or Redis is down, so a
+              # failing dependency does not take the status page out of the Service.
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthcheck
+                    port: &port 3000
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthcheck
+                    port: *port
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 60
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 100m
+                memory: 384Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      ping:
+        type: emptyDir
+        advancedMounts:
+          kener:
+            copy-ping:
+              - path: /ping
+            app:
+              - path: /usr/bin/ping
+                subPath: ping
+                readOnly: true
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          kener:
+            app:
+              - path: /tmp

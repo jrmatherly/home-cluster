@@ -1,0 +1,21 @@
+---
+# Only the gateways may reach Kener. An admin can point a monitor at any
+# address the pod reaches, so the pod is not a place other workloads call into.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kener
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kener
+      app.kubernetes.io/controller: kener
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 3000
