@@ -14,6 +14,18 @@ spec:
       reactive-resume:
         annotations:
           reloader.stakater.com/auto: "true"
+        # The app exits when its migrations cannot reach the database, so hold it
+        # back until the database accepts connections.
+        initContainers:
+          wait-for-database:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.37"
+            command: ["sh", "-c", "until nc -z -w 2 reactive-resume-db-rw 5432; do sleep 2; done"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
         containers:
           app:
             image:
@@ -37,8 +49,11 @@ spec:
               - secretRef:
                   name: reactive-resume-secret
             probes:
-              # No liveness probe: a restart does not fix the database or storage
-              # outage that makes the health check fail.
+              # The probes ask for the page, not /api/health. That check writes to
+              # the bucket inside a fixed 1.5 s limit and takes over a second on a
+              # good day, so a slow bucket takes the only pod out of the Service.
+              # No liveness probe: a restart does not fix a database or bucket
+              # outage.
               liveness:
                 enabled: false
               startup:
@@ -46,10 +61,9 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /api/health
+                    path: /
                     port: &port 3000
                   periodSeconds: 5
-                  # The check writes to the bucket, which can take over a second.
                   timeoutSeconds: 5
                   failureThreshold: 60
               readiness:
@@ -57,7 +71,7 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /api/health
+                    path: /
                     port: *port
                   periodSeconds: 10
                   timeoutSeconds: 5
