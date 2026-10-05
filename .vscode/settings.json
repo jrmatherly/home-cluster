@@ -1,5 +1,7 @@
 {
   "editor.bracketPairColorization.enabled": true,
+  // oxfmt is pinned in .mise/config.toml here; the user settings turn it off
+  "oxc.enable.oxfmt": true,
   "files.associations": {
     "**/*.json5": "json5"
   },
