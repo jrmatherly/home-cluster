@@ -460,6 +460,18 @@ class Config(Model):
     def unifi_dns_enabled(self) -> bool:
         return self.unifi.host != ""
 
+    # The console's address when unifi.host is an IPv4 address, otherwise empty.
+    # Cluster DNS forwards the domain's lookups to it, because unifi-dns writes
+    # the names that exist only on the internal gateway there.
+    @computed_field
+    @property
+    def unifi_dns_addr(self) -> str:
+        host = self.unifi.host.removeprefix("https://").partition(":")[0]
+        try:
+            return str(IPv4Address(host))
+        except ValueError:
+            return ""
+
     # Gates Pocket ID, the identity provider, and its database.
     @computed_field
     @property

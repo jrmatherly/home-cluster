@@ -253,6 +253,15 @@ def test_unifi_dns_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **UNIFI)).unifi_dns_enabled is True
 
 
+def test_unifi_dns_addr_is_the_console_address_only_when_it_is_an_ip():
+    assert _load_raw(config_from("private.toml")).unifi_dns_addr == ""
+    assert _load_raw(config_from("private.toml", **UNIFI)).unifi_dns_addr == "192.0.2.1"
+    with_port = UNIFI | {"unifi.host": "https://192.0.2.1:8443"}
+    assert _load_raw(config_from("private.toml", **with_port)).unifi_dns_addr == "192.0.2.1"
+    by_name = UNIFI | {"unifi.host": "https://unifi.example.com"}
+    assert _load_raw(config_from("private.toml", **by_name)).unifi_dns_addr == ""
+
+
 def test_partial_unifi_names_missing_field():
     raw = config_from("private.toml", **UNIFI | {"unifi.api_key": None})
     with pytest.raises(ConfigError, match=r"partially configured.*\(missing: api_key\)"):

@@ -46,6 +46,15 @@ spec:
             configBlock: |-
               192.168.22.11 auth.${SECRET_DOMAIN}
               fallthrough
+          # unifi-dns writes the name of every route on the internal gateway to the
+          # UniFi console, so its resolver answers the names the node resolvers
+          # cannot. The node resolvers follow it, for when it does not answer. This
+          # sits in the same server block as autopath, which resolves a pod's
+          # search path here and would never reach a block of its own.
+          - name: forward
+            parameters: ${SECRET_DOMAIN} 192.168.1.254 /etc/resolv.conf
+            configBlock: |-
+              policy sequential
           - name: forward
             parameters: . /etc/resolv.conf
           - name: cache
