@@ -1,0 +1,21 @@
+---
+# Only the gateway may reach the app, because it trusts X-Forwarded-For from
+# any pod address.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: reactive-resume
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: reactive-resume
+      app.kubernetes.io/controller: reactive-resume
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 3000

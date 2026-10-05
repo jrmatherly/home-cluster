@@ -1,0 +1,100 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: reactive-resume
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: reactive-resume
+  interval: 1h
+  values:
+    controllers:
+      reactive-resume:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/reactive-resume/reactive-resume
+              tag: v6.0.0
+            env:
+              APP_URL: https://resume.${SECRET_DOMAIN}
+              TRUSTED_PROXIES: "10.42.0.0/16"
+              OAUTH_PROVIDER_NAME: Pocket ID
+              OAUTH_CLIENT_ID: "9d6cb28f-6c94-45d1-a6ab-a664fdc989b7"
+              OAUTH_DISCOVERY_URL: https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
+              FLAG_DISABLE_EMAIL_AUTH: "true"
+              S3_BUCKET: "reactive-resume"
+              S3_REGION: auto
+              DATABASE_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: reactive-resume-db-app
+                    key: uri
+            envFrom:
+              - secretRef:
+                  name: reactive-resume-secret
+            probes:
+              # No liveness probe: a restart does not fix the database or storage
+              # outage that makes the health check fail.
+              liveness:
+                enabled: false
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: &port 3000
+                  periodSeconds: 5
+                  # The check writes to the bucket, which can take over a second.
+                  timeoutSeconds: 5
+                  failureThreshold: 60
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: *port
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    route:
+      app:
+        hostnames:
+          - resume.${SECRET_DOMAIN}
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+    persistence:
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /app/data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
