@@ -19,7 +19,7 @@ spec:
           wait-for-database:
             image:
               repository: docker.io/library/busybox
-              tag: "1.37"
+              tag: "1.38"
             command: ["sh", "-c", "until nc -z -w 2 reactive-resume-db-rw 5432; do sleep 2; done"]
             securityContext:
               allowPrivilegeEscalation: false
