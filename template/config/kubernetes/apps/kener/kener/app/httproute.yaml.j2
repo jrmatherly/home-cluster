@@ -1,0 +1,59 @@
+#% if kener_enabled %#
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kener
+spec:
+  hostnames: ["status.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: kener
+          port: 3000
+---
+# The internet gets the status page, not the admin pages or the API. The first
+# visitor to a new instance creates the admin account, the sign-in form has no
+# rate limit, and an admin can point a monitor at any address in the network.
+# Status pages live at paths of their own choosing, so this refuses the three
+# admin prefixes instead of listing the public ones.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kener-public
+spec:
+  hostnames: ["status.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /manage }
+        - path: { type: PathPrefix, value: /account }
+        - path: { type: PathPrefix, value: /api }
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: kener-not-found
+    - backendRefs:
+        - name: kener
+          port: 3000
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: kener-not-found
+spec:
+  directResponse:
+    statusCode: 404
+    contentType: text/plain
+    body:
+      type: Inline
+      inline: Not Found
+#% endif %#

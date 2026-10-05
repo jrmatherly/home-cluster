@@ -15,6 +15,7 @@ import tomllib
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
+from urllib.parse import unquote, urlsplit
 
 from pydantic import (
     AfterValidator,
@@ -234,6 +235,12 @@ class Postgres(Model):
     backup: PostgresBackup = PostgresBackup()
 
 
+class Redis(Model):
+    # Shared by every Redis the redis component creates. Clients put it in a
+    # connection URL unencoded, hence letters and digits only.
+    password: str = Field(default="", pattern=r"^([A-Za-z0-9]{24,})?$")
+
+
 class Observability(Model):
     grafana_password: Secret = ""
     # InfluxDB rejects a password shorter than 8 characters.
@@ -369,6 +376,38 @@ class ReactiveResume(Model):
         return self
 
 
+class Kener(Model):
+    # Signs sessions and API keys. Kener's documentation asks for 32 characters.
+    secret_key: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    # Where Kener sends mail. smtps:// means TLS from the first byte. Kener
+    # ignores its mail settings unless it has a host, a user and a password.
+    smtp_url: str = Field(default="", pattern=r'^(smtps?://[^"\\\s$]+)?$')
+    # Sender address of that mail.
+    mail_from: str = Field(default="", pattern=r'^[^"\\$\r\n]*$')
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "kener", ("smtp_url", "mail_from"))
+        if self.smtp_url and not self.secret_key:
+            raise ValueError("smtp_url requires secret_key: Kener only runs when the key is set")
+        if self.smtp_url:
+            url = urlsplit(self.smtp_url)
+            if not (url.hostname and url.username and url.password):
+                raise ValueError("smtp_url needs a user, a password and a host")
+            try:
+                _ = url.port
+            except ValueError:
+                raise ValueError("smtp_url has a port that is not a number") from None
+            # The decoded values go into a quoted YAML string that Flux substitutes.
+            for part in (unquote(url.username), unquote(url.password)):
+                if re.search(r'["\\\s$]', part):
+                    raise ValueError(
+                        "smtp_url user and password must not contain a double quote, "
+                        "a backslash, a space or a dollar sign, even when encoded"
+                    )
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -409,12 +448,14 @@ class Config(Model):
     talos: Talos = Talos()
     spegel: Spegel = Spegel()
     postgres: Postgres = Postgres()
+    redis: Redis = Redis()
     observability: Observability = Observability()
     unifi: Unifi = Unifi()
     pocket_id: PocketId = PocketId()
     radar: Radar = Radar()
     matherlynet: Matherlynet = Matherlynet()
     reactive_resume: ReactiveResume = ReactiveResume()
+    kener: Kener = Kener()
     nodes: list[Node]
 
     @computed_field
@@ -447,6 +488,12 @@ class Config(Model):
     @property
     def postgres_backup_enabled(self) -> bool:
         return self.postgres.backup.endpoint != ""
+
+    # Gates components/redis, which gives an app that includes it a Redis of its own.
+    @computed_field
+    @property
+    def redis_enabled(self) -> bool:
+        return self.redis.password != ""
 
     # Gates the observability namespace, whose apps need all three secrets.
     @computed_field
@@ -496,6 +543,28 @@ class Config(Model):
     @property
     def reactive_resume_enabled(self) -> bool:
         return self.reactive_resume.auth_secret != ""
+
+    # Gates Kener and its database.
+    @computed_field
+    @property
+    def kener_enabled(self) -> bool:
+        return self.kener.secret_key != ""
+
+    # kener.smtp_url as the separate settings Kener reads. Empty when it is unset.
+    @computed_field
+    @property
+    def kener_smtp(self) -> dict[str, str]:
+        if not self.kener.smtp_url:
+            return {}
+        url = urlsplit(self.kener.smtp_url)
+        secure = url.scheme == "smtps"
+        return {
+            "host": url.hostname or "",
+            "port": str(url.port or (465 if secure else 587)),
+            "user": unquote(url.username or ""),
+            "password": unquote(url.password or ""),
+            "secure": "1" if secure else "0",
+        }
 
     @computed_field
     @property
@@ -575,6 +644,18 @@ class Config(Model):
             raise ValueError(
                 "reactive_resume requires ingress.mode other than 'none': it is served on "
                 "the external gateway"
+            )
+        if self.kener_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "kener requires postgres.backup: its database holds monitors, incidents "
+                "and accounts, which cannot be recreated"
+            )
+        if self.kener_enabled and not self.redis_enabled:
+            raise ValueError("kener requires redis.password: Kener's job queue lives in Redis")
+        if self.kener_enabled and self.ingress.mode == "none":
+            raise ValueError(
+                "kener requires ingress.mode other than 'none': the status page is served "
+                "on the external gateway"
             )
         if self.matherlynet.playground and not self.nvidia_enabled:
             raise ValueError(

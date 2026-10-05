@@ -563,3 +563,100 @@ def test_reactive_resume_requires_ingress():
     raw = config_from("private.toml", **REACTIVE_RESUME | {"ingress.mode": "none"})
     with pytest.raises(ConfigError, match=r"reactive_resume requires ingress\.mode"):
         _load_raw(raw)
+
+
+REDIS = {"redis.password": "x" * 24}
+
+
+def test_redis_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).redis_enabled is False
+    assert _load_raw(config_from("private.toml", **REDIS)).redis_enabled is True
+
+
+@pytest.mark.parametrize("password", ["x" * 23, "x" * 23 + "@", "x" * 23 + "/"])
+def test_redis_password_is_long_and_safe_in_a_url(password):
+    raw = config_from("private.toml", **{"redis.password": password})
+    with pytest.raises(ConfigError, match=r"redis\.password"):
+        _load_raw(raw)
+
+
+KENER = POSTGRES_BACKUP | REDIS | {"kener.secret_key": "x" * 32}
+KENER_SMTP = KENER | {
+    "kener.smtp_url": "smtps://user%40example.com:pass%2Fword@smtp.example.com",
+    "kener.mail_from": "status@example.com",
+}
+
+
+def test_kener_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POSTGRES_BACKUP)).kener_enabled is False
+    assert _load_raw(config_from("private.toml", **KENER)).kener_enabled is True
+
+
+def test_kener_secret_key_needs_32_characters():
+    raw = config_from("private.toml", **KENER | {"kener.secret_key": "x" * 31})
+    with pytest.raises(ConfigError, match=r"kener\.secret_key"):
+        _load_raw(raw)
+
+
+def test_kener_requires_redis():
+    raw = config_from("private.toml", **KENER | {"redis.password": None})
+    with pytest.raises(ConfigError, match=r"kener requires redis\.password"):
+        _load_raw(raw)
+
+
+def test_kener_requires_postgres_backup():
+    raw = config_from("private.toml", **REDIS | {"kener.secret_key": "x" * 32})
+    with pytest.raises(ConfigError, match=r"kener requires postgres\.backup"):
+        _load_raw(raw)
+
+
+def test_kener_requires_ingress():
+    raw = config_from("private.toml", **KENER | {"ingress.mode": "none"})
+    with pytest.raises(ConfigError, match=r"kener requires ingress\.mode"):
+        _load_raw(raw)
+
+
+def test_kener_smtp_is_empty_when_unset():
+    assert _load_raw(config_from("private.toml", **KENER)).kener_smtp == {}
+
+
+def test_kener_smtp_splits_the_url_and_decodes_the_credentials():
+    assert _load_raw(config_from("private.toml", **KENER_SMTP)).kener_smtp == {
+        "host": "smtp.example.com",
+        "port": "465",
+        "user": "user@example.com",
+        "password": "pass/word",
+        "secure": "1",
+    }
+    plain = KENER_SMTP | {"kener.smtp_url": "smtp://u:p@smtp.example.com"}
+    assert _load_raw(config_from("private.toml", **plain)).kener_smtp["port"] == "587"
+    assert _load_raw(config_from("private.toml", **plain)).kener_smtp["secure"] == "0"
+    custom = KENER_SMTP | {"kener.smtp_url": "smtp://u:p@smtp.example.com:2525"}
+    assert _load_raw(config_from("private.toml", **custom)).kener_smtp["port"] == "2525"
+
+
+def test_partial_kener_smtp_names_missing_field():
+    raw = config_from("private.toml", **KENER_SMTP | {"kener.mail_from": None})
+    with pytest.raises(ConfigError, match=r"kener is partially configured.*\(missing: mail_from\)"):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize(
+    ("url", "message"),
+    [
+        ("smtp://smtp.example.com:587", "needs a user, a password and a host"),
+        ("smtp://user@smtp.example.com", "needs a user, a password and a host"),
+        ("smtp://u:p@smtp.example.com:port", "port that is not a number"),
+        ("smtp://u:p%24word@smtp.example.com", "must not contain"),
+    ],
+)
+def test_kener_smtp_url_is_rejected(url, message):
+    raw = config_from("private.toml", **KENER_SMTP | {"kener.smtp_url": url})
+    with pytest.raises(ConfigError, match=message):
+        _load_raw(raw)
+
+
+def test_kener_smtp_requires_secret_key():
+    raw = config_from("private.toml", **KENER_SMTP | {"kener.secret_key": None})
+    with pytest.raises(ConfigError, match=r"smtp_url requires secret_key"):
+        _load_raw(raw)

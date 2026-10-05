@@ -535,6 +535,62 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Redis. An app that needs Redis gets an instance of its own, in its own
+#    namespace, from one shared definition (kubernetes/components/redis): Redis 8
+#    with an append-only file on a volume, reachable only from that namespace.
+#    Every instance takes this password. Leaving it blank disables the
+#    component, and the apps that need it then refuse to enable.
+# =============================================================================
+[redis]
+
+# At least 24 letters and digits. Clients put it in a connection URL as it is,
+# so no other characters. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# password = ""
+
+
+# =============================================================================
+#    Kener, a status page with uptime monitoring, served at
+#    https://status.<domain.name>. The internet reaches the status page through
+#    the external gateway; the admin pages (/manage, /account) and the API
+#    (/api) are served on the internal gateway only. Needs [postgres.backup],
+#    [redis] and an ingress.mode other than "none". Set secret_key to enable;
+#    leaving it blank skips it.
+#
+#    The first person to open /account/signin creates the admin account, so do
+#    that right after the first deploy. Single sign-on is set up in Kener
+#    itself, under Manage > OpenID Connect: create the client in the Pocket ID
+#    admin UI with the callback URL
+#    https://status.<domain.name>/account/oidc/callback, and add "groups" to
+#    the scopes. Kener refuses an OIDC login whose email matches a local
+#    account, so give the first admin a different address.
+# =============================================================================
+[kener]
+
+# Signs sessions and API keys, at least 32 characters. Changing it signs
+# everyone out and invalidates every API key.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# secret_key = ""
+
+# Where Kener sends mail: alerts, invitations and subscriber updates. Kener
+# needs a user and a password. smtps:// uses TLS from the first byte (port
+# 465 unless given); smtp:// upgrades with STARTTLS (port 587 unless given).
+# Percent-encode an at sign in the user or password (%40). Set mail_from too.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: "smtp://user%40example.com:password@smtp.example.com:587"
+
+# smtp_url = ""
+
+# Sender address of that mail. Set smtp_url too.
+# OPTIONAL. Example: "status@example.com"
+
+# mail_from = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

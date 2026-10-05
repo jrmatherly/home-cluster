@@ -187,6 +187,31 @@
       "title": "Ingress",
       "type": "object"
     },
+    "Kener": {
+      "additionalProperties": false,
+      "properties": {
+        "secret_key": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{32,})?$",
+          "title": "Secret Key",
+          "type": "string"
+        },
+        "smtp_url": {
+          "default": "",
+          "pattern": "^(smtps?://[^\"\\\\\\s$]+)?$",
+          "title": "Smtp Url",
+          "type": "string"
+        },
+        "mail_from": {
+          "default": "",
+          "pattern": "^[^\"\\\\$\\r\\n]*$",
+          "title": "Mail From",
+          "type": "string"
+        }
+      },
+      "title": "Kener",
+      "type": "object"
+    },
     "Kubernetes": {
       "additionalProperties": false,
       "properties": {
@@ -541,6 +566,19 @@
       "title": "ReactiveResume",
       "type": "object"
     },
+    "Redis": {
+      "additionalProperties": false,
+      "properties": {
+        "password": {
+          "default": "",
+          "pattern": "^([A-Za-z0-9]{24,})?$",
+          "title": "Password",
+          "type": "string"
+        }
+      },
+      "title": "Redis",
+      "type": "object"
+    },
     "Repository": {
       "additionalProperties": false,
       "properties": {
@@ -697,6 +735,12 @@
         }
       }
     },
+    "redis": {
+      "$ref": "#/$defs/Redis",
+      "default": {
+        "password": ""
+      }
+    },
     "observability": {
       "$ref": "#/$defs/Observability",
       "default": {
@@ -754,6 +798,14 @@
         "s3_bucket": "",
         "s3_access_key_id": "",
         "s3_secret_access_key": ""
+      }
+    },
+    "kener": {
+      "$ref": "#/$defs/Kener",
+      "default": {
+        "secret_key": "",
+        "smtp_url": "",
+        "mail_from": ""
       }
     },
     "nodes": {
