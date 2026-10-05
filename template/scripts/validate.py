@@ -408,6 +408,27 @@ class Kener(Model):
         return self
 
 
+class NetworkOptimizer(Model):
+    # Password of the app's built-in admin account. Its identity store refuses
+    # a password without a digit.
+    app_password: str = Field(default="", pattern=r'^([^"\\\s$]{8,})?$')
+    # The OIDC client created for Network Optimizer in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "network_optimizer", ("oidc_client_id", "oidc_client_secret"))
+        if self.app_password and not re.search(r"[0-9]", self.app_password):
+            raise ValueError("app_password must contain a digit: the app refuses it otherwise")
+        if self.oidc_client_id and not self.app_password:
+            raise ValueError(
+                "oidc_client_id requires app_password: Network Optimizer only runs "
+                "when the password is set"
+            )
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -456,6 +477,7 @@ class Config(Model):
     matherlynet: Matherlynet = Matherlynet()
     reactive_resume: ReactiveResume = ReactiveResume()
     kener: Kener = Kener()
+    network_optimizer: NetworkOptimizer = NetworkOptimizer()
     nodes: list[Node]
 
     @computed_field
@@ -566,6 +588,18 @@ class Config(Model):
             "secure": "1" if secure else "0",
         }
 
+    # Gates Network Optimizer.
+    @computed_field
+    @property
+    def network_optimizer_enabled(self) -> bool:
+        return self.network_optimizer.app_password != ""
+
+    # Adds the Pocket ID sign-in to Network Optimizer.
+    @computed_field
+    @property
+    def network_optimizer_oidc(self) -> bool:
+        return self.network_optimizer.oidc_client_id != ""
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -656,6 +690,16 @@ class Config(Model):
             raise ValueError(
                 "kener requires ingress.mode other than 'none': the status page is served "
                 "on the external gateway"
+            )
+        if self.network_optimizer_enabled and not self.observability_enabled:
+            raise ValueError(
+                "network_optimizer requires observability: Network Optimizer writes its "
+                "time series to the InfluxDB there"
+            )
+        if self.network_optimizer_oidc and not self.pocket_id_enabled:
+            raise ValueError(
+                "network_optimizer.oidc_client_id requires pocket_id: "
+                "Pocket ID is the OIDC provider Network Optimizer signs in with"
             )
         if self.matherlynet.playground and not self.nvidia_enabled:
             raise ValueError(

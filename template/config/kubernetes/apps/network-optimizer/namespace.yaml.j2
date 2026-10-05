@@ -1,0 +1,11 @@
+#% if network_optimizer_enabled %#
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: network-optimizer
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+#% endif %#

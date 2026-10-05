@@ -1,0 +1,23 @@
+#% if network_optimizer_enabled %#
+---
+# Only the gateways may reach Network Optimizer. It holds the UniFi API key and
+# trusts the forwarded client address from any pod in the pod network.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: network-optimizer
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: network-optimizer
+      app.kubernetes.io/controller: network-optimizer
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 8042
+#% endif %#

@@ -1,0 +1,14 @@
+#% if network_optimizer_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./helmrelease.yaml
+  - ./httproute.yaml
+  #% if network_optimizer_oidc %#
+  - ./identity-secret.sops.yaml
+  #% endif %#
+  - ./networkpolicy.yaml
+  - ./ocirepository.yaml
+  - ./secret.sops.yaml
+#% endif %#

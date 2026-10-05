@@ -1,0 +1,131 @@
+#% if network_optimizer_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: network-optimizer
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: network-optimizer
+  interval: 1h
+  values:
+    controllers:
+      network-optimizer:
+        # SQLite allows one writer, and the volume is pinned to one node.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          # ping and traceroute carry the NET_RAW file capability, and a binary
+          # that cannot get its capability does not start. Copies lose it and use
+          # an ICMP socket, which ping_group_range below lets the pod open.
+          copy-icmp-tools:
+            image: &image
+              repository: ghcr.io/ozark-connect/network-optimizer
+              tag: 2.9.1@sha256:b17890f43225a884e1ef2b67492d1258e082e13302a97f1fa9897ce6e6cb5892
+            command: ["cp", "/bin/ping", "/usr/bin/traceroute.db", "/icmp/"]
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *image
+            # The image's entrypoint runs as root to chown the data directory and
+            # then drops to the app user, which the restricted namespace refuses.
+            # It also set ASPNETCORE_URLS, so that is set here instead.
+            command: ["dotnet", "NetworkOptimizer.Web.dll"]
+            workingDir: /app
+            env:
+              ASPNETCORE_URLS: http://*:8042
+              # HOST_IP stays unset. It is the LAN address that path analysis
+              # starts from, and a pod has none.
+              REVERSE_PROXIED_HOST_NAME: optimizer.${SECRET_DOMAIN}
+              TRUSTED_PROXIES: "#{ kubernetes.pod_cidr }#"
+            envFrom:
+              - secretRef:
+                  name: network-optimizer-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: &port 8042
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: *port
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile: { type: RuntimeDefault }
+        sysctls:
+          - name: net.ipv4.ping_group_range
+            value: "0 2147483647"
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          network-optimizer:
+            app:
+              - path: /app/data
+      icmp:
+        type: emptyDir
+        advancedMounts:
+          network-optimizer:
+            copy-icmp-tools:
+              - path: /icmp
+            app:
+              - path: /bin/ping
+                subPath: ping
+                readOnly: true
+              - path: /usr/bin/traceroute.db
+                subPath: traceroute.db
+                readOnly: true
+      #% if network_optimizer_oidc %#
+      identity:
+        type: secret
+        name: network-optimizer-identity
+        advancedMounts:
+          network-optimizer:
+            app:
+              - path: /app/config
+                readOnly: true
+      #% endif %#
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          network-optimizer:
+            app:
+              - path: /tmp
+#% endif %#

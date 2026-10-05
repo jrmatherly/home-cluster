@@ -337,6 +337,29 @@
       "title": "Network",
       "type": "object"
     },
+    "NetworkOptimizer": {
+      "additionalProperties": false,
+      "properties": {
+        "app_password": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{8,})?$",
+          "title": "App Password",
+          "type": "string"
+        },
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "NetworkOptimizer",
+      "type": "object"
+    },
     "Node": {
       "additionalProperties": false,
       "properties": {
@@ -806,6 +829,14 @@
         "secret_key": "",
         "smtp_url": "",
         "mail_from": ""
+      }
+    },
+    "network_optimizer": {
+      "$ref": "#/$defs/NetworkOptimizer",
+      "default": {
+        "app_password": "",
+        "oidc_client_id": "",
+        "oidc_client_secret": ""
       }
     },
     "nodes": {

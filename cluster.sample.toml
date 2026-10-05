@@ -591,6 +591,37 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Network Optimizer, which audits and monitors the UniFi network, served at
+#    https://optimizer.<domain.name> on the internal gateway. It writes time
+#    series to the InfluxDB in [observability], which it needs. Set
+#    app_password to enable; leaving it blank skips it.
+#
+#    The UniFi connection (an API key from the console), the InfluxDB settings
+#    and the Pocket ID role mapping are entered in the app's own Settings, not
+#    here. For InfluxDB, create the buckets network_monitoring (90 days) and
+#    network_monitoring_longterm (365 days) in org "home", and a token that can
+#    read and write both. To sign in with Pocket ID, create the client in the Pocket ID
+#    admin UI with the callback URL
+#    https://optimizer.<domain.name>/signin-oidc/pocket-id, then map the
+#    cluster_admins group to the Admin role in the app.
+# =============================================================================
+[network_optimizer]
+
+# Password of the app's admin account, at least 8 characters with at least
+# one digit. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 16`
+
+# app_password = ""
+
+# The OIDC client created for Network Optimizer in the Pocket ID admin UI.
+# Needs [pocket_id]. Set both or neither.
+# OPTIONAL.
+
+# oidc_client_id = ""
+# oidc_client_secret = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

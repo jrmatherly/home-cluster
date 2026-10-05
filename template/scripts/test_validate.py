@@ -660,3 +660,63 @@ def test_kener_smtp_requires_secret_key():
     raw = config_from("private.toml", **KENER_SMTP | {"kener.secret_key": None})
     with pytest.raises(ConfigError, match=r"smtp_url requires secret_key"):
         _load_raw(raw)
+
+
+NETWORK_OPTIMIZER = OBSERVABILITY | {"network_optimizer.app_password": "fakefake1"}
+NETWORK_OPTIMIZER_OIDC = (
+    NETWORK_OPTIMIZER
+    | POCKET_ID
+    | {
+        "network_optimizer.oidc_client_id": "network-optimizer",
+        "network_optimizer.oidc_client_secret": "fake",
+    }
+)
+
+
+def test_network_optimizer_flags():
+    off = _load_raw(config_from("private.toml", **OBSERVABILITY))
+    assert (off.network_optimizer_enabled, off.network_optimizer_oidc) == (False, False)
+    on = _load_raw(config_from("private.toml", **NETWORK_OPTIMIZER))
+    assert (on.network_optimizer_enabled, on.network_optimizer_oidc) == (True, False)
+    oidc = _load_raw(config_from("private.toml", **NETWORK_OPTIMIZER_OIDC))
+    assert (oidc.network_optimizer_enabled, oidc.network_optimizer_oidc) == (True, True)
+
+
+@pytest.mark.parametrize("password", ["fakefake", "fake1"])
+def test_network_optimizer_app_password_is_rejected(password):
+    raw = config_from(
+        "private.toml", **NETWORK_OPTIMIZER | {"network_optimizer.app_password": password}
+    )
+    with pytest.raises(ConfigError, match=r"network_optimizer.*app_password"):
+        _load_raw(raw)
+
+
+def test_network_optimizer_requires_observability():
+    raw = config_from("private.toml", **{"network_optimizer.app_password": "fakefake1"})
+    with pytest.raises(ConfigError, match=r"network_optimizer requires observability"):
+        _load_raw(raw)
+
+
+def test_network_optimizer_oidc_requires_pocket_id():
+    raw = config_from("private.toml", **NETWORK_OPTIMIZER_OIDC | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"network_optimizer\.oidc_client_id requires pocket_id"):
+        _load_raw(raw)
+
+
+def test_partial_network_optimizer_oidc_names_missing_field():
+    raw = config_from(
+        "private.toml", **NETWORK_OPTIMIZER_OIDC | {"network_optimizer.oidc_client_secret": None}
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"network_optimizer is partially configured.*\(missing: oidc_client_secret\)",
+    ):
+        _load_raw(raw)
+
+
+def test_network_optimizer_oidc_requires_app_password():
+    raw = config_from(
+        "private.toml", **NETWORK_OPTIMIZER_OIDC | {"network_optimizer.app_password": None}
+    )
+    with pytest.raises(ConfigError, match=r"oidc_client_id requires app_password"):
+        _load_raw(raw)
