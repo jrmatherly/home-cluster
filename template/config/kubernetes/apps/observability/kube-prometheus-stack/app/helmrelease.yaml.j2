@@ -143,15 +143,9 @@ spec:
           secureJsonData:
             # Grafana expands this from its environment. Flux leaves $VAR without braces alone.
             token: $INFLUXDB_TOKEN
+      #% if observability.grafana_oidc_client_id %#
+      # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
       grafana.ini:
-        plugins:
-          # The image bundles these datasource plugins, and the chart turns their
-          # updates off. Listing them installs the catalog's latest at every
-          # start, within the same major, onto the persistent volume.
-          preinstall: prometheus,influxdb,loki,jaeger,zipkin,mysql,mssql,opentsdb,grafana-postgresql-datasource
-          preinstall_auto_update: true
-        #% if observability.grafana_oidc_client_id %#
-        # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
         server:
           # Without this Grafana builds its OAuth callback from http and port 3000.
           root_url: https://grafana.${SECRET_DOMAIN}
@@ -168,5 +162,5 @@ spec:
           role_attribute_path: "contains(groups[*], 'cluster_admins') && 'GrafanaAdmin'"
           role_attribute_strict: true
           allow_assign_grafana_admin: true
-        #% endif %#
+      #% endif %#
 #% endif %#
