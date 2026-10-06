@@ -1,0 +1,25 @@
+---
+# Only the gateways may reach PegaProx. It holds the Proxmox credentials and
+# trusts the forwarded client address from any pod in the pod network.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pegaprox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pegaprox
+      app.kubernetes.io/controller: pegaprox
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 5001
+        - protocol: TCP
+          port: 5002
