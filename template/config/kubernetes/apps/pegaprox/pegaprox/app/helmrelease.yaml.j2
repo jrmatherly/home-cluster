@@ -16,11 +16,22 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
-        containers:
-          app:
-            image:
+        initContainers:
+          # PegaProx has no plugin installer: a plugin is a directory placed under
+          # its plugins path, which the read-only root would freeze. The bundled
+          # plugins are copied onto the plugins volume once, so added ones persist.
+          seed-plugins:
+            image: &image
               repository: ghcr.io/pegaprox/pegaprox
               tag: 1.2.0@sha256:8c406ad6b2ddf9dc252e468db6b1bd730ffe11a748a16e3a86d28dc77e438536
+            command: ["cp", "-rn", "/app/plugins/.", "/plugins/"]
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *image
             env:
               # The gateway terminates TLS.
               PEGAPROX_BEHIND_PROXY: "true"
@@ -53,10 +64,7 @@ spec:
                   periodSeconds: 5
                   timeoutSeconds: 5
                   failureThreshold: 30
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+            securityContext: *securityContext
             resources:
               requests:
                 cpu: 100m
@@ -95,6 +103,17 @@ spec:
           pegaprox:
             app:
               - path: /app/config
+      plugins:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        advancedMounts:
+          pegaprox:
+            seed-plugins:
+              - path: /plugins
+            app:
+              - path: /app/plugins
       logs:
         type: emptyDir
         advancedMounts:
