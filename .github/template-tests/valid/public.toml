@@ -56,6 +56,7 @@ influxdb_token             = "fake"
 discord_webhook            = "https://discord.com/api/webhooks/123456789012345678/example-token"
 grafana_oidc_client_id     = "fake-grafana-client"
 grafana_oidc_client_secret = "fake-grafana-client-secret"
+grafana_secret_key         = "fake-grafana-secret-key-32-chars"
 
 [unifi]
 host    = "https://192.0.2.1"

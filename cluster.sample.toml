@@ -355,6 +355,14 @@ schematic_id = ""
 
 # grafana_oidc_client_secret = ""
 
+# Key Grafana encrypts its stored data source secrets with, at least 32
+# characters. Grafana's advisor flags the built-in default. Needs the three
+# fields above. It is written to a SOPS-encrypted Secret. Never change it once
+# set: Grafana can no longer read what it encrypted with the old key.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# grafana_secret_key = ""
+
 
 # =============================================================================
 #    UniFi console. When set, the cluster writes a local DNS record to the

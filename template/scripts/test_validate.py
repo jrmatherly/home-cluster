@@ -392,6 +392,30 @@ def test_grafana_oidc_requires_pocket_id():
         _load_raw(raw)
 
 
+GRAFANA_SECRET_KEY = "a" * 32
+
+
+def test_grafana_secret_key_accepted_with_observability():
+    raw = config_from(
+        "private.toml", **OBSERVABILITY | {"observability.grafana_secret_key": GRAFANA_SECRET_KEY}
+    )
+    assert _load_raw(raw).observability.grafana_secret_key == GRAFANA_SECRET_KEY
+
+
+def test_grafana_secret_key_requires_observability():
+    raw = config_from("private.toml", **{"observability.grafana_secret_key": GRAFANA_SECRET_KEY})
+    with pytest.raises(ConfigError, match=r"observability.*grafana_secret_key"):
+        _load_raw(raw)
+
+
+def test_grafana_secret_key_must_be_32_characters():
+    raw = config_from(
+        "private.toml", **OBSERVABILITY | {"observability.grafana_secret_key": "a" * 31}
+    )
+    with pytest.raises(ConfigError, match=r"observability\.grafana_secret_key"):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]

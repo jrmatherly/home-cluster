@@ -459,6 +459,10 @@
         "grafana_oidc_client_secret": {
           "$ref": "#/$defs/Secret",
           "default": ""
+        },
+        "grafana_secret_key": {
+          "$ref": "#/$defs/Secret_________s___32_______",
+          "default": ""
         }
       },
       "title": "Observability",
@@ -653,6 +657,10 @@
       "pattern": "^[^\"\\\\\\s$]*$",
       "type": "string"
     },
+    "Secret_________s___32_______": {
+      "pattern": "^([^\"\\\\\\s$]{32,})?$",
+      "type": "string"
+    },
     "Secret_________s___8_______": {
       "pattern": "^([^\"\\\\\\s$]{8,})?$",
       "type": "string"
@@ -789,7 +797,8 @@
         "influxdb_token": "",
         "discord_webhook": "",
         "grafana_oidc_client_id": "",
-        "grafana_oidc_client_secret": ""
+        "grafana_oidc_client_secret": "",
+        "grafana_secret_key": ""
       }
     },
     "unifi": {

@@ -253,6 +253,9 @@ class Observability(Model):
     # The OIDC client created for Grafana in the Pocket ID admin UI.
     grafana_oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     grafana_oidc_client_secret: Secret = ""
+    # Encrypts Grafana's stored data source secrets, all provisioned here and re-encoded
+    # at start. The advisor flags the built-in default. Never change it without reprovisioning.
+    grafana_secret_key: Secret = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -270,6 +273,11 @@ class Observability(Model):
         if self.grafana_oidc_client_id and not self.grafana_password:
             raise ValueError(
                 "grafana_oidc_client_id requires grafana_password, influxdb_password and "
+                "influxdb_token: Grafana only runs with the rest of the stack"
+            )
+        if self.grafana_secret_key and not self.grafana_password:
+            raise ValueError(
+                "grafana_secret_key requires grafana_password, influxdb_password and "
                 "influxdb_token: Grafana only runs with the rest of the stack"
             )
         return self
