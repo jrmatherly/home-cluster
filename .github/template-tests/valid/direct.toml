@@ -9,6 +9,9 @@ internal = "10.10.10.252"
 dns      = "10.10.10.253"
 external = "10.10.10.251"
 
+[repository]
+url = "https://github.com/onedr0p/cluster-template.git"
+
 [domain]
 name = "example.com"
 
@@ -17,9 +20,6 @@ token = "fake"
 
 [ingress]
 mode = "direct"
-
-[repository]
-url = "https://github.com/onedr0p/cluster-template.git"
 
 [[nodes]]
 name         = "k8s-0"

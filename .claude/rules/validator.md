@@ -17,4 +17,15 @@ paths:
 
 Then run `uv run --locked pytest template/scripts/test_validate.py -q`. The Stop hook also runs it when `template/scripts/` changed, and it renders every valid fixture.
 
+## Keeping cluster.toml and cluster.sample.toml in step
+
+`cluster.sample.toml` is the layout of record: the order of the sections, the banner comment above each app section, and the comment style of each field. `cluster.toml` and every fixture mirror it. A config may leave an optional section out, but never reorders what it has. `just template check-layout` compares the section order of `cluster.toml` with the sample and runs first in `just configure`, and pytest checks every valid fixture the same way.
+
+When a new section lands, add it to `cluster.toml` as well, in the sample's position, with the values left for the user to fill:
+
+- Copy the sample's whole block: the banner, the `[section]` header and the commented-out keys.
+- Insert it after the end of the section that precedes it in the sample. Find that section's header, then the next header or banner after it, and insert there. Never anchor on the next header alone: a banner comment sits above each header, so the block would land inside it. That is how `[pegaprox]` ended up in the Talos block on 2026-10-05.
+- Do it with a script that prints only line numbers, never the file's lines.
+- Run `just template check-layout`, then `taplo check --schema "file://$PWD/cluster.schema.json" ./cluster.toml`.
+
 Templates read the validated config, so a renamed or removed field also breaks every template that uses it. Search for it with `grep -rn '<field>' template/config`.

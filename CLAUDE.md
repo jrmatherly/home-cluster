@@ -23,7 +23,8 @@ Template stage:
 
 - `just init` creates `cluster.toml` from `cluster.sample.toml`, plus `age.key`, `deploy.key` and `flux-webhook-token.txt`, skipping any that exist.
 - `just configure` renders with makejinja, sops-encrypts every `*.sops.*` file, runs kubeconform on `kubernetes/`, and checks that topf can render `talos/`.
-- `just template doctor` checks that the required files exist and that `cluster.toml` passes the schema.
+- `just template doctor` checks that the required files exist, that `cluster.toml` passes the schema, and that its sections follow the sample's order.
+- `just template check-layout` checks that `cluster.toml` keeps its sections in the order of `cluster.sample.toml`. `just configure` runs it first.
 - `just template schema` regenerates `cluster.schema.json` from the pydantic model.
 - `just template test-helmfile` renders the bootstrap Helm charts. It needs network access.
 - `just template reset` deletes the rendered output.
@@ -85,7 +86,7 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 
 ## Detected Patterns
 
-- A `cluster.toml` schema change touches four places: `validate.py`, `cluster.sample.toml`, `cluster.schema.json` (from `just template schema`), and the test fixtures. `.claude/rules/validator.md` has the steps.
+- A `cluster.toml` schema change touches four places: `validate.py`, `cluster.sample.toml`, `cluster.schema.json` (from `just template schema`), and the test fixtures. `.claude/rules/validator.md` has the steps. `cluster.sample.toml` is the layout of record: `cluster.toml` and the fixtures keep its section order and banner comments, a new section is scaffolded into `cluster.toml` by copying the sample's block into the same position, and `just template check-layout` fails a config whose sections are out of that order.
 - Rendered YAML has to be oxfmt-clean, because CI runs `oxfmt --check` on the rendered directories.
 - The whole `ai` namespace (`ai/llama-server` and its namespace and kustomization files) is wrapped in `#% if nvidia_enabled %#`, so it renders empty when NVIDIA is off.
 - llama-server's image is pinned as `tag@sha256:digest`, and a Renovate rule in `.renovaterc.json5` keeps it on the `server-cuda-v<semver>` CUDA 12 tags. Its startup probe sends a real chat request so the pod is Ready only when warm, and a NetworkPolicy admits only the `ai` namespace and namespaces labelled `llama-server.ai/client: "true"`.

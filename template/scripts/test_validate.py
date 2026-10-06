@@ -13,6 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import check_layout
 from pydantic import ValidationError
 from validate import Config, ConfigError, format_errors, load, schema
 
@@ -740,3 +741,17 @@ def test_pegaprox_db_key_is_rejected(key):
     raw = config_from("private.toml", **{"pegaprox.db_key": key})
     with pytest.raises(ConfigError, match=r"pegaprox.*db_key"):
         _load_raw(raw)
+
+
+SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
+
+
+@pytest.mark.parametrize("fixture", VALID, ids=lambda p: p.stem)
+def test_valid_fixture_follows_sample_layout(fixture):
+    tables = list(tomllib.loads(fixture.read_text()))
+    assert check_layout.misplaced(SAMPLE_TABLES, tables) is None
+
+
+def test_misplaced_table_is_named():
+    assert check_layout.misplaced(["a", "b", "c"], ["a", "c", "b"]) == ("c", "b")
+    assert check_layout.misplaced(["a", "b", "c"], ["a", "c", "nodes"]) is None

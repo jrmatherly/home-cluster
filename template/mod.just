@@ -19,13 +19,19 @@ config_file := justfile_dir() + '/cluster.toml'
 schema_file := justfile_dir() + '/cluster.schema.json'
 sample_config_file := justfile_dir() + '/cluster.sample.toml'
 validate_script := template_dir + '/scripts/validate.py'
+check_layout_script := template_dir + '/scripts/check_layout.py'
 deploy_key := justfile_dir() + '/deploy.key'
 webhook_token_file := justfile_dir() + '/flux-webhook-token.txt'
 cloudflare_tunnel := justfile_dir() + '/cloudflare-tunnel.json'
 
 [doc('Render and validate configuration files')]
 [group('template')]
-configure: render encrypt-secrets validate-kubernetes validate-talos
+configure: check-layout render encrypt-secrets validate-kubernetes validate-talos
+
+[doc('Check that cluster.toml keeps its sections in the order of cluster.sample.toml')]
+[group('template')]
+check-layout:
+    uv run --quiet --locked --no-dev "{{ check_layout_script }}" "{{ sample_config_file }}" "{{ config_file }}"
 
 [doc('Check that all prerequisite files exist and cluster.toml validates against the schema')]
 [group('template')]
@@ -35,6 +41,14 @@ doctor:
     just log info "just version" version "{{ just_version() }}"
     just template doctor-check "cluster.toml"           "{{ config_file }}"           || rc=1
     just template doctor-check "cluster.sample.toml"    "{{ sample_config_file }}"    || rc=1
+    if [ -f "{{ config_file }}" ]; then
+        if just template check-layout; then
+            just log info "ok" check layout
+        else
+            just log error "cluster.toml sections are out of the sample's order" check layout
+            rc=1
+        fi
+    fi
     config_json="$(just template config-json 2>/dev/null || true)"
     if [ "$(jq -r '.ingress.mode' <<< "$config_json" 2>/dev/null)" = "cloudflare-tunnel" ]; then
         just template doctor-check "cloudflare-tunnel.json" "{{ cloudflare_tunnel }}" || rc=1
