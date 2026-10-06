@@ -30,7 +30,7 @@ spec:
     # does not retry, so hold it back until the database accepts connections.
     initContainers:
       - name: wait-for-database
-        image: docker.io/library/busybox:1.37
+        image: docker.io/library/busybox:1.38
         command: ["sh", "-c", "until nc -z -w 2 radar-db-rw 5432; do sleep 2; done"]
         securityContext:
           allowPrivilegeEscalation: false

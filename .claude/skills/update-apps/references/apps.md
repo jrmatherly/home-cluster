@@ -173,7 +173,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                  | `OK`                                        |
 | cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                       | session `established`                       |
 | cilium                       | `kubectl get nodes`                                                                                                   | every node `Ready`                          |
-| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.37 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                      |
+| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.38 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                      |
 | metrics-server               | `kubectl top nodes`                                                                                                   | a row per node                              |
 | nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                      | at least `1`                                |
 | cert-manager                 | `kubectl get certificates -A`                                                                                         | every certificate `True`                    |
