@@ -363,6 +363,53 @@ schematic_id = ""
 
 # grafana_secret_key = ""
 
+# Grafana plugins. Infinity (JSON, CSV and XML from any URL) is always
+# installed, and so is the LLM app, which uses llama-server, when the cluster
+# has an NVIDIA GPU. The GitHub and Sentry data sources below are installed when
+# their fields are set. Setup steps: private/grafana-plugins-setup.md.
+
+# App ID of the GitHub App Grafana's GitHub data source signs in as, shown on
+# the App's settings page. Needs the three fields above; set it together with
+# github_app_installation_id and github_app_private_key.
+# OPTIONAL. Example: "123456"
+
+# github_app_id = ""
+
+# Installation ID of that App: the last part of
+# https://github.com/settings/installations/<id>.
+# OPTIONAL. Example: "12345678"
+
+# github_app_installation_id = ""
+
+# Private key of that App, the whole PEM file GitHub downloads. It is written
+# to a SOPS-encrypted Secret.
+# OPTIONAL. Example:
+# github_app_private_key = '''
+# -----BEGIN RSA PRIVATE KEY-----
+# ...
+# -----END RSA PRIVATE KEY-----
+# '''
+
+# github_app_private_key = ""
+
+# Slug of the Sentry organization Grafana's Sentry data source reads. Needs
+# the three fields above; set it together with sentry_token.
+# OPTIONAL. Example: "my-org"
+
+# sentry_org = ""
+
+# Token of a Sentry internal integration with Read on Project, Issue & Event
+# and Organization. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# sentry_token = ""
+
+# Address of Sentry: https and a hostname, no path. Regional organizations use
+# their region's host.
+# OPTIONAL. Default: "https://sentry.io"
+
+# sentry_url = "https://sentry.io"
+
 
 # =============================================================================
 #    UniFi console. When set, the cluster writes a local DNS record to the

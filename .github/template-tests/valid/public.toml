@@ -57,6 +57,17 @@ discord_webhook            = "https://discord.com/api/webhooks/12345678901234567
 grafana_oidc_client_id     = "fake-grafana-client"
 grafana_oidc_client_secret = "fake-grafana-client-secret"
 grafana_secret_key         = "fake-grafana-secret-key-32-chars"
+github_app_id              = "123456"
+github_app_installation_id = "12345678"
+github_app_private_key     = '''
+-----BEGIN RSA PRIVATE KEY-----
+MIIEfakefakefakefakefakefakefakefakefakefakefakefakefakefakefake
+ZmFrZQ==
+-----END RSA PRIVATE KEY-----
+'''
+sentry_org                 = "fake-org"
+sentry_token               = "fake-sentry-token"
+sentry_url                 = "https://us.sentry.io"
 
 [unifi]
 host    = "https://192.0.2.1"

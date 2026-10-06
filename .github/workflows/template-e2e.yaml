@@ -59,6 +59,8 @@ jobs:
           - partial-hubble
           - grafana-oidc-without-pocket-id
           - partial-grafana-oidc
+          - partial-github-app
+          - partial-sentry
           - matherlynet-without-backup
           - partial-matherlynet
           - pocket-id-public-without-pocket-id

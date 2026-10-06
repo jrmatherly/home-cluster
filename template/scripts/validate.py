@@ -256,6 +256,19 @@ class Observability(Model):
     # Encrypts Grafana's stored data source secrets, all provisioned here and re-encoded
     # at start. The advisor flags the built-in default. Never change it without reprovisioning.
     grafana_secret_key: Secret = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    # A GitHub App for Grafana's GitHub data source. The private key is the PEM file
+    # GitHub downloads, kept to base64 lines so Grafana's $VAR expansion leaves it alone.
+    github_app_id: str = Field(default="", pattern=r"^[0-9]*$")
+    github_app_installation_id: str = Field(default="", pattern=r"^[0-9]*$")
+    github_app_private_key: str = Field(
+        default="",
+        pattern=r"^(-----BEGIN [A-Z ]+-----\n[A-Za-z0-9+/=\n]+-----END [A-Z ]+-----\n?)?$",
+    )
+    # An internal integration token for Grafana's Sentry data source.
+    sentry_org: str = Field(default="", pattern=r"^[a-z0-9-]*$")
+    sentry_token: Secret = ""
+    # Regional organizations use their region's host.
+    sentry_url: str = Field(default="https://sentry.io", pattern=r"^https://[^/\s]+$")
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -280,6 +293,18 @@ class Observability(Model):
                 "grafana_secret_key requires grafana_password, influxdb_password and "
                 "influxdb_token: Grafana only runs with the rest of the stack"
             )
+        _all_or_none(
+            self,
+            "observability",
+            ("github_app_id", "github_app_installation_id", "github_app_private_key"),
+        )
+        _all_or_none(self, "observability", ("sentry_org", "sentry_token"))
+        for name in ("github_app_id", "sentry_org"):
+            if getattr(self, name) and not self.grafana_password:
+                raise ValueError(
+                    f"{name} requires grafana_password, influxdb_password and "
+                    "influxdb_token: Grafana only runs with the rest of the stack"
+                )
         return self
 
 

@@ -416,6 +416,81 @@ def test_grafana_secret_key_must_be_32_characters():
         _load_raw(raw)
 
 
+GITHUB_APP_KEY = (
+    "-----BEGIN RSA PRIVATE KEY-----\nMIIEfake+/=\nAAAA\n-----END RSA PRIVATE KEY-----\n"
+)
+GITHUB_APP = {
+    "observability.github_app_id": "123456",
+    "observability.github_app_installation_id": "7890123",
+    "observability.github_app_private_key": GITHUB_APP_KEY,
+}
+
+
+def test_github_app_accepted_with_observability():
+    raw = config_from("private.toml", **OBSERVABILITY | GITHUB_APP)
+    observability = _load_raw(raw).observability
+    assert observability.github_app_id == "123456"
+    assert observability.github_app_private_key == GITHUB_APP_KEY
+
+
+def test_partial_github_app_names_missing_field():
+    raw = config_from(
+        "private.toml",
+        **OBSERVABILITY | GITHUB_APP | {"observability.github_app_installation_id": None},
+    )
+    with pytest.raises(
+        ConfigError, match=r"partially configured.*\(missing: github_app_installation_id\)"
+    ):
+        _load_raw(raw)
+
+
+def test_github_app_requires_observability():
+    raw = config_from("private.toml", **GITHUB_APP)
+    with pytest.raises(ConfigError, match=r"github_app_id requires grafana_password"):
+        _load_raw(raw)
+
+
+def test_github_app_private_key_must_be_pem():
+    raw = config_from(
+        "private.toml",
+        **OBSERVABILITY | GITHUB_APP | {"observability.github_app_private_key": "MIIEfake"},
+    )
+    with pytest.raises(ConfigError, match=r"observability\.github_app_private_key"):
+        _load_raw(raw)
+
+
+SENTRY = {"observability.sentry_org": "home", "observability.sentry_token": "fake"}
+
+
+def test_sentry_accepted_with_observability_and_url_defaults():
+    observability = _load_raw(config_from("private.toml", **OBSERVABILITY | SENTRY)).observability
+    assert observability.sentry_org == "home"
+    assert observability.sentry_url == "https://sentry.io"
+
+
+def test_partial_sentry_names_missing_field():
+    raw = config_from(
+        "private.toml", **OBSERVABILITY | SENTRY | {"observability.sentry_token": None}
+    )
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: sentry_token\)"):
+        _load_raw(raw)
+
+
+def test_sentry_requires_observability():
+    raw = config_from("private.toml", **SENTRY)
+    with pytest.raises(ConfigError, match=r"sentry_org requires grafana_password"):
+        _load_raw(raw)
+
+
+def test_sentry_url_must_be_a_host():
+    raw = config_from(
+        "private.toml",
+        **OBSERVABILITY | SENTRY | {"observability.sentry_url": "https://sentry.io/org"},
+    )
+    with pytest.raises(ConfigError, match=r"observability\.sentry_url"):
+        _load_raw(raw)
+
+
 def test_node_defaults_exported():
     data = _load_raw(config_from("private.toml")).model_dump(mode="json")
     node = data["nodes"][0]

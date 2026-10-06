@@ -463,6 +463,40 @@
         "grafana_secret_key": {
           "$ref": "#/$defs/Secret_________s___32_______",
           "default": ""
+        },
+        "github_app_id": {
+          "default": "",
+          "pattern": "^[0-9]*$",
+          "title": "Github App Id",
+          "type": "string"
+        },
+        "github_app_installation_id": {
+          "default": "",
+          "pattern": "^[0-9]*$",
+          "title": "Github App Installation Id",
+          "type": "string"
+        },
+        "github_app_private_key": {
+          "default": "",
+          "pattern": "^(-----BEGIN [A-Z ]+-----\\n[A-Za-z0-9+/=\\n]+-----END [A-Z ]+-----\\n?)?$",
+          "title": "Github App Private Key",
+          "type": "string"
+        },
+        "sentry_org": {
+          "default": "",
+          "pattern": "^[a-z0-9-]*$",
+          "title": "Sentry Org",
+          "type": "string"
+        },
+        "sentry_token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "sentry_url": {
+          "default": "https://sentry.io",
+          "pattern": "^https://[^/\\s]+$",
+          "title": "Sentry Url",
+          "type": "string"
         }
       },
       "title": "Observability",
@@ -798,7 +832,13 @@
         "discord_webhook": "",
         "grafana_oidc_client_id": "",
         "grafana_oidc_client_secret": "",
-        "grafana_secret_key": ""
+        "grafana_secret_key": "",
+        "github_app_id": "",
+        "github_app_installation_id": "",
+        "github_app_private_key": "",
+        "sentry_org": "",
+        "sentry_token": "",
+        "sentry_url": "https://sentry.io"
       }
     },
     "unifi": {
