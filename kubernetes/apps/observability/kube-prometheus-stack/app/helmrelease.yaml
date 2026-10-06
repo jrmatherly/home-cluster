@@ -100,6 +100,10 @@ spec:
         enabled: true
         storageClassName: local-path
         size: 2Gi
+      # The image ships its datasource plugins in a read-only directory, and Grafana's updater
+      # unloads a plugin before it fails to replace it there. Hiding that directory makes Grafana's
+      # default preinstall list fetch them into the writable plugins directory on the volume.
+      shadowBundledPlugins: true
       route:
         main:
           enabled: true
@@ -134,8 +138,12 @@ spec:
           secureJsonData:
             # Grafana expands this from its environment. Flux leaves $VAR without braces alone.
             token: $INFLUXDB_TOKEN
-      # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
       grafana.ini:
+        plugins:
+          # Keeps the default preinstalled plugins current on every start; the chart turns
+          # this off because of the read-only directory that shadowBundledPlugins hides.
+          preinstall_auto_update: true
+        # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
         server:
           # Without this Grafana builds its OAuth callback from http and port 3000.
           root_url: https://grafana.${SECRET_DOMAIN}
