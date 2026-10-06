@@ -464,6 +464,19 @@
       "title": "Observability",
       "type": "object"
     },
+    "PegaProx": {
+      "additionalProperties": false,
+      "properties": {
+        "db_key": {
+          "default": "",
+          "pattern": "^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$",
+          "title": "Db Key",
+          "type": "string"
+        }
+      },
+      "title": "PegaProx",
+      "type": "object"
+    },
     "PocketId": {
       "additionalProperties": false,
       "properties": {
@@ -837,6 +850,12 @@
         "app_password": "",
         "oidc_client_id": "",
         "oidc_client_secret": ""
+      }
+    },
+    "pegaprox": {
+      "$ref": "#/$defs/PegaProx",
+      "default": {
+        "db_key": ""
       }
     },
     "nodes": {

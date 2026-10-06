@@ -98,6 +98,9 @@ app_password       = "fakefake1"
 oidc_client_id     = "fake-network-optimizer"
 oidc_client_secret = "fake-network-optimizer-secret"
 
+[pegaprox]
+db_key = "fakefakefakefakefakefakefakefakefakefakeabc="
+
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
 

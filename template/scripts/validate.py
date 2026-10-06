@@ -429,6 +429,13 @@ class NetworkOptimizer(Model):
         return self
 
 
+class PegaProx(Model):
+    # Master key that encrypts PegaProx's SQLite database and the Proxmox
+    # credentials stored in it: 32 bytes as urlsafe base64 or as 64 hex characters.
+    # Never change it once set: the database becomes unreadable.
+    db_key: str = Field(default="", pattern=r"^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$")
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -478,6 +485,7 @@ class Config(Model):
     reactive_resume: ReactiveResume = ReactiveResume()
     kener: Kener = Kener()
     network_optimizer: NetworkOptimizer = NetworkOptimizer()
+    pegaprox: PegaProx = PegaProx()
     nodes: list[Node]
 
     @computed_field
@@ -599,6 +607,12 @@ class Config(Model):
     @property
     def network_optimizer_oidc(self) -> bool:
         return self.network_optimizer.oidc_client_id != ""
+
+    # Gates PegaProx.
+    @computed_field
+    @property
+    def pegaprox_enabled(self) -> bool:
+        return self.pegaprox.db_key != ""
 
     @computed_field
     @property

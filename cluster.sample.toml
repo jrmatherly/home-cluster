@@ -622,6 +622,27 @@ schematic_id = ""
 
 
 # =============================================================================
+#    PegaProx, a web UI for managing Proxmox, served at
+#    https://pegaprox.<domain.name> on the internal gateway. Set db_key to
+#    enable; leaving it blank skips it.
+#
+#    The first visitor creates the admin account, so sign in right after the
+#    first deploy. Proxmox hosts, users and the Pocket ID sign-in are set up in
+#    the app's own UI and stored in its database, not here.
+# =============================================================================
+[pegaprox]
+
+# Master key that encrypts PegaProx's database and the Proxmox credentials
+# stored in it: 32 bytes as urlsafe base64 or as 64 hex characters. It is
+# written to a SOPS-encrypted Secret. Never change it once set: the database
+# becomes unreadable.
+# OPTIONAL. Example: the output of
+# `python3 -c 'import secrets,base64;print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())'`
+
+# db_key = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

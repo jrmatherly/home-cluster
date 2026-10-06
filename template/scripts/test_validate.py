@@ -720,3 +720,23 @@ def test_network_optimizer_oidc_requires_app_password():
     )
     with pytest.raises(ConfigError, match=r"oidc_client_id requires app_password"):
         _load_raw(raw)
+
+
+PEGAPROX_KEY = "fake" * 10 + "abc="
+
+
+def test_pegaprox_flag():
+    assert not _load_raw(config_from("private.toml")).pegaprox_enabled
+    on = _load_raw(config_from("private.toml", **{"pegaprox.db_key": PEGAPROX_KEY}))
+    assert on.pegaprox_enabled
+    for hex_key in ("0f" * 32, "0F" * 32):
+        assert _load_raw(
+            config_from("private.toml", **{"pegaprox.db_key": hex_key})
+        ).pegaprox_enabled
+
+
+@pytest.mark.parametrize("key", ["tooshort", "fake" * 10 + "ab$="])
+def test_pegaprox_db_key_is_rejected(key):
+    raw = config_from("private.toml", **{"pegaprox.db_key": key})
+    with pytest.raises(ConfigError, match=r"pegaprox.*db_key"):
+        _load_raw(raw)

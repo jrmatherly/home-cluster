@@ -36,6 +36,8 @@ The chart column is what the template pins. The releases column is where the not
 | radar                     | radar          | `ghcr.io/skyhook-io/charts/radar`                                      | <https://github.com/skyhook-io/radar/releases>                    |
 | llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
+| pegaprox                  | pegaprox       | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| pegaprox (image)          | pegaprox       | `ghcr.io/pegaprox/pegaprox`                                            | <https://github.com/PegaProx/project-pegaprox/releases>           |
 | echo                      | default        | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
 | prometheus-operator-crds  | bootstrap only | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
 
@@ -119,6 +121,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   and prints its digest in the run summary. Then update the reference and `LLAMA_ARG_MODEL` in the HelmRelease. The
   `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full security context. After an update, time
   one request: the pod restarts, and the startup probe's warm-up request is what keeps the first caller fast.
+- **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
+  behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
+  1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
   The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator
@@ -168,29 +173,30 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
     | jq '{domain: .domain.name, gateways, api: .kubernetes.api.addr}'
 ```
 
-| App                          | Check                                                                                                                 | Healthy result                              |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                  | `OK`                                        |
-| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                       | session `established`                       |
-| cilium                       | `kubectl get nodes`                                                                                                   | every node `Ready`                          |
-| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.38 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                      |
-| metrics-server               | `kubectl top nodes`                                                                                                   | a row per node                              |
-| nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                      | at least `1`                                |
-| cert-manager                 | `kubectl get certificates -A`                                                                                         | every certificate `True`                    |
-| flux-operator, flux-instance | `flux check`                                                                                                          | all checks passed                           |
-| cloudflare-dns               | `kubectl -n network logs deploy/cloudflare-dns --since=5m`                                                            | no errors, records in sync                  |
-| unifi-dns                    | `kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m` and `dig +short grafana.<domain>`               | no errors, and the internal gateway address |
-| cloudflare-tunnel            | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                       |
-| envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses    |
-| envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                   |
-| k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address                |
-| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`           |
-| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                          | every cluster in a healthy state            |
-| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                    |
-| kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"`    |
-| influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                           |
-| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `204`, and the passkey sign-in works        |
-| radar                        | `curl -s -o /dev/null -w '%{http_code}' https://radar.<domain>/api/health`, then sign in once                         | `200`, and the page shows cluster data      |
-| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                           |
-| echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                       |
-| reloader, spegel             | the common checks                                                                                                     | pods Running                                |
+| App                          | Check                                                                                                                 | Healthy result                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                  | `OK`                                             |
+| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                       | session `established`                            |
+| cilium                       | `kubectl get nodes`                                                                                                   | every node `Ready`                               |
+| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.38 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                           |
+| metrics-server               | `kubectl top nodes`                                                                                                   | a row per node                                   |
+| nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                      | at least `1`                                     |
+| cert-manager                 | `kubectl get certificates -A`                                                                                         | every certificate `True`                         |
+| flux-operator, flux-instance | `flux check`                                                                                                          | all checks passed                                |
+| cloudflare-dns               | `kubectl -n network logs deploy/cloudflare-dns --since=5m`                                                            | no errors, records in sync                       |
+| unifi-dns                    | `kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m` and `dig +short grafana.<domain>`               | no errors, and the internal gateway address      |
+| cloudflare-tunnel            | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                            |
+| envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses         |
+| envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                        |
+| k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address                     |
+| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`                |
+| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                          | every cluster in a healthy state                 |
+| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                         |
+| kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"`         |
+| influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                                |
+| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `204`, and the passkey sign-in works             |
+| radar                        | `curl -s -o /dev/null -w '%{http_code}' https://radar.<domain>/api/health`, then sign in once                         | `200`, and the page shows cluster data           |
+| pegaprox                     | `curl -s https://pegaprox.<domain>/api/health`, then sign in and open a VM console and a node shell                   | `{"status":"ok",...}`, and both consoles connect |
+| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                                |
+| echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                            |
+| reloader, spegel             | the common checks                                                                                                     | pods Running                                     |

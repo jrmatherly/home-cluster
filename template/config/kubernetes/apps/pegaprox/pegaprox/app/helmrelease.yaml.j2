@@ -1,0 +1,110 @@
+#% if pegaprox_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pegaprox
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: pegaprox
+  interval: 1h
+  values:
+    controllers:
+      pegaprox:
+        # SQLite allows one writer, and the volume is pinned to one node.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/pegaprox/pegaprox
+              tag: 1.2.0@sha256:8c406ad6b2ddf9dc252e468db6b1bd730ffe11a748a16e3a86d28dc77e438536
+            env:
+              # The gateway terminates TLS.
+              PEGAPROX_BEHIND_PROXY: "true"
+              # Behind-proxy mode binds loopback only by default, which the probes
+              # and the Service cannot reach.
+              PEGAPROX_HOST: 0.0.0.0
+              PEGAPROX_TRUSTED_PROXIES: "#{ kubernetes.pod_cidr }#"
+              PEGAPROX_ALLOWED_ORIGINS: https://pegaprox.${SECRET_DOMAIN}
+            envFrom:
+              - secretRef:
+                  name: pegaprox-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: &port 5000
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: *port
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 30
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      # The image's user is the name pegaprox, which restricted cannot check, so
+      # the uid is set here.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        # The console and terminal WebSockets have their own ports. The syslog
+        # receiver on 1514 is deliberately not exposed.
+        ports:
+          http:
+            port: *port
+          vnc:
+            port: 5001
+          ssh:
+            port: 5002
+    persistence:
+      # The database here is the only copy of the stored Proxmox credentials, and
+      # the key in the Secret is the only way to read it.
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        advancedMounts:
+          pegaprox:
+            app:
+              - path: /app/config
+      logs:
+        type: emptyDir
+        advancedMounts:
+          pegaprox:
+            app:
+              - path: /app/logs
+      tmp:
+        type: emptyDir
+        advancedMounts:
+          pegaprox:
+            app:
+              - path: /tmp
+#% endif %#
