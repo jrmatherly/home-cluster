@@ -56,6 +56,7 @@ template/
     talos/                 all/ (numbered patches), control-plane/, topf.yaml.j2, mod.just
   overrides/               extra makejinja input; *.partial.yaml.j2 are not rendered
   scripts/validate.py      pydantic model of cluster.toml: defaults, cross-field checks
+  scripts/check_layout.py  section order of cluster.toml against the sample
   scripts/plugin.py        makejinja Plugin: validated config, keys, tunnel secrets as template data
   scripts/test_validate.py pytest for the validator
   resources/kubeconform.sh validation run by `just configure`
