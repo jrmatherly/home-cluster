@@ -205,6 +205,12 @@ spec:
           # Keeps the default preinstalled plugins current on every start; the chart turns
           # this off because of the read-only directory that shadowBundledPlugins hides.
           preinstall_auto_update: true
+          # The catalog publishes a bundled plugin's new version days after the Grafana release
+          # that carries it, so pluginsAutoUpdate (below) installs it between restarts; minor
+          # keeps that to the current major, as the preinstall update does.
+          update_strategy: minor
+        feature_toggles:
+          pluginsAutoUpdate: true
         #% if observability.grafana_oidc_client_id %#
         # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
         server:

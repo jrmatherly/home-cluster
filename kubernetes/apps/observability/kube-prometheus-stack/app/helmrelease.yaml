@@ -107,6 +107,8 @@ spec:
       # Installed before provisioning runs, which fails to start when a provisioned plugin is missing.
       plugins:
         - yesoreyeram-infinity-datasource
+        - grafana-github-datasource
+        - grafana-sentry-datasource
         - grafana-llm-app
       # Loads the grafana-llm-app provisioning ConfigMap, labelled grafana_plugin.
       sidecar:
@@ -134,6 +136,14 @@ spec:
           secretKeyRef:
             name: grafana-secret
             key: SECRET_KEY
+        GITHUB_APP_PRIVATE_KEY:
+          secretKeyRef:
+            name: grafana-secret
+            key: GITHUB_APP_PRIVATE_KEY
+        SENTRY_TOKEN:
+          secretKeyRef:
+            name: grafana-secret
+            key: SENTRY_TOKEN
       additionalDataSources:
         - name: InfluxDB
           type: influxdb
@@ -149,11 +159,34 @@ spec:
         - name: Infinity
           type: yesoreyeram-infinity-datasource
           access: proxy
+        - name: GitHub
+          type: grafana-github-datasource
+          access: proxy
+          jsonData:
+            selectedAuthType: github-app
+            appId: "5210687"
+            installationId: "168499765"
+          secureJsonData:
+            privateKey: $GITHUB_APP_PRIVATE_KEY
+        - name: Sentry
+          type: grafana-sentry-datasource
+          access: proxy
+          jsonData:
+            url: https://sentry.io
+            orgSlug: "matherlynet"
+          secureJsonData:
+            authToken: $SENTRY_TOKEN
       grafana.ini:
         plugins:
           # Keeps the default preinstalled plugins current on every start; the chart turns
           # this off because of the read-only directory that shadowBundledPlugins hides.
           preinstall_auto_update: true
+          # The catalog publishes a bundled plugin's new version days after the Grafana release
+          # that carries it, so pluginsAutoUpdate (below) installs it between restarts; minor
+          # keeps that to the current major, as the preinstall update does.
+          update_strategy: minor
+        feature_toggles:
+          pluginsAutoUpdate: true
         # The client secret comes from envValueFrom, so it stays out of the grafana.ini ConfigMap.
         server:
           # Without this Grafana builds its OAuth callback from http and port 3000.

@@ -98,9 +98,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   the CRD section of `breaking-changes.md`, and read the chart's upgrade notes for each major version crossed:
   <https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack#upgrading-chart>.
   Grafana, kube-state-metrics and node-exporter are subcharts and move with it. Freelens draws its charts from
-  the `prometheus-operated` Service, so check them after an update. Grafana's bundled datasource plugins update
-  only with the Grafana image; listing them in `preinstall` kills them on a distroless image, so the advisor's
-  update items for them are ignored.
+  the `prometheus-operated` Service, so check them after an update. Grafana's bundled datasource plugins live on
+  the volume (`shadowBundledPlugins`) and update themselves at start (`preinstall_auto_update`) and every ten
+  minutes (`pluginsAutoUpdate`); never list them in `preinstall`, which kills them on the distroless image.
 - **influxdb** stays on 2.x: InfluxDB 3 is a different database with no Flux, and a Renovate rule holds the image
   below 3. The admin password and token are read on the first start only, so changing them in `cluster.toml`
   later changes nothing in the database. The Proxmox hosts write to it over the internal gateway.
