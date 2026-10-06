@@ -15,6 +15,10 @@ configMapGenerator:
       disableNameSuffixHash: true
       labels:
         grafana_dashboard: "1"
+      # The JSON holds Grafana's own ${datasource} and ${__value.raw} expressions, which Flux's
+      # variable substitution would otherwise try to expand.
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
   - name: grafana-dashboard-sentry
     files:
       - dashboards/sentry.json
@@ -22,3 +26,7 @@ configMapGenerator:
       disableNameSuffixHash: true
       labels:
         grafana_dashboard: "1"
+      # The JSON holds Grafana's own ${datasource} and ${__value.raw} expressions, which Flux's
+      # variable substitution would otherwise try to expand.
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
