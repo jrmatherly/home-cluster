@@ -1517,6 +1517,231 @@
       ],
       "title": "Packages",
       "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 38,
+      "panels": [],
+      "title": "Actions and Dependabot",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "description": "Dependabot vulnerability alerts on the selected repository in the time range.",
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 6,
+        "h": 9
+      },
+      "id": 39,
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "owner": "$organization",
+          "repository": "$repository",
+          "queryType": "Vulnerabilities",
+          "options": {},
+          "refId": "A"
+        }
+      ],
+      "title": "Dependabot alerts",
+      "type": "stat",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["mean"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": ["count"]
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "description": "Runs of the selected workflow in the time range, newest first.",
+      "gridPos": {
+        "x": 6,
+        "y": 53,
+        "w": 18,
+        "h": 9
+      },
+      "id": 40,
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "owner": "$organization",
+          "repository": "$repository",
+          "queryType": "Workflow_Runs",
+          "options": {
+            "workflow": "$workflow",
+            "branch": ""
+          },
+          "refId": "A"
+        }
+      ],
+      "title": "Workflow runs",
+      "type": "table",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "auto",
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "id": true,
+              "url": true,
+              "workflow_id": true,
+              "head_sha": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "description": "Dependabot vulnerability alerts with the package and the first patched version.",
+      "gridPos": {
+        "x": 0,
+        "y": 62,
+        "w": 24,
+        "h": 9
+      },
+      "id": 41,
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "owner": "$organization",
+          "repository": "$repository",
+          "queryType": "Vulnerabilities",
+          "options": {},
+          "refId": "A"
+        }
+      ],
+      "title": "Dependabot alerts",
+      "type": "table",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "auto",
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "dismissReason": true,
+              "withdrawnAt": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ]
     }
   ],
   "refresh": false,
@@ -1674,6 +1899,29 @@
         "tagsQuery": "",
         "type": "query",
         "useTags": false
+      },
+      {
+        "current": {},
+        "datasource": {
+          "uid": "$datasource"
+        },
+        "definition": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Workflow",
+        "multi": false,
+        "name": "workflow",
+        "options": [],
+        "query": {
+          "field": "id",
+          "owner": "$organization",
+          "queryType": "Workflows",
+          "repository": "$repository"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
       }
     ]
   },

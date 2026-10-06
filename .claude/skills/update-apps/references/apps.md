@@ -103,12 +103,17 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   minutes (`pluginsAutoUpdate`); never list them in `preinstall`, which kills them on the distroless image.
   The GitHub dashboard in `app/dashboards/github.json` is the "GitHub Default" dashboard the
   `grafana-github-datasource` plugin bundles (`/public/plugins/grafana-github-datasource/dashboards/dashboard.json`
-  on the running Grafana), with five edits: `__inputs`, `__requires` and `id` removed, `uid` set to
+  on the running Grafana), with six edits: `__inputs`, `__requires` and `id` removed, `uid` set to
   `github-default`, the `${DS_GITHUB}` input replaced by the dashboard's own `${datasource}` variable, the
-  `organization` and `repository` defaults set to `jrmatherly` and `home-cluster`, and the Packages panel's
+  `organization` and `repository` defaults set to `jrmatherly` and `home-cluster`, the Packages panel's
   `packageType` set to `DOCKER`, because the GitHub App's account publishes container images and the API rejects
-  `NPM` for it. Refresh it from the installed plugin when a plugin release changes that file, reapplying those
-  edits. The Sentry dashboard in `app/dashboards/sentry.json` is hand-written, because the Sentry plugin bundles
+  `NPM` for it, and an "Actions and Dependabot" row (a `workflow` variable, a Workflow runs table and two
+  Dependabot alert panels) appended by `private/grafana-dashboards/add-actions-row.py`. The row's queries name the
+  workflow as `options.workflow`, the key the plugin's backend reads; `options.workflowID`, which its frontend
+  types name, makes it ask GitHub for an empty workflow and report "workflow not found". Code scanning panels are
+  left out because the App's repositories have no code scanning analyses and that query errors instead of
+  returning an empty frame. Refresh it from the installed plugin when a plugin release changes that file,
+  reapplying those edits. The Sentry dashboard in `app/dashboards/sentry.json` is hand-written, because the Sentry plugin bundles
   none; its query shapes follow `src/types.ts` of `grafana/sentry-datasource` at the installed version.
 - **influxdb** stays on 2.x: InfluxDB 3 is a different database with no Flux, and a Renovate rule holds the image
   below 3. The admin password and token are read on the first start only, so changing them in `cluster.toml`
