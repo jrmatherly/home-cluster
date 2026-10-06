@@ -102,7 +102,8 @@ oidc_client_id     = "fake-network-optimizer"
 oidc_client_secret = "fake-network-optimizer-secret"
 
 [pegaprox]
-db_key = "fakefakefakefakefakefakefakefakefakefakeabc="
+db_key        = "fakefakefakefakefakefakefakefakefakefakeabc="
+metrics_token = "fake"
 
 [[nodes]]
 name         = "k8s-0"

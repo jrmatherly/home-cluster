@@ -24,4 +24,13 @@ spec:
           port: 5001
         - protocol: TCP
           port: 5002
+#% if pegaprox_metrics %#
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 5000
+#% endif %#
 #% endif %#

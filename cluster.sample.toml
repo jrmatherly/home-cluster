@@ -641,6 +641,14 @@ schematic_id = ""
 
 # db_key = ""
 
+# API token that Prometheus scrapes PegaProx's /api/metrics with. Create it in
+# PegaProx under Settings, API Tokens, signed in as an admin account and with
+# the admin role: the endpoint rejects a token of any other role. It is written
+# to a SOPS-encrypted Secret. Needs [observability].
+# OPTIONAL.
+
+# metrics_token = ""
+
 
 # =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least

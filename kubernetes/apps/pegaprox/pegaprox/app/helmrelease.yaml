@@ -93,6 +93,19 @@ spec:
             port: 5001
           ssh:
             port: 5002
+    serviceMonitor:
+      app:
+        endpoints:
+          - port: http
+            path: /api/metrics
+            # Each scrape makes PegaProx poll every Proxmox host.
+            interval: 60s
+            scrapeTimeout: 30s
+            authorization:
+              type: Bearer
+              credentials:
+                name: pegaprox-metrics
+                key: token
     persistence:
       # The database here is the only copy of the stored Proxmox credentials, and
       # the key in the Secret is the only way to read it.

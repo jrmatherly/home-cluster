@@ -8,4 +8,15 @@ resources:
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./secret.sops.yaml
+#% if pegaprox_metrics %#
+  - ./metrics-secret.sops.yaml
+configMapGenerator:
+  - name: pegaprox-dashboard
+    files:
+      - dashboards/pegaprox-overview.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+#% endif %#
 #% endif %#

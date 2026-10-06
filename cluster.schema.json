@@ -472,6 +472,10 @@
           "pattern": "^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$",
           "title": "Db Key",
           "type": "string"
+        },
+        "metrics_token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
         }
       },
       "title": "PegaProx",
@@ -855,7 +859,8 @@
     "pegaprox": {
       "$ref": "#/$defs/PegaProx",
       "default": {
-        "db_key": ""
+        "db_key": "",
+        "metrics_token": ""
       }
     },
     "nodes": {

@@ -743,6 +743,34 @@ def test_pegaprox_db_key_is_rejected(key):
         _load_raw(raw)
 
 
+PEGAPROX_METRICS = OBSERVABILITY | {
+    "pegaprox.db_key": PEGAPROX_KEY,
+    "pegaprox.metrics_token": "fake",
+}
+
+
+def test_pegaprox_metrics_flag():
+    off = _load_raw(
+        config_from("private.toml", **OBSERVABILITY | {"pegaprox.db_key": PEGAPROX_KEY})
+    )
+    assert off.pegaprox_metrics is False
+    assert _load_raw(config_from("private.toml", **PEGAPROX_METRICS)).pegaprox_metrics is True
+
+
+def test_pegaprox_metrics_requires_observability():
+    raw = config_from(
+        "private.toml", **{"pegaprox.db_key": PEGAPROX_KEY, "pegaprox.metrics_token": "fake"}
+    )
+    with pytest.raises(ConfigError, match=r"pegaprox.*metrics_token"):
+        _load_raw(raw)
+
+
+def test_pegaprox_metrics_requires_db_key():
+    raw = config_from("private.toml", **PEGAPROX_METRICS | {"pegaprox.db_key": None})
+    with pytest.raises(ConfigError, match=r"pegaprox.*metrics_token"):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

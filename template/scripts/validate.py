@@ -434,6 +434,16 @@ class PegaProx(Model):
     # credentials stored in it: 32 bytes as urlsafe base64 or as 64 hex characters.
     # Never change it once set: the database becomes unreadable.
     db_key: str = Field(default="", pattern=r"^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$")
+    # The API token Prometheus scrapes /api/metrics with.
+    metrics_token: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        if self.metrics_token and not self.db_key:
+            raise ValueError(
+                "metrics_token requires db_key: PegaProx only runs when the key is set"
+            )
+        return self
 
 
 class Node(Model):
@@ -614,6 +624,12 @@ class Config(Model):
     def pegaprox_enabled(self) -> bool:
         return self.pegaprox.db_key != ""
 
+    # Adds the Prometheus scrape and the Grafana dashboard for PegaProx.
+    @computed_field
+    @property
+    def pegaprox_metrics(self) -> bool:
+        return self.pegaprox.metrics_token != ""
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -714,6 +730,10 @@ class Config(Model):
             raise ValueError(
                 "network_optimizer.oidc_client_id requires pocket_id: "
                 "Pocket ID is the OIDC provider Network Optimizer signs in with"
+            )
+        if self.pegaprox_metrics and not self.observability_enabled:
+            raise ValueError(
+                "pegaprox.metrics_token requires observability: it is scraped by its Prometheus"
             )
         if self.matherlynet.playground and not self.nvidia_enabled:
             raise ValueError(
