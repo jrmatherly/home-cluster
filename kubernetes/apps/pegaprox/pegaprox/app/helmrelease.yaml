@@ -39,6 +39,9 @@ spec:
               PEGAPROX_HOST: 0.0.0.0
               PEGAPROX_TRUSTED_PROXIES: "10.42.0.0/16"
               PEGAPROX_ALLOWED_ORIGINS: https://pegaprox.${SECRET_DOMAIN}
+              # Per-cluster log files would need a writable logs directory;
+              # stdout is where kubectl reads them anyway.
+              PEGAPROX_DISABLE_FILE_LOG: "1"
             envFrom:
               - secretRef:
                   name: pegaprox-secret
@@ -113,12 +116,6 @@ spec:
               - path: /plugins
             app:
               - path: /app/plugins
-      logs:
-        type: emptyDir
-        advancedMounts:
-          pegaprox:
-            app:
-              - path: /app/logs
       tmp:
         type: emptyDir
         advancedMounts:
