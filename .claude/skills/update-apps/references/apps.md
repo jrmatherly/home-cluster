@@ -38,6 +38,7 @@ The chart column is what the template pins. The releases column is where the not
 | llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
 | pegaprox                  | pegaprox       | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | pegaprox (image)          | pegaprox       | `ghcr.io/pegaprox/pegaprox`                                            | <https://github.com/PegaProx/project-pegaprox/releases>           |
+| matherlynet               | matherlynet    | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                    | <https://github.com/jrmatherly/matherlynet/commits/main>          |
 | echo                      | default        | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
 | prometheus-operator-crds  | bootstrap only | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
 
@@ -115,6 +116,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   its database (`radar-db`) and does not recover by itself after losing it, so if the UI serves errors after an
   update, check the database first and then restart the Deployment. Upstream tests Postgres 17 and this repo
   runs 18.
+- **matherlynet** is the public site, built and released from `~/dev/matherlynet`. There are no GitHub releases:
+  the chart's `appVersion` is the site commit it was built from, and the chart carries the web image digest, so a
+  chart bump moves the image too. The expected rendered diff is two lines, the `web_image` digest and
+  `SENTRY_RELEASE`; anything more is a chart change to read. Its database (`matherlynet-db`) is outside the chart.
 - **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
   (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
   updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model is a second image,
@@ -201,6 +206,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `204`, and the passkey sign-in works             |
 | radar                        | `curl -s -o /dev/null -w '%{http_code}' https://radar.<domain>/api/health`, then sign in once                         | `200`, and the page shows cluster data           |
 | pegaprox                     | `curl -s https://pegaprox.<domain>/api/health`, then sign in and open a VM console and a node shell                   | `{"status":"ok",...}`, and both consoles connect |
+| matherlynet                  | `kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment`, then `curl -s https://<domain>/`           | rollout complete, and the page has `pageswap`    |
 | llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                                |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                            |
 | reloader, spegel             | the common checks                                                                                                     | pods Running                                     |
