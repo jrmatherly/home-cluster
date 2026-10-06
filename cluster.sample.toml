@@ -628,7 +628,36 @@ schematic_id = ""
 #
 #    The first visitor creates the admin account, so sign in right after the
 #    first deploy. Proxmox hosts, users and the Pocket ID sign-in are set up in
-#    the app's own UI and stored in its database, not here.
+#    the app's own UI and stored in its database, not here:
+#
+#    1. Open the UI, create the admin, enable TOTP. Settings: turn the syslog
+#       receiver off.
+#    2. On each Proxmox host, make the account PegaProx will use. It needs a
+#       Linux user with passwordless sudo, because it runs `sudo -n bash` over
+#       SSH for maintenance mode, fencing, rolling updates and CVE scans:
+#         useradd -m -s /bin/bash pegaprox && passwd pegaprox
+#         echo 'pegaprox ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/pegaprox
+#         chmod 0440 /etc/sudoers.d/pegaprox
+#         pveum user add pegaprox@pam
+#         pveum acl modify / --users pegaprox@pam --roles Administrator
+#       No two-factor on that account: PegaProx logs in with the password,
+#       then mints an API token with privilege separation off for it. If the
+#       Proxmox firewall is on, allow 8006 and 22 from network.node_cidr.
+#    3. Add the hosts in the UI as pegaprox@pam with that password. Run
+#       `pvecm status` on a host first: a cluster is added once by one node,
+#       standalone hosts are added one each. Then open a VM console and a
+#       node shell. Leave auto-migrate, dry-run, HA and scheduled actions off
+#       for any cluster that holds the Talos VMs.
+#    4. Pocket ID: create an OIDC client with the callback
+#       https://pegaprox.<domain.name>/api/auth/oidc/callback and PKCE on.
+#       In PegaProx Settings, provider generic, authority
+#       https://auth.<domain.name>, the client ID and secret, scopes
+#       `openid profile email groups`, that redirect URI, admin group
+#       `cluster_admins`, default role viewer. Test with a non-admin user
+#       before trusting the mapping; the local admin stays as the fallback.
+#    5. Plugins: copy a plugin's directory into the plugins volume, for
+#       example `kubectl -n pegaprox cp <dir> deploy/pegaprox:/app/plugins/`,
+#       then Rescan in the Plugins page.
 # =============================================================================
 [pegaprox]
 
