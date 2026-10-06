@@ -6,6 +6,9 @@ resources:
   #% if observability.discord_webhook %#
   - ./alertmanager-secret.sops.yaml
   #% endif %#
+  #% if nvidia_enabled %#
+  - ./grafana-llm-app.yaml
+  #% endif %#
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./secret.sops.yaml

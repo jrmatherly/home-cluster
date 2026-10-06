@@ -104,6 +104,14 @@ spec:
       # unloads a plugin before it fails to replace it there. Hiding that directory makes Grafana's
       # default preinstall list fetch them into the writable plugins directory on the volume.
       shadowBundledPlugins: true
+      # Installed before provisioning runs, which fails to start when a provisioned plugin is missing.
+      plugins:
+        - yesoreyeram-infinity-datasource
+        - grafana-llm-app
+      # Loads the grafana-llm-app provisioning ConfigMap, labelled grafana_plugin.
+      sidecar:
+        plugins:
+          enabled: true
       route:
         main:
           enabled: true
@@ -138,6 +146,9 @@ spec:
           secureJsonData:
             # Grafana expands this from its environment. Flux leaves $VAR without braces alone.
             token: $INFLUXDB_TOKEN
+        - name: Infinity
+          type: yesoreyeram-infinity-datasource
+          access: proxy
       grafana.ini:
         plugins:
           # Keeps the default preinstalled plugins current on every start; the chart turns

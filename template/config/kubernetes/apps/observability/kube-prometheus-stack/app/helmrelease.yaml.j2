@@ -1,4 +1,10 @@
 #% if observability_enabled %#
+#% set grafana_plugins = {
+  "yesoreyeram-infinity-datasource": true,
+  "grafana-github-datasource": observability.github_app_id != "",
+  "grafana-sentry-datasource": observability.sentry_org != "",
+  "grafana-llm-app": nvidia_enabled,
+} %#
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -109,6 +115,17 @@ spec:
       # unloads a plugin before it fails to replace it there. Hiding that directory makes Grafana's
       # default preinstall list fetch them into the writable plugins directory on the volume.
       shadowBundledPlugins: true
+      # Installed before provisioning runs, which fails to start when a provisioned plugin is missing.
+      plugins:
+        #% for plugin, enabled in grafana_plugins.items() if enabled %#
+        - #{ plugin }#
+        #% endfor %#
+      #% if grafana_plugins["grafana-llm-app"] %#
+      # Loads the grafana-llm-app provisioning ConfigMap, labelled grafana_plugin.
+      sidecar:
+        plugins:
+          enabled: true
+      #% endif %#
       route:
         main:
           enabled: true
@@ -135,6 +152,18 @@ spec:
             name: grafana-secret
             key: SECRET_KEY
         #% endif %#
+        #% if grafana_plugins["grafana-github-datasource"] %#
+        GITHUB_APP_PRIVATE_KEY:
+          secretKeyRef:
+            name: grafana-secret
+            key: GITHUB_APP_PRIVATE_KEY
+        #% endif %#
+        #% if grafana_plugins["grafana-sentry-datasource"] %#
+        SENTRY_TOKEN:
+          secretKeyRef:
+            name: grafana-secret
+            key: SENTRY_TOKEN
+        #% endif %#
       additionalDataSources:
         - name: InfluxDB
           type: influxdb
@@ -147,6 +176,30 @@ spec:
           secureJsonData:
             # Grafana expands this from its environment. Flux leaves $VAR without braces alone.
             token: $INFLUXDB_TOKEN
+        - name: Infinity
+          type: yesoreyeram-infinity-datasource
+          access: proxy
+        #% if grafana_plugins["grafana-github-datasource"] %#
+        - name: GitHub
+          type: grafana-github-datasource
+          access: proxy
+          jsonData:
+            selectedAuthType: github-app
+            appId: "#{ observability.github_app_id }#"
+            installationId: "#{ observability.github_app_installation_id }#"
+          secureJsonData:
+            privateKey: $GITHUB_APP_PRIVATE_KEY
+        #% endif %#
+        #% if grafana_plugins["grafana-sentry-datasource"] %#
+        - name: Sentry
+          type: grafana-sentry-datasource
+          access: proxy
+          jsonData:
+            url: #{ observability.sentry_url }#
+            orgSlug: "#{ observability.sentry_org }#"
+          secureJsonData:
+            authToken: $SENTRY_TOKEN
+        #% endif %#
       grafana.ini:
         plugins:
           # Keeps the default preinstalled plugins current on every start; the chart turns

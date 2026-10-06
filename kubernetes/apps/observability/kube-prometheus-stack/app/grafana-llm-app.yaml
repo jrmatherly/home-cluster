@@ -1,0 +1,24 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-llm-app
+  labels:
+    grafana_plugin: "1"
+data:
+  llm-app.yaml: |
+    apiVersion: 1
+    apps:
+      - type: grafana-llm-app
+        jsonData:
+          # The OpenAI client against llama-server, which has no API key.
+          provider: custom
+          openAI:
+            url: http://llama-server.ai.svc.cluster.local:8080
+            apiPath: /v1
+          # Both abstract models go to the one model llama-server serves, named by its LLAMA_ARG_ALIAS.
+          models:
+            default: base
+            mapping:
+              base: phi-4-mini
+              large: phi-4-mini

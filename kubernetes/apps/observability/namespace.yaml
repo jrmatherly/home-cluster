@@ -6,5 +6,7 @@ metadata:
   labels:
     # node-exporter runs on the host network and mounts the host's root filesystem.
     pod-security.kubernetes.io/enforce: privileged
+    # Grafana's LLM app calls llama-server.
+    llama-server.ai/client: "true"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
