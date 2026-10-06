@@ -101,6 +101,15 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   the `prometheus-operated` Service, so check them after an update. Grafana's bundled datasource plugins live on
   the volume (`shadowBundledPlugins`) and update themselves at start (`preinstall_auto_update`) and every ten
   minutes (`pluginsAutoUpdate`); never list them in `preinstall`, which kills them on the distroless image.
+  The GitHub dashboard in `app/dashboards/github.json` is the "GitHub Default" dashboard the
+  `grafana-github-datasource` plugin bundles (`/public/plugins/grafana-github-datasource/dashboards/dashboard.json`
+  on the running Grafana), with five edits: `__inputs`, `__requires` and `id` removed, `uid` set to
+  `github-default`, the `${DS_GITHUB}` input replaced by the dashboard's own `${datasource}` variable, the
+  `organization` and `repository` defaults set to `jrmatherly` and `home-cluster`, and the Packages panel's
+  `packageType` set to `DOCKER`, because the GitHub App's account publishes container images and the API rejects
+  `NPM` for it. Refresh it from the installed plugin when a plugin release changes that file, reapplying those
+  edits. The Sentry dashboard in `app/dashboards/sentry.json` is hand-written, because the Sentry plugin bundles
+  none; its query shapes follow `src/types.ts` of `grafana/sentry-datasource` at the installed version.
 - **influxdb** stays on 2.x: InfluxDB 3 is a different database with no Flux, and a Renovate rule holds the image
   below 3. The admin password and token are read on the first start only, so changing them in `cluster.toml`
   later changes nothing in the database. The Proxmox hosts write to it over the internal gateway.

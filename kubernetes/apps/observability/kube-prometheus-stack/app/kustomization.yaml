@@ -7,3 +7,18 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./secret.sops.yaml
+configMapGenerator:
+  - name: grafana-dashboard-github
+    files:
+      - dashboards/github.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: grafana-dashboard-sentry
+    files:
+      - dashboards/sentry.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

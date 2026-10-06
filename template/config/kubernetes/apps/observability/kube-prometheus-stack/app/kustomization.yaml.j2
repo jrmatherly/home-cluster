@@ -12,4 +12,25 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./secret.sops.yaml
+#% if observability.github_app_id or observability.sentry_org %#
+configMapGenerator:
+  #% if observability.github_app_id %#
+  - name: grafana-dashboard-github
+    files:
+      - dashboards/github.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  #% endif %#
+  #% if observability.sentry_org %#
+  - name: grafana-dashboard-sentry
+    files:
+      - dashboards/sentry.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  #% endif %#
+#% endif %#
 #% endif %#

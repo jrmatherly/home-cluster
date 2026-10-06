@@ -1,0 +1,579 @@
+{
+  "uid": "sentry-overview",
+  "title": "Sentry Overview",
+  "tags": ["sentry"],
+  "editable": true,
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "timezone": "browser",
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Unresolved issues",
+      "description": "Number of unresolved issues seen in the selected range.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "issues",
+          "issuesQuery": "is:unresolved",
+          "issuesSort": "date",
+          "issuesLimit": 1000,
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["count"],
+          "fields": "/^Title$/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Events, selected range",
+      "description": "Total error and default events received in the selected range.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "eventsStats",
+          "eventsStatsYAxis": ["count()"],
+          "eventsStatsQuery": "",
+          "eventsStatsGroups": [],
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Users affected",
+      "description": "Unique users with an event in the busiest time bucket, not a total over the range.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "eventsStats",
+          "eventsStatsYAxis": ["count_unique(user)"],
+          "eventsStatsQuery": "",
+          "eventsStatsGroups": [],
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["max"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Crash free sessions",
+      "description": "Average over time buckets of the share of sessions that ended without a crash.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "metrics",
+          "metricsField": "session.crash_free_rate",
+          "metricsQuery": "",
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["mean"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "interval": "1h"
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Events by level",
+      "description": "Events per time bucket, stacked by level.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "eventsStats",
+          "eventsStatsYAxis": ["count()"],
+          "eventsStatsQuery": "",
+          "eventsStatsGroups": ["level"],
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Accepted vs dropped",
+      "description": "Errors and transactions per hour by outcome, so accepted shows next to filtered, rate limited and invalid.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "statsV2",
+          "statsFields": ["sum(quantity)"],
+          "statsGroupBy": ["outcome"],
+          "statsCategory": ["error", "transaction"],
+          "statsOutcome": [],
+          "statsReason": [],
+          "statsInterval": "1h",
+          "projectIds": ["$project"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "displayName": "${__field.labels.Outcome}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Unresolved issues",
+      "description": "Unresolved issues seen in the selected range, most recently seen first.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "issues",
+          "issuesQuery": "is:unresolved",
+          "issuesSort": "date",
+          "issuesLimit": 50,
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "ID": true,
+              "Status": true,
+              "Substatus": true,
+              "Type": true,
+              "Platform": true,
+              "Culprit": true,
+              "HasSeen": true,
+              "IsUnhandled": true,
+              "IsPublic": true,
+              "Project.ID": true,
+              "Project.Name": true,
+              "Project.Slug": true,
+              "Project.Platform": true,
+              "Metadata.Value": true,
+              "Metadata.Type": true,
+              "Metadata.Filename": true,
+              "Metadata.Function": true,
+              "NumComments": true,
+              "AssignedTo.Email": true,
+              "AssignedTo.Type": true,
+              "AssignedTo.ID": true,
+              "AssignedTo.Name": true,
+              "IsBookmarked": true,
+              "IsSubscribed": true,
+              "SubscriptionDetails.Reason": true,
+              "FirstSeenInRange": true,
+              "LastSeenInRange": true
+            },
+            "indexByName": {
+              "ShortID": 0,
+              "Title": 1,
+              "Level": 2,
+              "Count": 3,
+              "UserCount": 4,
+              "FirstSeen": 5,
+              "LastSeen": 6,
+              "Permalink": 7
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Permalink"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open in Sentry",
+                    "url": "${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "LastSeen",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Recent error events",
+      "description": "Error events grouped by title, most recently seen first.",
+      "datasource": {
+        "type": "grafana-sentry-datasource",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-sentry-datasource",
+            "uid": "${datasource}"
+          },
+          "queryType": "events",
+          "eventsQuery": "event.type:error",
+          "eventsFields": ["title", "project", "level", "release", "count()", "last_seen()"],
+          "eventsSort": "last_seen()",
+          "eventsSortDirection": "desc",
+          "eventsLimit": 50,
+          "projectIds": ["$project"],
+          "environments": ["$environment"]
+        }
+      ],
+      "transformations": [],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "last_seen()",
+            "desc": true
+          }
+        ]
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "label": "Data source",
+        "query": "grafana-sentry-datasource",
+        "current": {
+          "text": "Sentry",
+          "value": "Sentry"
+        },
+        "hide": 0,
+        "refresh": 1,
+        "regex": "",
+        "options": []
+      },
+      {
+        "type": "query",
+        "name": "project",
+        "label": "Project",
+        "datasource": {
+          "type": "grafana-sentry-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "type": "projects"
+        },
+        "definition": "",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": ["All"],
+          "value": ["$__all"]
+        },
+        "hide": 0,
+        "refresh": 1,
+        "sort": 1,
+        "regex": "",
+        "options": []
+      },
+      {
+        "type": "query",
+        "name": "environment",
+        "label": "Environment",
+        "datasource": {
+          "type": "grafana-sentry-datasource",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "type": "environments",
+          "projectIds": ["$project"]
+        },
+        "definition": "",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": ["All"],
+          "value": ["$__all"]
+        },
+        "hide": 0,
+        "refresh": 1,
+        "sort": 1,
+        "regex": "",
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": []
+}
