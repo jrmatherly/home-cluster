@@ -479,44 +479,6 @@ class PegaProx(Model):
         return self
 
 
-class Sure(Model):
-    # Signs sessions. Never change it once set.
-    secret_key_base: str = Field(default="", pattern=r'^([^"\\\s$]{64,})?$')
-    # Sure's models only encrypt (emails, MFA secrets, provider tokens) when all
-    # three are set; derived keys are ignored. Never change them once set.
-    encryption_primary_key: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
-    encryption_deterministic_key: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
-    encryption_key_derivation_salt: str = Field(default="", pattern=r'^([^"\\\s$]{64,})?$')
-    # The OIDC client created for Sure in the Pocket ID admin UI.
-    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-    # The Cloudflare account that owns the R2 bucket holding uploads.
-    r2_account_id: str = Field(default="", pattern=r"^([0-9a-f]{32})?$")
-    r2_bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    r2_access_key_id: Secret = ""
-    r2_secret_access_key: Secret = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(
-            self,
-            "sure",
-            (
-                "secret_key_base",
-                "encryption_primary_key",
-                "encryption_deterministic_key",
-                "encryption_key_derivation_salt",
-                "oidc_client_id",
-                "oidc_client_secret",
-                "r2_account_id",
-                "r2_bucket",
-                "r2_access_key_id",
-                "r2_secret_access_key",
-            ),
-        )
-        return self
-
-
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -567,7 +529,6 @@ class Config(Model):
     kener: Kener = Kener()
     network_optimizer: NetworkOptimizer = NetworkOptimizer()
     pegaprox: PegaProx = PegaProx()
-    sure: Sure = Sure()
     nodes: list[Node]
 
     @computed_field
@@ -702,12 +663,6 @@ class Config(Model):
     def pegaprox_metrics(self) -> bool:
         return self.pegaprox.metrics_token != ""
 
-    # Gates Sure and its database. The fields are set all together or not at all.
-    @computed_field
-    @property
-    def sure_enabled(self) -> bool:
-        return self.sure.secret_key_base != ""
-
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -798,21 +753,6 @@ class Config(Model):
             raise ValueError(
                 "kener requires ingress.mode other than 'none': the status page is served "
                 "on the external gateway"
-            )
-        if self.sure_enabled and not self.postgres_backup_enabled:
-            raise ValueError(
-                "sure requires postgres.backup: its database holds accounts and "
-                "financial history, which cannot be recreated"
-            )
-        if self.sure_enabled and not self.redis_enabled:
-            raise ValueError("sure requires redis.password: Sidekiq's queue lives in Redis")
-        if self.sure_enabled and not self.pocket_id_enabled:
-            raise ValueError("sure requires pocket_id: Pocket ID is Sure's login")
-        # pocket_id.public already requires an ingress, so no separate ingress check.
-        if self.sure_enabled and not self.pocket_id.public:
-            raise ValueError(
-                "sure requires pocket_id.public: Sure is served only on the external "
-                "gateway, and a visitor from the internet must reach the Pocket ID login"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(
