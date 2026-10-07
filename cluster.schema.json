@@ -727,6 +727,24 @@
           "title": "Secret Key Base",
           "type": "string"
         },
+        "encryption_primary_key": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{32,})?$",
+          "title": "Encryption Primary Key",
+          "type": "string"
+        },
+        "encryption_deterministic_key": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{32,})?$",
+          "title": "Encryption Deterministic Key",
+          "type": "string"
+        },
+        "encryption_key_derivation_salt": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{64,})?$",
+          "title": "Encryption Key Derivation Salt",
+          "type": "string"
+        },
         "oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
@@ -959,6 +977,9 @@
       "$ref": "#/$defs/Sure",
       "default": {
         "secret_key_base": "",
+        "encryption_primary_key": "",
+        "encryption_deterministic_key": "",
+        "encryption_key_derivation_salt": "",
         "oidc_client_id": "",
         "oidc_client_secret": "",
         "r2_account_id": "",

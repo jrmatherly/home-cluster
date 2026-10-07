@@ -45,9 +45,10 @@ spec:
         enabled: false
     rails:
       existingSecret: sure-secret
-      # The encryption keys are derived from SECRET_KEY_BASE, so one secret is enough.
+      # The models encrypt their sensitive columns only when these three keys
+      # are set explicitly; the keys Sure derives from SECRET_KEY_BASE are ignored.
       encryptionEnv:
-        enabled: false
+        enabled: true
       extraEnvFrom:
         - secretRef:
             name: sure-secret

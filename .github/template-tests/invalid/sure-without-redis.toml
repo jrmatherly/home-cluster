@@ -31,6 +31,9 @@ encryption_key = "fakefakefakefake"
 
 [sure]
 secret_key_base      = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+encryption_primary_key         = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+encryption_deterministic_key   = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+encryption_key_derivation_salt = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 oidc_client_id       = "fake"
 oidc_client_secret   = "fake"
 r2_account_id        = "00000000000000000000000000000000"

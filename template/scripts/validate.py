@@ -480,9 +480,13 @@ class PegaProx(Model):
 
 
 class Sure(Model):
-    # Signs sessions, and Sure derives its database encryption keys from it.
-    # Never change it once set: the encrypted columns become unreadable.
+    # Signs sessions. Never change it once set.
     secret_key_base: str = Field(default="", pattern=r'^([^"\\\s$]{64,})?$')
+    # Sure's models only encrypt (emails, MFA secrets, provider tokens) when all
+    # three are set; derived keys are ignored. Never change them once set.
+    encryption_primary_key: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    encryption_deterministic_key: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    encryption_key_derivation_salt: str = Field(default="", pattern=r'^([^"\\\s$]{64,})?$')
     # The OIDC client created for Sure in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     oidc_client_secret: Secret = ""
@@ -499,6 +503,9 @@ class Sure(Model):
             "sure",
             (
                 "secret_key_base",
+                "encryption_primary_key",
+                "encryption_deterministic_key",
+                "encryption_key_derivation_salt",
                 "oidc_client_id",
                 "oidc_client_secret",
                 "r2_account_id",

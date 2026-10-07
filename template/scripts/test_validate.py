@@ -876,6 +876,9 @@ SURE = (
     | {
         "pocket_id.public": True,
         "sure.secret_key_base": "x" * 64,
+        "sure.encryption_primary_key": "x" * 64,
+        "sure.encryption_deterministic_key": "x" * 64,
+        "sure.encryption_key_derivation_salt": "x" * 128,
         "sure.oidc_client_id": "sure",
         "sure.oidc_client_secret": "fake",
         "sure.r2_account_id": "0" * 32,
@@ -900,6 +903,12 @@ def test_partial_sure_names_missing_field():
 def test_sure_secret_key_base_needs_64_characters():
     raw = config_from("private.toml", **SURE | {"sure.secret_key_base": "x" * 63})
     with pytest.raises(ConfigError, match=r"sure\.secret_key_base"):
+        _load_raw(raw)
+
+
+def test_sure_encryption_key_derivation_salt_needs_64_characters():
+    raw = config_from("private.toml", **SURE | {"sure.encryption_key_derivation_salt": "x" * 63})
+    with pytest.raises(ConfigError, match=r"sure\.encryption_key_derivation_salt"):
         _load_raw(raw)
 
 

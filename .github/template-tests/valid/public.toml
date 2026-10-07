@@ -119,6 +119,9 @@ metrics_token = "fake"
 
 [sure]
 secret_key_base      = "fakefakefakefakefakefakefakefakefakefakefakefakefakefakefakefake"
+encryption_primary_key         = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+encryption_deterministic_key   = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+encryption_key_derivation_salt = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 oidc_client_id       = "fake-sure-client"
 oidc_client_secret   = "fake"
 r2_account_id        = "0123456789abcdef0123456789abcdef"
