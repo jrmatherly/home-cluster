@@ -870,6 +870,43 @@ def test_pegaprox_metrics_requires_db_key():
         _load_raw(raw)
 
 
+ACTUAL_BUDGET = POCKET_ID | {
+    "actual_budget.oidc_client_id": "fake",
+    "actual_budget.oidc_client_secret": "fake",
+}
+
+
+def test_actual_budget_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POCKET_ID)).actual_budget_enabled is False
+    assert _load_raw(config_from("private.toml", **ACTUAL_BUDGET)).actual_budget_enabled is True
+
+
+def test_partial_actual_budget_names_missing_field():
+    raw = config_from("private.toml", **ACTUAL_BUDGET | {"actual_budget.oidc_client_secret": None})
+    with pytest.raises(
+        ConfigError, match=r"actual_budget is partially configured.*\(missing: oidc_client_secret\)"
+    ):
+        _load_raw(raw)
+
+
+def test_actual_budget_requires_pocket_id():
+    raw = config_from("private.toml", **ACTUAL_BUDGET | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"actual_budget requires pocket_id"):
+        _load_raw(raw)
+
+
+def test_actual_budget_public_requires_client():
+    raw = config_from("private.toml", **POCKET_ID | {"actual_budget.public": True})
+    with pytest.raises(ConfigError, match=r"actual_budget\.public requires oidc_client_id"):
+        _load_raw(raw)
+
+
+def test_actual_budget_public_requires_public_pocket_id():
+    raw = config_from("private.toml", **ACTUAL_BUDGET | {"actual_budget.public": True})
+    with pytest.raises(ConfigError, match=r"actual_budget\.public requires pocket_id\.public"):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

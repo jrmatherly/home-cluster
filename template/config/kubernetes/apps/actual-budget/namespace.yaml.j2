@@ -1,0 +1,11 @@
+#% if actual_budget_enabled %#
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: actual-budget
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+#% endif %#

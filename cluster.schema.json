@@ -1,6 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "ActualBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "public": {
+          "default": false,
+          "title": "Public",
+          "type": "boolean"
+        }
+      },
+      "title": "ActualBudget",
+      "type": "object"
+    },
     "Api": {
       "additionalProperties": false,
       "properties": {
@@ -910,6 +932,14 @@
       "default": {
         "db_key": "",
         "metrics_token": ""
+      }
+    },
+    "actual_budget": {
+      "$ref": "#/$defs/ActualBudget",
+      "default": {
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "public": false
       }
     },
     "nodes": {

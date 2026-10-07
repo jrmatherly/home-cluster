@@ -479,6 +479,19 @@ class PegaProx(Model):
         return self
 
 
+class ActualBudget(Model):
+    # The OIDC client created for Actual Budget in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+    # Also attaches the route to the external gateway, so the internet reaches it.
+    public: bool = False
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "actual_budget", ("oidc_client_id", "oidc_client_secret"))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -529,6 +542,7 @@ class Config(Model):
     kener: Kener = Kener()
     network_optimizer: NetworkOptimizer = NetworkOptimizer()
     pegaprox: PegaProx = PegaProx()
+    actual_budget: ActualBudget = ActualBudget()
     nodes: list[Node]
 
     @computed_field
@@ -663,6 +677,13 @@ class Config(Model):
     def pegaprox_metrics(self) -> bool:
         return self.pegaprox.metrics_token != ""
 
+    # Gates Actual Budget. The client is created in Pocket ID first, so its ID
+    # being set means the login it is served behind already exists.
+    @computed_field
+    @property
+    def actual_budget_enabled(self) -> bool:
+        return self.actual_budget.oidc_client_id != ""
+
     @computed_field
     @property
     def cluster_issuer(self) -> str:
@@ -753,6 +774,21 @@ class Config(Model):
             raise ValueError(
                 "kener requires ingress.mode other than 'none': the status page is served "
                 "on the external gateway"
+            )
+        if self.actual_budget_enabled and not self.pocket_id_enabled:
+            raise ValueError(
+                "actual_budget requires pocket_id: Pocket ID is Actual Budget's only login"
+            )
+        if self.actual_budget.public and not self.actual_budget_enabled:
+            raise ValueError(
+                "actual_budget.public requires oidc_client_id: Actual Budget only runs "
+                "when the client is set"
+            )
+        # pocket_id.public already requires an ingress, so no separate ingress check.
+        if self.actual_budget.public and not self.pocket_id.public:
+            raise ValueError(
+                "actual_budget.public requires pocket_id.public: a visitor from the internet "
+                "must reach the Pocket ID login"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(

@@ -117,6 +117,11 @@ oidc_client_secret = "fake-network-optimizer-secret"
 db_key        = "fakefakefakefakefakefakefakefakefakefakeabc="
 metrics_token = "fake"
 
+[actual_budget]
+oidc_client_id     = "fake-actual-budget"
+oidc_client_secret = "fake-actual-budget-secret"
+public             = true
+
 [[nodes]]
 name         = "k8s-0"
 address      = "10.10.10.100"

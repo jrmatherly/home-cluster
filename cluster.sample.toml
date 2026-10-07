@@ -706,6 +706,40 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Actual Budget, a budgeting app, at https://budget.<domain.name> on the
+#    internal gateway, and also on the external gateway with public = true.
+#    Its budget files and account database are SQLite on a local-path volume.
+#    Pocket ID is its only login. Needs [pocket_id]. Create the OIDC client in
+#    the Pocket ID admin UI first, with the callback URL
+#    https://budget.<domain.name>/openid/callback, then set BOTH client fields
+#    below to enable; leaving them blank skips it.
+#
+#    The first Pocket ID sign-in becomes the owner and admin, so restrict the
+#    client to a group in Pocket ID. Every later user is added by an admin in
+#    Actual's User Directory, by Pocket ID username.
+# =============================================================================
+[actual_budget]
+
+# Client ID of the OIDC client created for Actual Budget in Pocket ID.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
+# Also serves Actual Budget on the external gateway, so the internet reaches
+# it. Needs the client fields above and pocket_id.public = true, because a
+# visitor from the internet must reach the Pocket ID login.
+# OPTIONAL. Default: false
+
+# public = false
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when
