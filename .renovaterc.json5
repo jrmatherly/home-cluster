@@ -50,6 +50,12 @@
       versioning: "regex:^(?<compatibility>server-cuda)-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
     },
     {
+      description: "Network Optimizer previews are <semver>-preview<n>; read them as pre-releases, not a variant, so the stable release is offered",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/ozark-connect/network-optimizer"],
+      versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(-preview(?<prerelease>\\d+))?$",
+    },
+    {
       description: "InfluxDB 3 is a different database (no Flux, other APIs); stay on 2.x",
       matchDatasources: ["docker"],
       matchPackageNames: ["docker.io/library/influxdb"],

@@ -23,7 +23,7 @@ spec:
           copy-icmp-tools:
             image: &image
               repository: ghcr.io/ozark-connect/network-optimizer
-              tag: 2.9.1@sha256:b17890f43225a884e1ef2b67492d1258e082e13302a97f1fa9897ce6e6cb5892
+              tag: 2.9.2-preview4@sha256:81ef4ab8a3285a8910406def74cece5c65456d27e75fdb07dcdaa5b583a2e737
             command: ["cp", "/bin/ping", "/usr/bin/traceroute.db", "/icmp/"]
             securityContext: &securityContext
               allowPrivilegeEscalation: false

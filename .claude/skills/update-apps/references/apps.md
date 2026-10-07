@@ -7,40 +7,42 @@ something. Step 5 of the skill keeps this file current.
 
 The chart column is what the template pins. The releases column is where the notes are.
 
-| App                       | Namespace      | Chart pinned                                                           | Release notes                                                     |
-| ------------------------- | -------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| cilium                    | kube-system    | `quay.io/cilium/charts/cilium`                                         | <https://github.com/cilium/cilium/releases>                       |
-| coredns                   | kube-system    | `ghcr.io/coredns/charts/coredns`                                       | <https://github.com/coredns/helm/releases>                        |
-| metrics-server            | kube-system    | `ghcr.io/home-operations/charts-mirror/metrics-server`                 | <https://github.com/kubernetes-sigs/metrics-server/releases>      |
-| nvidia-device-plugin      | kube-system    | `ghcr.io/home-operations/charts-mirror/nvidia-device-plugin`           | <https://github.com/NVIDIA/k8s-device-plugin/releases>            |
-| reloader                  | kube-system    | `ghcr.io/stakater/charts/reloader`                                     | <https://github.com/stakater/Reloader/releases>                   |
-| spegel                    | kube-system    | `ghcr.io/spegel-org/helm-charts/spegel`                                | <https://github.com/spegel-org/spegel/releases>                   |
-| cert-manager              | cert-manager   | `quay.io/jetstack/charts/cert-manager`                                 | <https://github.com/cert-manager/cert-manager/releases>           |
-| flux-operator             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`                   | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
-| flux-instance             | flux-system    | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`                   | same repository as flux-operator                                  |
-| cloudflare-dns            | network        | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
-| unifi-dns                 | network        | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
-| unifi-dns (image)         | network        | `ghcr.io/home-operations/external-dns-unifi-webhook`                   | <https://github.com/home-operations/external-dns-unifi-webhook>   |
-| cloudflare-tunnel         | network        | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| cloudflare-tunnel (image) | network        | `docker.io/cloudflare/cloudflared`                                     | <https://github.com/cloudflare/cloudflared/releases>              |
-| envoy-gateway             | network        | `mirror.gcr.io/envoyproxy/gateway-helm`                                | <https://github.com/envoyproxy/gateway/releases>                  |
-| k8s-gateway               | network        | `codeberg.org/k8s-gateway/charts/k8s-gateway`                          | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
-| local-path-provisioner    | storage        | `ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` | <https://github.com/rancher/local-path-provisioner/releases>      |
-| cloudnative-pg            | cnpg-system    | `ghcr.io/cloudnative-pg/charts/cloudnative-pg`                         | <https://github.com/cloudnative-pg/cloudnative-pg/releases>       |
-| plugin-barman-cloud       | cnpg-system    | `ghcr.io/cloudnative-pg/charts/plugin-barman-cloud`                    | <https://github.com/cloudnative-pg/plugin-barman-cloud/releases>  |
-| kube-prometheus-stack     | observability  | `ghcr.io/prometheus-community/charts/kube-prometheus-stack`            | <https://github.com/prometheus-community/helm-charts/releases>    |
-| influxdb                  | observability  | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| influxdb (image)          | observability  | `docker.io/library/influxdb`                                           | <https://github.com/influxdata/influxdb/releases>                 |
-| pocket-id                 | security       | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| pocket-id (image)         | security       | `ghcr.io/pocket-id/pocket-id`                                          | <https://github.com/pocket-id/pocket-id/releases>                 |
-| radar                     | radar          | `ghcr.io/skyhook-io/charts/radar`                                      | <https://github.com/skyhook-io/radar/releases>                    |
-| llama-server              | ai             | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| llama-server (image)      | ai             | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
-| pegaprox                  | pegaprox       | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| pegaprox (image)          | pegaprox       | `ghcr.io/pegaprox/pegaprox`                                            | <https://github.com/PegaProx/project-pegaprox/releases>           |
-| matherlynet               | matherlynet    | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                    | <https://github.com/jrmatherly/matherlynet/commits/main>          |
-| echo                      | default        | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
-| prometheus-operator-crds  | bootstrap only | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
+| App                       | Namespace         | Chart pinned                                                           | Release notes                                                     |
+| ------------------------- | ----------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| cilium                    | kube-system       | `quay.io/cilium/charts/cilium`                                         | <https://github.com/cilium/cilium/releases>                       |
+| coredns                   | kube-system       | `ghcr.io/coredns/charts/coredns`                                       | <https://github.com/coredns/helm/releases>                        |
+| metrics-server            | kube-system       | `ghcr.io/home-operations/charts-mirror/metrics-server`                 | <https://github.com/kubernetes-sigs/metrics-server/releases>      |
+| nvidia-device-plugin      | kube-system       | `ghcr.io/home-operations/charts-mirror/nvidia-device-plugin`           | <https://github.com/NVIDIA/k8s-device-plugin/releases>            |
+| reloader                  | kube-system       | `ghcr.io/stakater/charts/reloader`                                     | <https://github.com/stakater/Reloader/releases>                   |
+| spegel                    | kube-system       | `ghcr.io/spegel-org/helm-charts/spegel`                                | <https://github.com/spegel-org/spegel/releases>                   |
+| cert-manager              | cert-manager      | `quay.io/jetstack/charts/cert-manager`                                 | <https://github.com/cert-manager/cert-manager/releases>           |
+| flux-operator             | flux-system       | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`                   | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
+| flux-instance             | flux-system       | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`                   | same repository as flux-operator                                  |
+| cloudflare-dns            | network           | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| unifi-dns                 | network           | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| unifi-dns (image)         | network           | `ghcr.io/home-operations/external-dns-unifi-webhook`                   | <https://github.com/home-operations/external-dns-unifi-webhook>   |
+| cloudflare-tunnel         | network           | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| cloudflare-tunnel (image) | network           | `docker.io/cloudflare/cloudflared`                                     | <https://github.com/cloudflare/cloudflared/releases>              |
+| envoy-gateway             | network           | `mirror.gcr.io/envoyproxy/gateway-helm`                                | <https://github.com/envoyproxy/gateway/releases>                  |
+| k8s-gateway               | network           | `codeberg.org/k8s-gateway/charts/k8s-gateway`                          | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
+| local-path-provisioner    | storage           | `ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` | <https://github.com/rancher/local-path-provisioner/releases>      |
+| cloudnative-pg            | cnpg-system       | `ghcr.io/cloudnative-pg/charts/cloudnative-pg`                         | <https://github.com/cloudnative-pg/cloudnative-pg/releases>       |
+| plugin-barman-cloud       | cnpg-system       | `ghcr.io/cloudnative-pg/charts/plugin-barman-cloud`                    | <https://github.com/cloudnative-pg/plugin-barman-cloud/releases>  |
+| kube-prometheus-stack     | observability     | `ghcr.io/prometheus-community/charts/kube-prometheus-stack`            | <https://github.com/prometheus-community/helm-charts/releases>    |
+| influxdb                  | observability     | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| influxdb (image)          | observability     | `docker.io/library/influxdb`                                           | <https://github.com/influxdata/influxdb/releases>                 |
+| pocket-id                 | security          | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| pocket-id (image)         | security          | `ghcr.io/pocket-id/pocket-id`                                          | <https://github.com/pocket-id/pocket-id/releases>                 |
+| radar                     | radar             | `ghcr.io/skyhook-io/charts/radar`                                      | <https://github.com/skyhook-io/radar/releases>                    |
+| llama-server              | ai                | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| llama-server (image)      | ai                | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
+| pegaprox                  | pegaprox          | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| pegaprox (image)          | pegaprox          | `ghcr.io/pegaprox/pegaprox`                                            | <https://github.com/PegaProx/project-pegaprox/releases>           |
+| matherlynet               | matherlynet       | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                    | <https://github.com/jrmatherly/matherlynet/commits/main>          |
+| network-optimizer         | network-optimizer | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| network-optimizer (image) | network-optimizer | `ghcr.io/ozark-connect/network-optimizer`                              | <https://github.com/Ozark-Connect/NetworkOptimizer/releases>      |
+| echo                      | default           | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
+| prometheus-operator-crds  | bootstrap only    | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
 
 The charts under `charts-mirror` are copies of the upstream chart, so the upstream project's notes apply.
 
@@ -147,6 +149,17 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
   `app/dashboards/pegaprox-overview.json` is upstream's `misc/grafana/` JSON with only `refresh` changed from 10s to 1m to match the scrape interval, so refresh it
   when a release changes that file.
+- **network-optimizer** is pinned to a pre-release while the stable release's Performance Tweaks page refuses
+  the UDM-SE's UniFi OS. That page caps the gateway firmware at `MaxSupportedFirmware` in
+  `src/NetworkOptimizer.Web/Services/PerfTweaksDeploymentService.cs` and shows the firmware red above it, so after
+  a UniFi OS update on the gateway, compare the version on that page with the constant in the pinned tag. Previews
+  ship about daily as `v<semver>-preview<n>`. The inventory reads `-preview<n>` as a variant, so it shows neither
+  the next preview nor the stable release: list them with `gh release list -R Ozark-Connect/NetworkOptimizer`, and
+  the `.renovaterc.json5` rule brings the stable release back to Renovate. Before a bump, run
+  `git diff v<old>..v<new> -- docker/Dockerfile src/NetworkOptimizer.Storage/Migrations/` in a clone. The init
+  container copies the image's `ping` and `traceroute.db`, and the migrations run at startup on the only copy of
+  the SQLite database, so anything other than CreateTable, AddColumn and CreateIndex means Flux's rollback needs
+  a backup first.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
   The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator
@@ -196,31 +209,32 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
     | jq '{domain: .domain.name, gateways, api: .kubernetes.api.addr}'
 ```
 
-| App                          | Check                                                                                                                 | Healthy result                                   |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                  | `OK`                                             |
-| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                       | session `established`                            |
-| cilium                       | `kubectl get nodes`                                                                                                   | every node `Ready`                               |
-| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.38 -- nslookup kubernetes.default.svc.cluster.local` | an address is returned                           |
-| metrics-server               | `kubectl top nodes`                                                                                                   | a row per node                                   |
-| nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                      | at least `1`                                     |
-| cert-manager                 | `kubectl get certificates -A`                                                                                         | every certificate `True`                         |
-| flux-operator, flux-instance | `flux check`                                                                                                          | all checks passed                                |
-| cloudflare-dns               | `kubectl -n network logs deploy/cloudflare-dns --since=5m`                                                            | no errors, records in sync                       |
-| unifi-dns                    | `kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m` and `dig +short grafana.<domain>`               | no errors, and the internal gateway address      |
-| cloudflare-tunnel            | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                            |
-| envoy-gateway                | `kubectl get gateway -A`                                                                                              | both gateways programmed, with addresses         |
-| envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                   | both open                                        |
-| k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                            | the external gateway address                     |
-| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                        | class exists, every claim `Bound`                |
-| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                          | every cluster in a healthy state                 |
-| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                             | both certificates `True`                         |
-| kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`              | both `Available`, and `"database": "ok"`         |
-| influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                            | `"status":"pass"`                                |
-| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                             | `204`, and the passkey sign-in works             |
-| radar                        | `curl -s -o /dev/null -w '%{http_code}' https://radar.<domain>/api/health`, then sign in once                         | `200`, and the page shows cluster data           |
-| pegaprox                     | `curl -s https://pegaprox.<domain>/api/health`, then sign in and open a VM console and a node shell                   | `{"status":"ok",...}`, and both consoles connect |
-| matherlynet                  | `kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment`, then `curl -s https://<domain>/`           | rollout complete, and the page has `pageswap`    |
-| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                           | `{"status":"ok"}`                                |
-| echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                       | `200`                                            |
-| reloader, spegel             | the common checks                                                                                                     | pods Running                                     |
+| App                          | Check                                                                                                                           | Healthy result                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief`                                            | `OK`                                                             |
+| cilium                       | `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bgp peers`                                                 | session `established`                                            |
+| cilium                       | `kubectl get nodes`                                                                                                             | every node `Ready`                                               |
+| coredns                      | `kubectl run dns-check --rm -i --restart=Never --image=busybox:1.38 -- nslookup kubernetes.default.svc.cluster.local`           | an address is returned                                           |
+| metrics-server               | `kubectl top nodes`                                                                                                             | a row per node                                                   |
+| nvidia-device-plugin         | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'`                                                | at least `1`                                                     |
+| cert-manager                 | `kubectl get certificates -A`                                                                                                   | every certificate `True`                                         |
+| flux-operator, flux-instance | `flux check`                                                                                                                    | all checks passed                                                |
+| cloudflare-dns               | `kubectl -n network logs deploy/cloudflare-dns --since=5m`                                                                      | no errors, records in sync                                       |
+| unifi-dns                    | `kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m` and `dig +short grafana.<domain>`                         | no errors, and the internal gateway address                      |
+| cloudflare-tunnel            | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                                 | `200`                                                            |
+| envoy-gateway                | `kubectl get gateway -A`                                                                                                        | both gateways programmed, with addresses                         |
+| envoy-gateway                | `nc -z <gateways.internal> 443` and `nc -z <gateways.external> 443`                                                             | both open                                                        |
+| k8s-gateway                  | `dig +short echo.<domain> @<gateways.dns>`                                                                                      | the external gateway address                                     |
+| local-path-provisioner       | `kubectl get storageclass local-path` and `kubectl get pvc -A`                                                                  | class exists, every claim `Bound`                                |
+| cloudnative-pg               | `kubectl get clusters.postgresql.cnpg.io -A`                                                                                    | every cluster in a healthy state                                 |
+| plugin-barman-cloud          | `kubectl -n cnpg-system get certificates`                                                                                       | both certificates `True`                                         |
+| kube-prometheus-stack        | `kubectl -n observability get prometheus,alertmanager` and `curl -s https://grafana.<domain>/api/health`                        | both `Available`, and `"database": "ok"`                         |
+| influxdb                     | `curl -s https://influxdb.<domain>/health`                                                                                      | `"status":"pass"`                                                |
+| pocket-id                    | `curl -s -o /dev/null -w '%{http_code}' https://auth.<domain>/healthz`, then sign in once                                       | `204`, and the passkey sign-in works                             |
+| radar                        | `curl -s -o /dev/null -w '%{http_code}' https://radar.<domain>/api/health`, then sign in once                                   | `200`, and the page shows cluster data                           |
+| pegaprox                     | `curl -s https://pegaprox.<domain>/api/health`, then sign in and open a VM console and a node shell                             | `{"status":"ok",...}`, and both consoles connect                 |
+| matherlynet                  | `kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment`, then `curl -s https://<domain>/`                     | rollout complete, and the page has `pageswap`                    |
+| network-optimizer            | `kubectl -n network-optimizer exec deploy/network-optimizer -- curl -s localhost:8042/api/health`, then open Performance Tweaks | `{"status":"healthy",...}`, and the gateway firmware shows green |
+| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                                     | `{"status":"ok"}`                                                |
+| echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                                 | `200`                                                            |
+| reloader, spegel             | the common checks                                                                                                               | pods Running                                                     |
