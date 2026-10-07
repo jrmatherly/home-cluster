@@ -1,0 +1,21 @@
+---
+# Only the gateways may reach Actual Budget. It trusts the forwarded client
+# address from any pod in the pod network.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: actual-budget
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: actual-budget
+      app.kubernetes.io/controller: actual-budget
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 5006

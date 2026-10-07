@@ -1,0 +1,111 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: actual-budget
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: actual-budget
+  interval: 1h
+  values:
+    controllers:
+      actual-budget:
+        # SQLite allows one writer, and the volume is pinned to one node.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          # The server tries OpenID discovery once per start, so after a cold boot
+          # it would restart until Pocket ID answers. Waiting here keeps that out
+          # of the crash loop.
+          wait-for-openid:
+            image: &image
+              repository: ghcr.io/actualbudget/actual
+              tag: 26.10.0@sha256:24645e971da6bb1a1f953d6859e307a0b29be1e8b4130a35b3220c209b5b860c
+            env:
+              ACTUAL_OPENID_DISCOVERY_URL: &discovery https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
+            command:
+              - sh
+              - -c
+              - 'until node -e "fetch(process.env.ACTUAL_OPENID_DISCOVERY_URL).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; do echo "waiting for the OpenID provider"; sleep 5; done'
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *image
+            env:
+              ACTUAL_ALLOWED_LOGIN_METHODS: openid
+              ACTUAL_OPENID_ENFORCE: "true"
+              # The upstream default, pinned: only the first OpenID login creates a
+              # user (the owner); an admin adds the rest.
+              ACTUAL_USER_CREATION_MODE: manual
+              ACTUAL_OPENID_DISCOVERY_URL: *discovery
+              ACTUAL_OPENID_CLIENT_ID: "543ede15-f9bf-4860-b274-4c0e90ce6e73"
+              ACTUAL_OPENID_SERVER_HOSTNAME: https://budget.${SECRET_DOMAIN}
+              # Seconds; the default never expires a session.
+              ACTUAL_TOKEN_EXPIRATION: "2592000"
+              ACTUAL_TRUSTED_PROXIES: "10.42.0.0/16"
+            envFrom:
+              - secretRef:
+                  name: actual-budget-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: &port 5006
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              # The server bootstraps OpenID from the environment on every start. If
+              # discovery fails on the first start the instance stays unbootstrapped,
+              # and anyone could then set a server password and own it, so the pod
+              # is not Ready until that bootstrap has succeeded once; a failed startup
+              # probe restarts the container, which retries discovery.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - node
+                      - -e
+                      - 'fetch("http://127.0.0.1:5006/account/needs-bootstrap").then(r => r.json()).then(j => process.exit(j.data.bootstrapped && j.data.loginMethod === "openid" ? 0 : 1)).catch(() => process.exit(1))'
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 12
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      # The image sets no USER, so without this the server runs as root.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      # Budget files and the account database. The only copy on the server; every
+      # signed-in client also holds the full budget.
+      data:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /data
