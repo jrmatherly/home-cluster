@@ -1,0 +1,22 @@
+---
+# Only the gateways may reach Sure. It trusts the forwarded client address and
+# protocol headers, so no other workload may call it directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sure
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sure
+      app.kubernetes.io/instance: sure
+      app.kubernetes.io/component: web
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 3000
