@@ -79,6 +79,8 @@ order, and the next app starts only when the current one is healthy.
 - **Pre-releases are ignored on purpose.** The inventory only offers tags shaped like `1.2.3` or `v1.2.3`. A pin
   with a variant prefix or suffix, such as `server-cuda-v0.5.0` or `2.9.1-alpine`, is only compared with tags of
   that same variant.
+- **The inventory sees only OCI chart pins.** A chart pinned through a `helmrepository.yaml.j2` (only `sure`
+  today) is absent from the table, not marked `?`. Check it by hand as `references/apps.md` describes.
 
 ## Resources
 

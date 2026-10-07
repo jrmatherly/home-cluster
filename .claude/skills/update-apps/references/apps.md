@@ -41,6 +41,8 @@ The chart column is what the template pins. The releases column is where the not
 | matherlynet               | matherlynet       | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                    | <https://github.com/jrmatherly/matherlynet/commits/main>          |
 | network-optimizer         | network-optimizer | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | network-optimizer (image) | network-optimizer | `ghcr.io/ozark-connect/network-optimizer`                              | <https://github.com/Ozark-Connect/NetworkOptimizer/releases>      |
+| sure                      | sure              | `https://we-promise.github.io/sure` (HelmRepository)                   | <https://github.com/we-promise/sure/releases>                     |
+| sure (image)              | sure              | `ghcr.io/we-promise/sure`                                              | <https://github.com/we-promise/sure/releases>                     |
 | echo                      | default           | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
 | prometheus-operator-crds  | bootstrap only    | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
 
@@ -160,6 +162,14 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   container copies the image's `ping` and `traceroute.db`, and the migrations run at startup on the only copy of
   the SQLite database, so anything other than CreateTable, AddColumn and CreateIndex means Flux's rollback needs
   a backup first.
+- **sure** is the only chart pulled from a classic Helm repository (`helmrepository.yaml.j2`), because upstream
+  publishes no OCI chart. The inventory script reads only `ocirepository.yaml.j2`, so it never sees this pin:
+  check the chart version by hand against <https://we-promise.github.io/sure/index.yaml>, or leave it to
+  Renovate. The index also lists pre-release charts (`-alpha.<n>`, `-hotfix.<n>`), so pick a plain version.
+  The image pin carries a `-hotfix.<n>` suffix (upstream's `stable` tag is the newest hotfix of a release), which
+  the inventory reads as a variant, so check the image by hand too, against `gh release list -R we-promise/sure`.
+  A Renovate rule in `.renovaterc.json5` orders `-hotfix.<n>` after the plain release and `-alpha.<n>` as a
+  pre-release.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
   The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator
@@ -235,6 +245,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | pegaprox                     | `curl -s https://pegaprox.<domain>/api/health`, then sign in and open a VM console and a node shell                             | `{"status":"ok",...}`, and both consoles connect                 |
 | matherlynet                  | `kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment`, then `curl -s https://<domain>/`                     | rollout complete, and the page has `pageswap`                    |
 | network-optimizer            | `kubectl -n network-optimizer exec deploy/network-optimizer -- curl -s localhost:8042/api/health`, then open Performance Tweaks | `{"status":"healthy",...}`, and the gateway firmware shows green |
+| sure                         | `curl -s -o /dev/null -w '%{http_code}' https://sure.<domain>/up` and `kubectl -n sure get pods`                                | `200`, and web and worker Running                                |
 | llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                                     | `{"status":"ok"}`                                                |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                                 | `200`                                                            |
 | reloader, spegel             | the common checks                                                                                                               | pods Running                                                     |

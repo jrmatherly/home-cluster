@@ -117,6 +117,15 @@ oidc_client_secret = "fake-network-optimizer-secret"
 db_key        = "fakefakefakefakefakefakefakefakefakefakeabc="
 metrics_token = "fake"
 
+[sure]
+secret_key_base      = "fakefakefakefakefakefakefakefakefakefakefakefakefakefakefakefake"
+oidc_client_id       = "fake-sure-client"
+oidc_client_secret   = "fake"
+r2_account_id        = "0123456789abcdef0123456789abcdef"
+r2_bucket            = "fake-sure"
+r2_access_key_id     = "fake"
+r2_secret_access_key = "fake"
+
 [[nodes]]
 name         = "k8s-0"
 address      = "10.10.10.100"

@@ -1,0 +1,11 @@
+#% if sure_enabled %#
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sure
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+#% endif %#

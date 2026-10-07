@@ -718,6 +718,49 @@
       "title": "Spegel",
       "type": "object"
     },
+    "Sure": {
+      "additionalProperties": false,
+      "properties": {
+        "secret_key_base": {
+          "default": "",
+          "pattern": "^([^\"\\\\\\s$]{64,})?$",
+          "title": "Secret Key Base",
+          "type": "string"
+        },
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "r2_account_id": {
+          "default": "",
+          "pattern": "^([0-9a-f]{32})?$",
+          "title": "R2 Account Id",
+          "type": "string"
+        },
+        "r2_bucket": {
+          "default": "",
+          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
+          "title": "R2 Bucket",
+          "type": "string"
+        },
+        "r2_access_key_id": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "r2_secret_access_key": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "Sure",
+      "type": "object"
+    },
     "Talos": {
       "additionalProperties": false,
       "properties": {
@@ -910,6 +953,18 @@
       "default": {
         "db_key": "",
         "metrics_token": ""
+      }
+    },
+    "sure": {
+      "$ref": "#/$defs/Sure",
+      "default": {
+        "secret_key_base": "",
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "r2_account_id": "",
+        "r2_bucket": "",
+        "r2_access_key_id": "",
+        "r2_secret_access_key": ""
       }
     },
     "nodes": {

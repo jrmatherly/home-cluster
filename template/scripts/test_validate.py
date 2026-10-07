@@ -870,6 +870,66 @@ def test_pegaprox_metrics_requires_db_key():
         _load_raw(raw)
 
 
+SURE = (
+    POCKET_ID
+    | REDIS
+    | {
+        "pocket_id.public": True,
+        "sure.secret_key_base": "x" * 64,
+        "sure.oidc_client_id": "sure",
+        "sure.oidc_client_secret": "fake",
+        "sure.r2_account_id": "0" * 32,
+        "sure.r2_bucket": "sure",
+        "sure.r2_access_key_id": "fake",
+        "sure.r2_secret_access_key": "fake",
+    }
+)
+
+
+def test_sure_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POCKET_ID | REDIS)).sure_enabled is False
+    assert _load_raw(config_from("private.toml", **SURE)).sure_enabled is True
+
+
+def test_partial_sure_names_missing_field():
+    raw = config_from("private.toml", **SURE | {"sure.r2_bucket": None})
+    with pytest.raises(ConfigError, match=r"sure is partially configured.*\(missing: r2_bucket\)"):
+        _load_raw(raw)
+
+
+def test_sure_secret_key_base_needs_64_characters():
+    raw = config_from("private.toml", **SURE | {"sure.secret_key_base": "x" * 63})
+    with pytest.raises(ConfigError, match=r"sure\.secret_key_base"):
+        _load_raw(raw)
+
+
+def test_sure_requires_pocket_id():
+    no_pocket_id = {"pocket_id.encryption_key": None, "pocket_id.public": None}
+    raw = config_from("private.toml", **SURE | no_pocket_id)
+    with pytest.raises(ConfigError, match=r"sure requires pocket_id"):
+        _load_raw(raw)
+
+
+def test_sure_requires_public_pocket_id():
+    raw = config_from("private.toml", **SURE | {"pocket_id.public": False})
+    with pytest.raises(ConfigError, match=r"sure requires pocket_id\.public"):
+        _load_raw(raw)
+
+
+def test_sure_requires_redis():
+    raw = config_from("private.toml", **SURE | {"redis.password": None})
+    with pytest.raises(ConfigError, match=r"sure requires redis\.password"):
+        _load_raw(raw)
+
+
+def test_sure_requires_postgres_backup():
+    # pocket_id also requires the backup, so it goes too, or its check fires first.
+    no_backup = {key: None for key in POCKET_ID} | {"pocket_id.public": None}
+    raw = config_from("private.toml", **SURE | no_backup)
+    with pytest.raises(ConfigError, match=r"sure requires postgres\.backup"):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

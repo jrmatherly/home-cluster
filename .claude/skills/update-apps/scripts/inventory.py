@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""List every chart and image pinned in the templates, with the newest stable tag.
+"""List every OCI chart and every image pinned in the templates, with the newest stable tag.
 
 Usage: inventory.py [app-name ...]
 Exits 1 when a lookup fails or finds no stable tag, so a "?" in the table is never silent.

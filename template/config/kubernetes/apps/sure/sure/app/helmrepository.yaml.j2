@@ -1,0 +1,11 @@
+#% if sure_enabled %#
+---
+# Upstream publishes the chart only as a classic Helm repository, not as OCI.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: sure
+spec:
+  interval: 1h
+  url: https://we-promise.github.io/sure
+#% endif %#
