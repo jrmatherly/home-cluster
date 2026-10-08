@@ -1,0 +1,75 @@
+---
+# A pod keeps its restart count until it is replaced. The UniFi gear updates itself
+# around 03:00 local time, and a switch reboot cuts the hosts off from each other for
+# a few minutes, so API clients on the cut-off side exit and come back with counts
+# that read as unhealthy. This evicts every Running, fully Ready pod whose last
+# restart is over an hour old, one at a time, so the counts reset after the window.
+# Eviction honours PodDisruptionBudgets. A CloudNativePG primary is skipped as well,
+# because evicting it would be a failover.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restart-reset
+spec:
+  schedule: "0 10 * * *" # 06:00 EDT, well after the 03:00 update window
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          serviceAccountName: restart-reset
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: kubectl
+              image: docker.io/alpine/k8s:1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+              env:
+                - name: HOME
+                  value: /tmp
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  now=$(date -u +%s)
+                  kubectl get pods -A -o json | jq -r --argjson now "$now" '
+                    .items[]
+                    | select(.status.phase == "Running")
+                    | select((.metadata.ownerReferences | length) > 0 and .metadata.ownerReferences[0].kind != "Node")
+                    | select(.metadata.labels["cnpg.io/instanceRole"] != "primary")
+                    | select(any(.status.containerStatuses[]?; .restartCount > 0))
+                    | select(all(.status.containerStatuses[]?; .ready))
+                    | select(([.status.containerStatuses[]?.lastState.terminated.finishedAt // empty | fromdate] | max // 0) < $now - 3600)
+                    | "\(.metadata.namespace) \(.metadata.name)"
+                  ' | while read -r ns pod; do
+                    if kubectl create --raw "/api/v1/namespaces/$ns/pods/$pod/eviction" -f - >/dev/null <<EOF
+                  {"apiVersion":"policy/v1","kind":"Eviction","metadata":{"name":"$pod","namespace":"$ns"}}
+                  EOF
+                    then echo "evicted $ns/$pod"; sleep 30
+                    else echo "skipped $ns/$pod"
+                    fi
+                  done
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
