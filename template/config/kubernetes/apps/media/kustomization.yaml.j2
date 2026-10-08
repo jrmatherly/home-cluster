@@ -10,5 +10,11 @@ components:
 resources:
   - ./namespace.yaml
   - ./shared/ks.yaml
+  - ./sabnzbd/ks.yaml
   - ./sonarr/ks.yaml
+  - ./radarr/ks.yaml
+  - ./prowlarr/ks.yaml
+  #% if media.recyclarr %#
+  - ./recyclarr/ks.yaml
+  #% endif %#
 #% endif %#

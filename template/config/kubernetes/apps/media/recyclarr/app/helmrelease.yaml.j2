@@ -1,0 +1,246 @@
+#% if media_enabled and media.recyclarr %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: recyclarr
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: recyclarr
+  interval: 1h
+  # The configure job is a post-install and post-upgrade hook, so the release
+  # waits for it.
+  timeout: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      recyclarr:
+        type: cronjob
+        cronjob:
+          schedule: "0 6 * * *"
+        initContainers: &initContainers
+          # dependsOn orders the apply only, so the sync waits for both arrs
+          # itself. Five minutes each, so an arr outage fails this release fast.
+          wait:
+            image:
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+            command: ["sh", "-eu", "-c"]
+            args:
+              - |
+                for app in http://sonarr:8989 http://radarr:7878; do
+                  n=60
+                  until curl -fsS -o /dev/null "$app/ping"; do
+                    n=$((n - 1))
+                    [ "$n" -gt 0 ] || { echo "$app: no answer after 5 minutes" >&2; exit 1; }
+                    sleep 5
+                  done
+                  echo "$app: up"
+                done
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers: &containers
+          sync:
+            image:
+              repository: ghcr.io/recyclarr/recyclarr
+              tag: 8.7.3@sha256:9c6c74d52cfc6f740a5a3624aa83867e171bb70b90453ddb7a4048b8c80445f9
+            args: ["sync", "--log"]
+            env:
+              HOME: /tmp
+              RECYCLARR_DATA_DIR: /config
+              TZ: "#{ media.timezone }#"
+            envFrom:
+              - secretRef:
+                  name: media-keys
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+      # The same sync on every install and upgrade, so a config change applies
+      # at once. A failed run fails the release.
+      configure:
+        type: job
+        annotations:
+          helm.sh/hook: post-install,post-upgrade
+          helm.sh/hook-delete-policy: before-hook-creation
+          # A key change re-renders this and upgrades the release, so the hook
+          # pushes the new keys into the app.
+          media.keys/checksum: "#{ media_keys_checksum }#"
+        job:
+          backoffLimit: 0
+          activeDeadlineSeconds: 1200
+        initContainers: *initContainers
+        containers: *containers
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # The config volume is created on the media node, next to the arrs.
+      nodeSelector:
+        kubernetes.io/hostname: "#{ media.node }#"
+    configMaps:
+      config:
+        data:
+          # The size format is Recyclarr's own: TRaSH has no size-based format, and a
+          # local custom-formats provider per service loads it like a guide one.
+          settings.yml: |
+            resource_providers:
+              - name: home-sonarr-cfs
+                type: custom-formats
+                path: custom-formats/sonarr
+                service: sonarr
+              - name: home-radarr-cfs
+                type: custom-formats
+                path: custom-formats/radarr
+                service: radarr
+          # The size is the whole release, so Sonarr leaves season packs out.
+          sonarr-size.json: |
+            {
+              "trash_id": "home-sonarr-size-2160p-over-16gb",
+              "name": "Size: 2160p over 16 GB",
+              "includeCustomFormatWhenRenaming": false,
+              "specifications": [
+                {"name": "Over 16 GB", "implementation": "SizeSpecification",
+                 "negate": false, "required": true, "fields": {"min": 16, "max": 1000}},
+                {"name": "Not a season pack", "implementation": "ReleaseTypeSpecification",
+                 "negate": true, "required": true, "fields": {"value": 3}}
+              ]
+            }
+          radarr-size.json: |
+            {
+              "trash_id": "home-radarr-size-2160p-over-16gb",
+              "name": "Size: 2160p over 16 GB",
+              "includeCustomFormatWhenRenaming": false,
+              "specifications": [
+                {"name": "Over 16 GB", "implementation": "SizeSpecification",
+                 "negate": false, "required": true, "fields": {"min": 16, "max": 1000}}
+              ]
+            }
+          recyclarr.yml: |
+            # Merged from recyclarr/config-templates: sonarr web-1080p + web-2160p,
+            # radarr hd-bluray-web + uhd-bluray-web. English only, no anime, no French.
+
+            sonarr:
+              sonarr:
+                base_url: http://sonarr:8989
+                api_key: !env_var SONARR_API_KEY
+
+                delete_old_custom_formats: false
+
+                media_management:
+                  propers_and_repacks: do_not_prefer
+
+                quality_definition:
+                  type: series
+
+                media_naming:
+                  series: plex-tvdb
+                  season: default
+                  episodes:
+                    rename: true
+                    standard: default
+                    daily: default
+
+                quality_profiles:
+                  - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+                    reset_unmatched_scores:
+                      enabled: true
+                  - trash_id: d1498e7d189fbe6c7110ceaabb7473e6  # WEB-2160p
+                    reset_unmatched_scores:
+                      enabled: true
+
+                custom_formats:
+                  - trash_ids:
+                      - home-sonarr-size-2160p-over-16gb  # Size: 2160p over 16 GB
+                    assign_scores_to:
+                      - trash_id: d1498e7d189fbe6c7110ceaabb7473e6  # WEB-2160p
+                        score: -10000
+
+                custom_format_groups:
+                  add:
+                    - trash_id: 74aff4168620ed49dcc67e92b2c2a5b4  # [Optional] Language Profiles
+                      exclude:
+                        - ae575f95ab639ba5d15f663bf019e3e8  # Language: Not Original
+                      select:
+                        - 69aa1e159f97d860440b04cd6d590c4f  # Language: Not English
+
+            radarr:
+              radarr:
+                base_url: http://radarr:7878
+                api_key: !env_var RADARR_API_KEY
+
+                delete_old_custom_formats: false
+
+                media_management:
+                  propers_and_repacks: do_not_prefer
+
+                quality_definition:
+                  type: movie
+
+                media_naming:
+                  folder: plex-tmdb
+                  movie:
+                    rename: true
+                    standard: plex-tmdb
+
+                quality_profiles:
+                  - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+                    reset_unmatched_scores:
+                      enabled: true
+                  - trash_id: 64fb5f9858489bdac2af690e27c8f42f  # UHD Bluray + WEB
+                    reset_unmatched_scores:
+                      enabled: true
+
+                custom_formats:
+                  - trash_ids:
+                      - home-radarr-size-2160p-over-16gb  # Size: 2160p over 16 GB
+                    assign_scores_to:
+                      - trash_id: 64fb5f9858489bdac2af690e27c8f42f  # UHD Bluray + WEB
+                        score: -10000
+
+                custom_format_groups:
+                  add:
+                    - trash_id: 13856622cf7a6c9925d3a83f8812d679  # [Optional] Language Profiles
+                      select:
+                        - 0dc8aec3bd1c47cd6c40c46ecd27e846  # Language: Not English
+    persistence:
+      # Recyclarr keeps its state under /config/state. Without it every sync
+      # re-adopts the formats and profiles by name and logs a warning for each.
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        globalMounts:
+          - path: /config
+      recyclarr-yml:
+        type: configMap
+        identifier: config
+        globalMounts:
+          - path: /config/recyclarr.yml
+            subPath: recyclarr.yml
+          - path: /config/settings.yml
+            subPath: settings.yml
+          - path: /config/custom-formats/sonarr/size.json
+            subPath: sonarr-size.json
+          - path: /config/custom-formats/radarr/size.json
+            subPath: radarr-size.json
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+#% endif %#
