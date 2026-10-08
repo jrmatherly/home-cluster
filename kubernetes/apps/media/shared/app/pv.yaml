@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media
+spec:
+  accessModes: ["ReadWriteMany"]
+  # A static NFS volume has no size limit, so this number is informational.
+  capacity:
+    storage: 1Ti
+  storageClassName: media
+  mountOptions: ["nfsvers=4.1", "hard", "noatime", "nolock"]
+  # nolock keeps file locks on the client, so every pod that mounts the share
+  # has to run on one node. The scheduler enforces that here, for every claimant.
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["k8s-worker-4"]
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeHandle: media
+    volumeAttributes:
+      server: "192.168.23.203"
+      share: "/srv/media"

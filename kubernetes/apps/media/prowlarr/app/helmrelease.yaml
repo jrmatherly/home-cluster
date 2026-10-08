@@ -1,0 +1,192 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prowlarr
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: prowlarr
+  interval: 1h
+  # The configure job is a post-install and post-upgrade hook, so the release
+  # waits for it.
+  timeout: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      prowlarr:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          annotations:
+            # A key change rolls the pod in the same upgrade, so the configure
+            # hook below reaches a pod that already runs the new key.
+            media.keys/checksum: "506e4c4b087d1bb8"
+        # SQLite on a local-path volume: two pods on the same database corrupt it.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/prowlarr
+              tag: 2.6.5.5623@sha256:6152751c3ea2e7751564f5952173d5e83eed0e09f3fabd2cb6bdb58690c39e2f
+            # These cover the host settings, so the job does not PUT /config/host.
+            env:
+              # The gateway's Pocket ID sign-in and the NetworkPolicy are the
+              # login, so Prowlarr trusts whoever reaches it.
+              PROWLARR__AUTH__METHOD: External
+              PROWLARR__AUTH__REQUIRED: Enabled
+              PROWLARR__AUTH__APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: media-keys
+                    key: PROWLARR_API_KEY
+              PROWLARR__APP__INSTANCENAME: Prowlarr
+              PROWLARR__LOG__ANALYTICSENABLED: "False"
+              PROWLARR__LOG__LEVEL: info
+              PROWLARR__LOG__DBENABLED: "False"
+              TZ: "America/New_York"
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: &port 9696
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: *port
+                  periodSeconds: 5
+                  failureThreshold: 60
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+      # Runs after every install and upgrade and converges the settings below
+      # through Prowlarr's API. A failed run fails the release.
+      configure:
+        type: job
+        annotations:
+          helm.sh/hook: post-install,post-upgrade
+          helm.sh/hook-delete-policy: before-hook-creation
+          # A key change re-renders this and upgrades the release, so the hook
+          # pushes the new keys into the app.
+          media.keys/checksum: "506e4c4b087d1bb8"
+        job:
+          backoffLimit: 0
+          activeDeadlineSeconds: 1200
+        containers:
+          app:
+            image:
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+            envFrom:
+              - secretRef:
+                  name: media-keys
+            command: ["sh", "-eu", "-c"]
+            args:
+              - |
+                api() {
+                  m=$1 p=$2
+                  shift 2
+                  curl -fsS -X "$m" -H "X-Api-Key: $PROWLARR_API_KEY" -H "Content-Type: application/json" "$@" "http://prowlarr:9696/api/v1$p"
+                }
+                # provider <kind> <implementation> <name> <properties> <fields>: matched by name.
+                # GET masks secrets, so an existing one is always PUT rather than compared.
+                provider() {
+                  schema=$(api GET "/$1/schema")
+                  list=$(api GET "/$1")
+                  body=$(printf '%s' "$schema" | jq --arg impl "$2" --arg name "$3" --argjson top "$(jq -n "$4")" --argjson f "$(jq -n "$5")" '
+                    first(.[] | select(.implementation == $impl)) + $top | .name = $name
+                    | .fields |= map(.name as $n | if $f | has($n) then .value = $f[$n] else . end)')
+                  id=$(printf '%s' "$list" | jq --arg name "$3" 'first(.[] | select(.name == $name) | .id)')
+                  if [ -n "$id" ]; then
+                    printf '%s' "$body" | jq --argjson id "$id" '.id = $id' | api PUT "/$1/$id" --data-binary @- >/dev/null
+                    echo "$1 $3: updated"
+                  else
+                    printf '%s' "$body" | api POST "/$1" --data-binary @- >/dev/null
+                    echo "$1 $3: created"
+                  fi
+                }
+
+                until curl -fsS -o /dev/null http://prowlarr:9696/ping; do sleep 5; done
+                echo "prowlarr: up"
+                # Saving an application tests both directions, so both arrs must answer.
+                # Five minutes each, so an arr outage fails this release fast instead
+                # of at the job deadline.
+                for app in http://sonarr:8989 http://radarr:7878; do
+                  n=60
+                  until curl -fsS -o /dev/null "$app/ping"; do
+                    n=$((n - 1))
+                    [ "$n" -gt 0 ] || { echo "$app: no answer after 5 minutes" >&2; exit 1; }
+                    sleep 5
+                  done
+                  echo "$app: up"
+                done
+
+                provider applications Sonarr Sonarr '{syncLevel: "fullSync", tags: []}' '
+                  {prowlarrUrl: "http://prowlarr:9696", baseUrl: "http://sonarr:8989",
+                   apiKey: $ENV.SONARR_API_KEY,
+                   syncCategories: [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5090],
+                   animeSyncCategories: [5070], syncAnimeStandardFormatSearch: true,
+                   syncRejectBlocklistedTorrentHashesWhileGrabbing: false}'
+                provider applications Radarr Radarr '{syncLevel: "fullSync", tags: []}' '
+                  {prowlarrUrl: "http://prowlarr:9696", baseUrl: "http://radarr:7878",
+                   apiKey: $ENV.RADARR_API_KEY,
+                   syncCategories: [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080, 2090],
+                   syncRejectBlocklistedTorrentHashesWhileGrabbing: false}'
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # The media apps share one worker, and the config volume is created there.
+      nodeSelector:
+        kubernetes.io/hostname: "k8s-worker-4"
+    service:
+      app:
+        controller: prowlarr
+        ports:
+          http:
+            port: *port
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        advancedMounts:
+          prowlarr:
+            app:
+              - path: /config
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

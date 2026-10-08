@@ -1,0 +1,59 @@
+---
+# The arrs trust whoever reaches them, so the gateway signs users in with
+# Pocket ID. One policy covers every app's route; a new app adds its route here.
+# Without redirectURL the gateway sends each route's own /oauth2/callback, which
+# the Pocket ID client lists per app.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: media
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: sabnzbd
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: sonarr
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: radarr
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: prowlarr
+  oidc:
+    # Set explicitly so the policy does not depend on Pocket ID answering its
+    # discovery document when the gateway reconciles.
+    provider:
+      issuer: https://auth.${SECRET_DOMAIN}
+      authorizationEndpoint: https://auth.${SECRET_DOMAIN}/authorize
+      tokenEndpoint: https://auth.${SECRET_DOMAIN}/api/oidc/token
+    clientID: "7449bc9a-a828-4be6-b12f-7f6602afc51b"
+    clientSecret:
+      name: media-oidc
+    logoutPath: /logout
+    scopes: ["openid", "profile", "email", "groups"]
+    # A fixed name, so the JWT provider below can read the ID token.
+    cookieNames:
+      idToken: media-id-token
+  # Claim checks need a verified token from a JWT provider in the same policy.
+  jwt:
+    providers:
+      - name: pocket-id
+        issuer: https://auth.${SECRET_DOMAIN}
+        remoteJWKS:
+          uri: https://auth.${SECRET_DOMAIN}/.well-known/jwks.json
+        extractFrom:
+          cookies: ["media-id-token"]
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: cluster-admins
+        action: Allow
+        principal:
+          jwt:
+            provider: pocket-id
+            claims:
+              - name: groups
+                valueType: StringArray
+                values: ["cluster_admins"]
