@@ -1,0 +1,251 @@
+#% if media_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sabnzbd
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: sabnzbd
+  interval: 1h
+  # The configure job is a post-install and post-upgrade hook, so the release
+  # waits for it.
+  timeout: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      sabnzbd:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          annotations:
+            # A key change rolls the pod in the same upgrade, so the configure
+            # hook below reaches a pod that already runs the new key.
+            media.keys/checksum: "#{ media_keys_checksum }#"
+        # SABnzbd's ini and queue on a local-path volume: two pods would share them.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/sabnzbd
+              tag: 5.1.3@sha256:b1795982db498ed5691a7b1231f0fac7eed2a1d53e9c81b8e834d02695e76104
+            env:
+              SABNZBD__PORT: "8080"
+              # SABnzbd refuses a Host header it does not know, and the entrypoint
+              # writes this list on every start.
+              SABNZBD__HOST_WHITELIST_ENTRIES: "sabnzbd, sabnzbd.media, sabnzbd.media.svc, sabnzbd.media.svc.cluster.local, sabnzbd.${SECRET_DOMAIN}"
+              SABNZBD__API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: media-keys
+                    key: SABNZBD_API_KEY
+              SABNZBD__NZB_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: media-keys
+                    key: SABNZBD_NZB_KEY
+              TZ: "#{ media.timezone }#"
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api?mode=version
+                    port: &port 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api?mode=version
+                    port: *port
+                  periodSeconds: 5
+                  failureThreshold: 60
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 4Gi
+        initContainers:
+          # SABnzbd does not create its download folders itself.
+          folders:
+            image: &k8sImage
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+            command:
+              - mkdir
+              - -p
+              - /data/usenet/incomplete
+              - /data/usenet/complete/tv
+              - /data/usenet/complete/movies
+            securityContext: *securityContext
+      # Runs after every install and upgrade and converges the settings below
+      # through SABnzbd's API. A failed run fails the release.
+      configure:
+        type: job
+        annotations:
+          helm.sh/hook: post-install,post-upgrade
+          helm.sh/hook-delete-policy: before-hook-creation
+          # A key change re-renders this and upgrades the release, so the hook
+          # pushes the new keys into the app.
+          media.keys/checksum: "#{ media_keys_checksum }#"
+        job:
+          backoffLimit: 0
+          activeDeadlineSeconds: 1200
+        containers:
+          app:
+            image: *k8sImage
+            envFrom:
+              - secretRef:
+                  name: media-keys
+            command: ["sh", "-eu", "-c"]
+            args:
+              - |
+                SAB=http://sabnzbd:8080
+                api() {
+                  curl -fsS -G "$SAB/api" --data-urlencode output=json --data-urlencode "apikey=$SABNZBD_API_KEY" "$@"
+                }
+                # set_misc <keyword> <value>: set_config drops a bad value silently, so
+                # read the stored value back and fail unless it matches.
+                set_misc() {
+                  got=$(api --data-urlencode mode=set_config --data-urlencode section=misc \
+                    --data-urlencode "keyword=$1" --data-urlencode "value=$2" |
+                    jq -er --arg k "$1" '.config.misc[$k] | if type == "array" then join(",") else tostring end')
+                  if [ "$(printf %s "$got" | tr -d ' ')" != "$(printf %s "$2" | tr -d ' ')" ]; then
+                    echo "misc.$1: wanted '$2' got '$got'" >&2
+                    return 1
+                  fi
+                }
+                # set_cat <name> <order>: upserts a category whose folder is its name
+                # under complete_dir, with default priority, processing and script.
+                set_cat() {
+                  api --data-urlencode mode=set_config --data-urlencode section=categories \
+                    --data-urlencode "name=$1" --data-urlencode "dir=$1" --data-urlencode pp= \
+                    --data-urlencode script=Default --data-urlencode priority=-100 \
+                    --data-urlencode newzbin= --data-urlencode "order=$2" |
+                    jq -e --arg n "$1" '.config.categories[0]
+                      | .name == $n and .dir == $n and .pp == "" and .script == "Default" and .priority == -100' >/dev/null ||
+                    { echo "category $1 not applied" >&2; return 1; }
+                }
+
+                until curl -fsS -o /dev/null "$SAB/api?mode=version"; do sleep 5; done
+                echo "sabnzbd: up"
+
+                # api_key, nzb_key, host_whitelist, local_ranges, host and port come from the
+                # entrypoint on every start, and inet_exposure is protected from the API.
+                set_misc download_dir /data/usenet/incomplete
+                set_misc complete_dir /data/usenet/complete
+                set_misc permissions ""
+                set_misc nzb_backup_dir nzb-backup
+                set_misc backup_dir backup
+                echo "folders: set"
+
+                set_cat tv 1
+                set_cat movies 2
+                for c in audio software; do
+                  api --data-urlencode mode=del_config --data-urlencode section=categories --data-urlencode "keyword=$c" >/dev/null
+                done
+                echo "categories: tv, movies"
+
+                # The Starr apps rename and sort, so SABnzbd must not.
+                if ! api --data-urlencode mode=get_config --data-urlencode section=sorters |
+                  jq -e '[.config.sorters[]? | select(.is_active == 1)] | length == 0' >/dev/null; then
+                  echo "a sorter is active; turn it off in Config > Sorting" >&2
+                  exit 1
+                fi
+                echo "sorters: none active"
+
+                set_misc propagation_delay 5
+                set_misc top_only 0
+                set_misc pre_check 0
+                set_misc fail_hopeless_jobs 1
+                set_misc no_dupes 4
+                set_misc no_smart_dupes 4
+                set_misc dupes_propercheck 1
+                set_misc pause_on_pwrar 2
+                set_misc auto_sort ""
+                set_misc direct_unpack 1
+                unwanted='ade, adp, app, application, appref-ms, asp, aspx, asx, bas, bat, bgi, cab, cer, chm, cmd, cnt, com, cpl, crt, csh, der, diagcab, exe, fxp, gadget, grp, hlp, hpj, hta, htc, inf, ins, iso, isp, its, jar, jnlp, js, jse, ksh, lnk, mad, maf, mag, mam, maq, mar, mas, mat, mau, mav, maw, mcf, mda, mdb, mde, mdt, mdw, mdz, msc, msh, msh1, msh2, mshxml, msh1xml, msh2xml, msi, msp, mst, msu, ops, osd, pcd, pif, pl, plg, prf, prg, printerexport, ps1, ps1xml, ps2, ps2xml, psc1, psc2, psd1, psdm1, pst, py, pyc, pyo, pyw, pyz, pyzw, reg, scf, scr, sct, shb, shs, sln, theme, tmp, url, vb, vbe, vbp, vbs, vcxproj, vhd, vhdx, vsmacros, vsw, webpnp, website, ws, wsc, wsf, wsh, xbap, xll, xnk'
+                set_misc unwanted_extensions "$unwanted"
+                set_misc unwanted_extensions_mode 0
+                set_misc action_on_unwanted_extensions 2
+                echo "queue: set"
+
+                set_misc pause_on_post_processing 0
+                set_misc enable_all_par 0
+                set_misc sfv_check 0
+                set_misc safe_postproc 1
+                set_misc enable_recursive 1
+                set_misc flat_unpack 1
+                set_misc script_can_fail 0
+                set_misc ignore_samples 0
+                set_misc deobfuscate_final_filenames 1
+                set_misc cleanup_list ""
+                set_misc history_retention_option all
+                echo "post-processing: set"
+
+                set_misc enable_https 0
+                echo "https: off"
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # The NFS server is the Proxmox host that runs this worker, so media
+      # traffic never leaves the host, and the config volume is created there.
+      nodeSelector:
+        kubernetes.io/hostname: "#{ media.node }#"
+    service:
+      app:
+        controller: sabnzbd
+        ports:
+          http:
+            port: *port
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          sabnzbd:
+            app:
+              - path: /config
+      media:
+        type: persistentVolumeClaim
+        existingClaim: media
+        advancedMounts:
+          sabnzbd:
+            app:
+              - path: /data
+            folders:
+              - path: /data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+#% endif %#
