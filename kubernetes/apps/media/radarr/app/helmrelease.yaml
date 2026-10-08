@@ -168,6 +168,9 @@ spec:
                 # Radarr refuses a root folder that does not exist yet.
                 mkdir -p /data/media/movies
                 ensure /rootfolder 'any(.[]; .path == "/data/media/movies")' '{"path":"/data/media/movies"}'
+                # The NFS host may export a second, parity-protected tree inside the same
+                # mount (vs03's USB tier). It is a root folder wherever it exists.
+                [ ! -d /data/ext/movies ] || ensure /rootfolder 'any(.[]; .path == "/data/ext/movies")' '{"path":"/data/ext/movies"}'
                 provider downloadclient Sabnzbd SABnzbd '
                   {enable: true, protocol: "usenet", priority: 1, tags: [],
                    removeCompletedDownloads: true, removeFailedDownloads: true}' '

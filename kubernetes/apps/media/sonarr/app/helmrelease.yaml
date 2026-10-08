@@ -168,6 +168,9 @@ spec:
                 # Sonarr refuses a root folder that does not exist yet.
                 mkdir -p /data/media/tv
                 ensure /rootfolder 'any(.[]; .path == "/data/media/tv")' '{"path":"/data/media/tv"}'
+                # The NFS host may export a second, parity-protected tree inside the same
+                # mount (vs03's USB tier). It is a root folder wherever it exists.
+                [ ! -d /data/ext/tv ] || ensure /rootfolder 'any(.[]; .path == "/data/ext/tv")' '{"path":"/data/ext/tv"}'
                 provider downloadclient Sabnzbd SABnzbd '
                   {enable: true, protocol: "usenet", priority: 1, tags: [],
                    removeCompletedDownloads: true, removeFailedDownloads: true}' '

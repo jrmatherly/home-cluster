@@ -51,8 +51,10 @@ spec:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
-        containers: &containers
+          # The sync runs before the prune below, so the TRaSH profiles exist
+          # when the stock ones go.
           sync:
+            dependsOn: [wait]
             image:
               repository: ghcr.io/recyclarr/recyclarr
               tag: 8.7.3@sha256:9c6c74d52cfc6f740a5a3624aa83867e171bb70b90453ddb7a4048b8c80445f9
@@ -71,6 +73,45 @@ spec:
                 memory: 128Mi
               limits:
                 memory: 512Mi
+        containers: &containers
+          # Recyclarr never removes the apps' six stock quality profiles, which
+          # would stay the add dialog's default. A profile a title still uses
+          # is kept, and an app whose sync created nothing keeps them all.
+          prune:
+            image:
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+            envFrom:
+              - secretRef:
+                  name: media-keys
+            command: ["sh", "-eu", "-c"]
+            args:
+              - |
+                stock='"Any", "HD - 720p/1080p", "HD-720p", "HD-1080p", "SD", "Ultra-HD"'
+                prune() {
+                  list=$(curl -fsS -H "X-Api-Key: $2" "$1/api/v3/qualityprofile")
+                  if ! printf '%s' "$list" | jq -e "any(.[]; .name | IN($stock) | not)" >/dev/null; then
+                    echo "$1: no Recyclarr profile, stock profiles kept"; return
+                  fi
+                  for id in $(printf '%s' "$list" | jq ".[] | select(.name | IN($stock)) | .id"); do
+                    code=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H "X-Api-Key: $2" "$1/api/v3/qualityprofile/$id")
+                    case $code in
+                      2*) echo "$1: profile $id deleted";;
+                      400) echo "$1: profile $id in use, kept";;
+                      404) echo "$1: profile $id already gone";;
+                      *) echo "$1: profile $id: HTTP $code" >&2; exit 1;;
+                    esac
+                  done
+                }
+                prune http://sonarr:8989 "$SONARR_API_KEY"
+                prune http://radarr:7878 "$RADARR_API_KEY"
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
       # The same sync on every install and upgrade, so a config change applies
       # at once. A failed run fails the release.
       configure:
