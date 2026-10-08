@@ -125,7 +125,9 @@ spec:
                 set_misc() {
                   got=$(api --data-urlencode mode=set_config --data-urlencode section=misc \
                     --data-urlencode "keyword=$1" --data-urlencode "value=$2" |
-                    jq -er --arg k "$1" '.config.misc[$k] | if type == "array" then join(",") else tostring end')
+                    jq -er --arg k "$1" '.config.misc[$k]
+                      | if type == "boolean" then (if . then "1" else "0" end)
+                        elif type == "array" then join(",") else tostring end')
                   if [ "$(printf %s "$got" | tr -d ' ')" != "$(printf %s "$2" | tr -d ' ')" ]; then
                     echo "misc.$1: wanted '$2' got '$got'" >&2
                     return 1

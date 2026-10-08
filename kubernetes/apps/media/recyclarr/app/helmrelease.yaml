@@ -11,10 +11,14 @@ spec:
   # The configure job is a post-install and post-upgrade hook, so the release
   # waits for it.
   timeout: 30m
+  # The claim binds on first use and its only user is the hook Job, which runs
+  # after the wait, so waiting would hold the install until the timeout.
   install:
+    disableWait: true
     remediation:
       retries: 3
   upgrade:
+    disableWait: true
     remediation:
       retries: 3
   values:
