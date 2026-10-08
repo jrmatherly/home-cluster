@@ -22,4 +22,12 @@ spec:
       # The cluster has no VolumeSnapshot CRDs, so the snapshotter sidecar
       # would only log errors.
       enableSnapshotter: false
+    feature:
+      # Without it the CSIDriver carries fsGroupPolicy: File, and the kubelet
+      # walks the whole share to chown it to the pod's fsGroup before every
+      # media pod starts. That walk fails while SABnzbd is writing (a file
+      # vanishes under it) and grows with the library, and the export squashes
+      # every client to one uid anyway. Omitted, the policy defaults to
+      # ReadWriteOnceWithFSTag, which never touches a ReadWriteMany volume.
+      enableFSGroupPolicy: false
 #% endif %#
