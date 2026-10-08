@@ -1,26 +1,19 @@
 ---
 # The arrs trust whoever reaches them, so the gateway signs users in with
-# Pocket ID. One policy covers every app's route; a new app adds its route here.
-# Without redirectURL the gateway sends each route's own /oauth2/callback, which
-# the Pocket ID client lists per app.
+# Pocket ID. One policy covers every UI route that carries the label below; the
+# /api routes, and Seerr with its own login, leave it off. Without redirectURL
+# the gateway sends each route's own /oauth2/callback, which the Pocket ID client
+# lists per app.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
   name: media
 spec:
-  targetRefs:
+  targetSelectors:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      name: sabnzbd
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: sonarr
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: radarr
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: prowlarr
+      matchLabels:
+        media.sign-in: pocket-id
   oidc:
     # Set explicitly so the policy does not depend on Pocket ID answering its
     # discovery document when the gateway reconciles.
