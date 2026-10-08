@@ -140,17 +140,15 @@ spec:
       config:
         data:
           # The size format is Recyclarr's own: TRaSH has no size-based format, and a
-          # local custom-formats provider per service loads it like a guide one.
+          # quality definition is per minute of runtime, so a long episode is not capped
+          # by it. A local custom-formats provider loads it like a guide one. Radarr
+          # needs none: its hook sets the indexer Maximum Size instead.
           settings.yml: |
             resource_providers:
               - name: home-sonarr-cfs
                 type: custom-formats
                 path: custom-formats/sonarr
                 service: sonarr
-              - name: home-radarr-cfs
-                type: custom-formats
-                path: custom-formats/radarr
-                service: radarr
           # The size is the whole release, so Sonarr leaves season packs out.
           sonarr-size.json: |
             {
@@ -164,16 +162,6 @@ spec:
                  "negate": true, "required": true, "fields": {"value": 3}}
               ]
             }
-          radarr-size.json: |
-            {
-              "trash_id": "home-radarr-size-2160p-over-16gb",
-              "name": "Size: 2160p over 16 GB",
-              "includeCustomFormatWhenRenaming": false,
-              "specifications": [
-                {"name": "Over 16 GB", "implementation": "SizeSpecification",
-                 "negate": false, "required": true, "fields": {"min": 16, "max": 1000}}
-              ]
-            }
           recyclarr.yml: |
             # Merged from recyclarr/config-templates: sonarr web-1080p + web-2160p,
             # radarr hd-bluray-web + uhd-bluray-web. English only, no anime, no French.
@@ -183,7 +171,7 @@ spec:
                 base_url: http://sonarr:8989
                 api_key: !env_var SONARR_API_KEY
 
-                delete_old_custom_formats: false
+                delete_old_custom_formats: true
 
                 media_management:
                   propers_and_repacks: do_not_prefer
@@ -227,7 +215,7 @@ spec:
                 base_url: http://radarr:7878
                 api_key: !env_var RADARR_API_KEY
 
-                delete_old_custom_formats: false
+                delete_old_custom_formats: true
 
                 media_management:
                   propers_and_repacks: do_not_prefer
@@ -248,13 +236,6 @@ spec:
                   - trash_id: 64fb5f9858489bdac2af690e27c8f42f  # UHD Bluray + WEB
                     reset_unmatched_scores:
                       enabled: true
-
-                custom_formats:
-                  - trash_ids:
-                      - home-radarr-size-2160p-over-16gb  # Size: 2160p over 16 GB
-                    assign_scores_to:
-                      - trash_id: 64fb5f9858489bdac2af690e27c8f42f  # UHD Bluray + WEB
-                        score: -10000
 
                 custom_format_groups:
                   add:
@@ -281,8 +262,6 @@ spec:
             subPath: settings.yml
           - path: /config/custom-formats/sonarr/size.json
             subPath: sonarr-size.json
-          - path: /config/custom-formats/radarr/size.json
-            subPath: radarr-size.json
       tmp:
         type: emptyDir
         globalMounts:

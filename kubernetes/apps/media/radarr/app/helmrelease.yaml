@@ -165,6 +165,9 @@ spec:
                   | .setPermissionsLinux = false | .chownGroup = ""
                   | .skipFreeSpaceCheckWhenImporting = false | .minimumFreeSpaceWhenImporting = 100
                   | .createEmptyMovieFolders = false | .deleteEmptyFolders = false'
+                # No movie file over 12 GiB, whatever the profile. Radarr's own cap is
+                # absolute, where a quality definition is per minute of runtime.
+                setting indexer '.maximumSize = 12288'
                 # Radarr refuses a root folder that does not exist yet.
                 mkdir -p /data/media/movies
                 ensure /rootfolder 'any(.[]; .path == "/data/media/movies")' '{"path":"/data/media/movies"}'
