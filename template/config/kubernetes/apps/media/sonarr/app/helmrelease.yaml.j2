@@ -9,48 +9,47 @@ spec:
     kind: OCIRepository
     name: sonarr
   interval: 1h
+  # The configure job is a post-install and post-upgrade hook, so the release
+  # waits for it.
+  timeout: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
   values:
     controllers:
       sonarr:
         annotations:
           reloader.stakater.com/auto: "true"
+        pod:
+          annotations:
+            # A key change rolls the pod in the same upgrade, so the configure
+            # hook below reaches a pod that already runs the new key.
+            media.keys/checksum: "#{ media_keys_checksum }#"
         # SQLite on a local-path volume: two pods on the same database corrupt it.
         strategy: Recreate
-        initContainers:
-          # A one-time carry-over of the Windows install from the pool, removed
-          # after cutover. The marker is written last, so a copy that died
-          # halfway is redone on the next start.
-          restore-config:
-            image:
-              repository: docker.io/library/busybox
-              tag: "1.38"
-            command:
-              - sh
-              - -c
-              - if [ -d /data/_migration/sonarr ] && [ ! -e /config/.restored ]; then cp -a /data/_migration/sonarr/. /config/ && touch /config/.restored; fi
-            securityContext: &securityContext
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
         containers:
           app:
             image:
               repository: ghcr.io/home-operations/sonarr
-              # Two builds behind the Windows install's 4.0.20.3014 database on
-              # purpose: both tags are the same commit (checked 2026-10-06), and
-              # Renovate moves it forward.
               tag: 4.0.20.3012@sha256:1f19eb5e0f421418c1a956bbe01310a0141423afe28bd9a4b1dcb8629ff2bce2
             env:
               # The gateway's Pocket ID sign-in and the NetworkPolicy are the
               # login, so Sonarr trusts whoever reaches it.
               SONARR__AUTH__METHOD: External
               SONARR__AUTH__REQUIRED: Enabled
+              SONARR__AUTH__APIKEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: media-keys
+                    key: SONARR_API_KEY
+              SONARR__APP__INSTANCENAME: Sonarr
+              SONARR__LOG__ANALYTICSENABLED: "False"
               SONARR__LOG__LEVEL: info
               SONARR__LOG__DBENABLED: "False"
               TZ: "#{ media.timezone }#"
-            envFrom:
-              - secretRef:
-                  name: sonarr-secret
             probes:
               liveness: &probe
                 enabled: true
@@ -71,13 +70,140 @@ spec:
                     port: *port
                   periodSeconds: 5
                   failureThreshold: 60
-            securityContext: *securityContext
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
             resources:
               requests:
                 cpu: 100m
                 memory: 256Mi
               limits:
                 memory: 2Gi
+      # Runs after every install and upgrade and converges the settings below
+      # through Sonarr's API. A failed run fails the release.
+      configure:
+        type: job
+        annotations:
+          helm.sh/hook: post-install,post-upgrade
+          helm.sh/hook-delete-policy: before-hook-creation
+          # A key change re-renders this and upgrades the release, so the hook
+          # pushes the new keys into the app.
+          media.keys/checksum: "#{ media_keys_checksum }#"
+        job:
+          backoffLimit: 0
+          activeDeadlineSeconds: 1200
+        containers:
+          app:
+            image:
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+            envFrom:
+              - secretRef:
+                  name: media-keys
+            command: ["sh", "-eu", "-c"]
+            args:
+              - |
+                api() {
+                  m=$1 p=$2
+                  shift 2
+                  curl -fsS -X "$m" -H "X-Api-Key: $SONARR_API_KEY" -H "Content-Type: application/json" "$@" "http://sonarr:8989/api/v3$p"
+                }
+                # setting <name> <jq filter>: a config singleton, PUT only when the filter changes it.
+                setting() {
+                  cur=$(api GET "/config/$1")
+                  cur=$(printf '%s' "$cur" | jq -S .)
+                  new=$(printf '%s' "$cur" | jq -S "$2")
+                  if [ "$cur" = "$new" ]; then echo "$1: unchanged"; return; fi
+                  printf '%s' "$new" | api PUT "/config/$1/$(printf '%s' "$cur" | jq .id)" --data-binary @- >/dev/null
+                  echo "$1: updated"
+                }
+                # provider <kind> <implementation> <name> <properties> <fields>: matched by name.
+                # GET masks secrets, so an existing one is always PUT rather than compared.
+                provider() {
+                  schema=$(api GET "/$1/schema")
+                  list=$(api GET "/$1")
+                  body=$(printf '%s' "$schema" | jq --arg impl "$2" --arg name "$3" --argjson top "$(jq -n "$4")" --argjson f "$(jq -n "$5")" '
+                    first(.[] | select(.implementation == $impl)) + $top | .name = $name
+                    | .fields |= map(.name as $n | if $f | has($n) then .value = $f[$n] else . end)')
+                  id=$(printf '%s' "$list" | jq --arg name "$3" 'first(.[] | select(.name == $name) | .id)')
+                  if [ -n "$id" ]; then
+                    printf '%s' "$body" | jq --argjson id "$id" '.id = $id' | api PUT "/$1/$id" --data-binary @- >/dev/null
+                    echo "$1 $3: updated"
+                  else
+                    printf '%s' "$body" | api POST "/$1" --data-binary @- >/dev/null
+                    echo "$1 $3: created"
+                  fi
+                }
+                # ensure <path> <jq test> <body>: POST only when the test finds nothing.
+                ensure() {
+                  list=$(api GET "$1")
+                  if printf '%s' "$list" | jq -e "$2" >/dev/null; then echo "$1: unchanged"; return; fi
+                  printf '%s' "$3" | api POST "$1" --data-binary @- >/dev/null
+                  echo "$1: created"
+                }
+
+                until curl -fsS -o /dev/null http://sonarr:8989/ping; do sleep 5; done
+                echo "sonarr: up"
+                # Sonarr tests the download client on save, and the test fails until
+                # SABnzbd has the tv category. Five minutes, so a SABnzbd outage
+                # fails this release fast instead of at the job deadline.
+                n=60
+                until curl -fsS "http://sabnzbd:8080/api?mode=get_cats&output=json&apikey=$SABNZBD_API_KEY" | jq -e 'any(.categories[]; . == "tv")' >/dev/null; do
+                  n=$((n - 1))
+                  [ "$n" -gt 0 ] || { echo "sabnzbd: no tv category after 5 minutes" >&2; exit 1; }
+                  sleep 5
+                done
+                echo "sabnzbd: tv category present"
+
+                # Recyclarr owns downloadPropersAndRepacks and naming.
+                setting mediamanagement '
+                  .episodeTitleRequired = "bulkSeasonReleases" | .copyUsingHardlinks = true
+                  | .importExtraFiles = true | .extraFileExtensions = "srt,ass"
+                  | .autoUnmonitorPreviouslyDownloadedEpisodes = false
+                  | .rescanAfterRefresh = "always" | .fileDate = "none" | .enableMediaInfo = true
+                  | .recycleBin = "" | .recycleBinCleanupDays = 7
+                  | .setPermissionsLinux = false | .chownGroup = ""
+                  | .skipFreeSpaceCheckWhenImporting = false | .minimumFreeSpaceWhenImporting = 100
+                  | .createEmptySeriesFolders = false | .deleteEmptyFolders = false'
+                # Sonarr refuses a root folder that does not exist yet.
+                mkdir -p /data/media/tv
+                ensure /rootfolder 'any(.[]; .path == "/data/media/tv")' '{"path":"/data/media/tv"}'
+                provider downloadclient Sabnzbd SABnzbd '
+                  {enable: true, protocol: "usenet", priority: 1, tags: [],
+                   removeCompletedDownloads: true, removeFailedDownloads: true}' '
+                  {host: "sabnzbd", port: 8080, useSsl: false, urlBase: "", apiKey: $ENV.SABNZBD_API_KEY,
+                   tvCategory: "tv", recentTvPriority: -100, olderTvPriority: -100}'
+                setting downloadclient '
+                  .enableCompletedDownloadHandling = true | .autoRedownloadFailed = true
+                  | .autoRedownloadFailedFromInteractiveSearch = true'
+                #% if media.plex_token %#
+                # Saving the connection tests it, so a Plex that is off is skipped
+                # rather than failing the release; the next upgrade retries.
+                if ! curl -fs -o /dev/null "http://#{ media.plex_host }#:32400/identity"; then
+                  echo "plex: unreachable, skipped"
+                else
+                # Plex sees the export at the same /data/media/tv path, so no path mapping.
+                provider notification PlexServer Plex '
+                  {tags: [], onDownload: true, onUpgrade: true, onImportComplete: true, onRename: true,
+                   onSeriesAdd: true, onSeriesDelete: true, onEpisodeFileDelete: true,
+                   onEpisodeFileDeleteForUpgrade: true}' '
+                  {host: "#{ media.plex_host }#", port: 32400, useSsl: false, authToken: $ENV.PLEX_TOKEN,
+                   updateLibrary: true}'
+                fi
+                #% else %#
+                # A connection left from an earlier plex_token would keep a revoked token.
+                list=$(api GET /notification)
+                id=$(printf '%s' "$list" | jq 'first(.[] | select(.name == "Plex") | .id)')
+                [ -z "$id" ] || api DELETE "/notification/$id" >/dev/null
+                #% endif %#
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -91,6 +217,7 @@ spec:
         kubernetes.io/hostname: "#{ media.node }#"
     service:
       app:
+        controller: sonarr
         ports:
           http:
             port: *port
@@ -100,13 +227,20 @@ spec:
         storageClass: local-path
         accessMode: ReadWriteOnce
         size: 5Gi
-        globalMounts:
-          - path: /config
+        advancedMounts:
+          sonarr:
+            app:
+              - path: /config
       media:
         type: persistentVolumeClaim
         existingClaim: media
-        globalMounts:
-          - path: /data
+        advancedMounts:
+          sonarr:
+            app:
+              - path: /data
+          configure:
+            app:
+              - path: /data
       tmp:
         type: emptyDir
         globalMounts:

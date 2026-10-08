@@ -1,0 +1,17 @@
+#% if media_enabled %#
+---
+# Every app reads its own key and the keys of the apps it talks to from here.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: media-keys
+stringData:
+  SONARR_API_KEY: "#{ media.sonarr_api_key }#"
+  RADARR_API_KEY: "#{ media.radarr_api_key }#"
+  PROWLARR_API_KEY: "#{ media.prowlarr_api_key }#"
+  SABNZBD_API_KEY: "#{ media.sabnzbd_api_key }#"
+  SABNZBD_NZB_KEY: "#{ media.sabnzbd_nzb_key }#"
+  #% if media.plex_token %#
+  PLEX_TOKEN: "#{ media.plex_token }#"
+  #% endif %#
+#% endif %#

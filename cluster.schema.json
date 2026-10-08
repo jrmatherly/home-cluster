@@ -385,6 +385,24 @@
           "default": false,
           "title": "Recyclarr",
           "type": "boolean"
+        },
+        "plex_host": {
+          "anyOf": [
+            {
+              "format": "ipv4",
+              "type": "string"
+            },
+            {
+              "const": "",
+              "type": "string"
+            }
+          ],
+          "default": "",
+          "title": "Plex Host"
+        },
+        "plex_token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
         }
       },
       "title": "Media",
@@ -1034,7 +1052,9 @@
         "sabnzbd_nzb_key": "",
         "oidc_client_id": "",
         "oidc_client_secret": "",
-        "recyclarr": false
+        "recyclarr": false,
+        "plex_host": "",
+        "plex_token": ""
       }
     },
     "nodes": {

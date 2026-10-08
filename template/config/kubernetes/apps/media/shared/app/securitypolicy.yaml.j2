@@ -1,15 +1,27 @@
 #% if media_enabled %#
 ---
-# Sonarr trusts whoever reaches it, so the gateway signs users in with Pocket ID.
+# The arrs trust whoever reaches them, so the gateway signs users in with
+# Pocket ID. One policy covers every app's route; a new app adds its route here.
+# Without redirectURL the gateway sends each route's own /oauth2/callback, which
+# the Pocket ID client lists per app.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: sonarr
+  name: media
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+      name: sabnzbd
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
       name: sonarr
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: radarr
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: prowlarr
   oidc:
     # Set explicitly so the policy does not depend on Pocket ID answering its
     # discovery document when the gateway reconciles.
@@ -20,12 +32,11 @@ spec:
     clientID: "#{ media.oidc_client_id }#"
     clientSecret:
       name: media-oidc
-    redirectURL: https://sonarr.${SECRET_DOMAIN}/oauth2/callback
     logoutPath: /logout
     scopes: ["openid", "profile", "email", "groups"]
     # A fixed name, so the JWT provider below can read the ID token.
     cookieNames:
-      idToken: sonarr-id-token
+      idToken: media-id-token
   # Claim checks need a verified token from a JWT provider in the same policy.
   jwt:
     providers:
@@ -34,7 +45,7 @@ spec:
         remoteJWKS:
           uri: https://auth.${SECRET_DOMAIN}/.well-known/jwks.json
         extractFrom:
-          cookies: ["sonarr-id-token"]
+          cookies: ["media-id-token"]
   authorization:
     defaultAction: Deny
     rules:

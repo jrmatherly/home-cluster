@@ -8,6 +8,7 @@ Exits non-zero with one human-readable error per line on stderr when the
 config is invalid.
 """
 
+import hashlib
 import json
 import re
 import sys
@@ -501,8 +502,7 @@ class Media(Model):
     # The worker whose Proxmox host serves the export.
     node: str = Field(default="", pattern=r"^[a-z0-9-]*$")
     timezone: str = Field(default="Etc/UTC", pattern=r"^[A-Za-z0-9_+/-]+$")
-    # Carried over from config.xml and sabnzbd.ini, so every app that stores
-    # another app's key keeps working. Prowlarr's is new.
+    # New random keys, shared with the other apps through the media-keys Secret.
     sonarr_api_key: ApiKey = ""
     radarr_api_key: ApiKey = ""
     prowlarr_api_key: ApiKey = ""
@@ -512,6 +512,8 @@ class Media(Model):
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     oidc_client_secret: Secret = ""
     recyclarr: bool = False
+    plex_host: IPv4Address | Literal[""] = ""
+    plex_token: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -524,6 +526,7 @@ class Media(Model):
         )
         _all_or_none(self, "media", keys)
         _all_or_none(self, "media", ("oidc_client_id", "oidc_client_secret"))
+        _all_or_none(self, "media", ("plex_host", "plex_token"))
         if self.nfs_server == "":
             for name, field in type(self).model_fields.items():
                 if name != "nfs_server" and getattr(self, name) != field.default:
@@ -734,6 +737,22 @@ class Config(Model):
     @property
     def media_enabled(self) -> bool:
         return self.media.nfs_server != ""
+
+    # Changes when any media key changes, so a HelmRelease that carries it is
+    # upgraded and its configure hook pushes the new keys into the apps.
+    @computed_field
+    @property
+    def media_keys_checksum(self) -> str:
+        m = self.media
+        keys = (
+            m.sonarr_api_key,
+            m.radarr_api_key,
+            m.prowlarr_api_key,
+            m.sabnzbd_api_key,
+            m.sabnzbd_nzb_key,
+            m.plex_token,
+        )
+        return hashlib.sha256("\n".join(keys).encode()).hexdigest()[:16]
 
     @computed_field
     @property

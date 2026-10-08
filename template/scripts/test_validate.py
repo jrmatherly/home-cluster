@@ -944,6 +944,21 @@ def test_partial_media_keys_names_missing_field():
         _load_raw(raw)
 
 
+def test_media_keys_checksum_follows_the_keys():
+    base = _load_raw(config_from("private.toml", **MEDIA)).media_keys_checksum
+    rotated = config_from("private.toml", **MEDIA | {"media.sonarr_api_key": "b" * 32})
+    assert len(base) == 16
+    assert _load_raw(rotated).media_keys_checksum != base
+
+
+def test_plex_host_without_token_names_missing_field():
+    raw = config_from("private.toml", **MEDIA | {"media.plex_host": "10.10.10.60"})
+    with pytest.raises(
+        ConfigError, match=r"media is partially configured.*\(missing: plex_token\)"
+    ):
+        _load_raw(raw)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [("recyclarr", True), ("nfs_share", "/tank/media"), ("timezone", "America/Chicago")],

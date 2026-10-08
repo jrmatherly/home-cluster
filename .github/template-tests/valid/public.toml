@@ -135,6 +135,8 @@ sabnzbd_nzb_key    = "fakefakefakefakefakefakefakefak5"
 oidc_client_id     = "fake-media"
 oidc_client_secret = "fake-media-secret"
 recyclarr          = true
+plex_host          = "10.10.10.60"
+plex_token         = "fake-plex-token"
 
 [[nodes]]
 name         = "k8s-0"

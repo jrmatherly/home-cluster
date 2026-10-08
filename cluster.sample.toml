@@ -778,13 +778,11 @@ schematic_id = ""
 
 # timezone = "Etc/UTC"
 
-# API keys, at least 32 letters and digits each. The existing keys are carried
-# over so every app that stores another app's key keeps working: Sonarr's and
-# Radarr's are <ApiKey> in their config.xml, and SABnzbd's are api_key and
-# nzb_key in sabnzbd.ini. Prowlarr's is new. Set all five or none. They are
-# written to a SOPS-encrypted Secret.
-# REQUIRED when nfs_server is set. Example for a new key: the output of
-# `openssl rand -hex 16`
+# API keys, at least 32 letters and digits each. Each is a new random key;
+# nothing is carried over from an earlier install. Every app reads its own key
+# and the keys of the apps it talks to from one SOPS-encrypted Secret. Set all
+# five or none.
+# REQUIRED when nfs_server is set. Example: the output of `openssl rand -hex 16`
 
 # sonarr_api_key = ""
 # radarr_api_key = ""
@@ -803,6 +801,14 @@ schematic_id = ""
 # OPTIONAL. Default: false
 
 # recyclarr = false
+
+# The Plex Media Server on the LAN and an X-Plex-Token for it. When set,
+# Sonarr and Radarr get a Plex connection that refreshes the library on import.
+# Set both or neither. The token is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: plex_host = "192.168.1.60"
+
+# plex_host = ""
+# plex_token = ""
 
 
 # =============================================================================
