@@ -740,6 +740,72 @@ schematic_id = ""
 
 
 # =============================================================================
+#    The media stack: Sonarr, Radarr, Prowlarr, SABnzbd, Bazarr, Tautulli,
+#    Seerr, Maintainerr and Recyclarr, in the media namespace. Every app
+#    mounts one NFS export from a Proxmox host. Seerr is served on the
+#    external gateway; the other apps sit behind a Pocket ID sign-in on the
+#    gateway, which is their only login. Needs [pocket_id]. Set nfs_server to
+#    enable; leaving it blank skips it, and then node, the API keys, the OIDC
+#    client and recyclarr stay unset.
+#
+#    Create the OIDC client in the Pocket ID admin UI first, with one callback
+#    URL per app, https://<app>.<domain.name>/oauth2/callback, for sonarr,
+#    radarr, prowlarr, sabnzbd, bazarr, tautulli and maintainerr.
+# =============================================================================
+[media]
+
+# The Proxmox host that exports the media tree over NFS.
+# OPTIONAL. Example: "192.168.1.12"
+
+# nfs_server = ""
+
+# Path of the export on nfs_server.
+# OPTIONAL. Default: "/srv/media"
+
+# nfs_share = "/srv/media"
+
+# The worker whose Proxmox host is nfs_server, so NFS traffic stays on that
+# host. Must name a [[nodes]] entry with controller = false. The media
+# PersistentVolume pins every pod that mounts it to this node, and that pin
+# cannot change on a live volume: to move the stack later, scale the apps to
+# zero and delete the media PersistentVolumeClaim and PersistentVolume first.
+# REQUIRED when nfs_server is set. Example: "k8s-worker-4"
+
+# node = ""
+
+# Time zone the apps run in, as a tz database name.
+# OPTIONAL. Default: "Etc/UTC". Example: "America/Chicago"
+
+# timezone = "Etc/UTC"
+
+# API keys, at least 32 letters and digits each. The existing keys are carried
+# over so every app that stores another app's key keeps working: Sonarr's and
+# Radarr's are <ApiKey> in their config.xml, and SABnzbd's are api_key and
+# nzb_key in sabnzbd.ini. Prowlarr's is new. Set all five or none. They are
+# written to a SOPS-encrypted Secret.
+# REQUIRED when nfs_server is set. Example for a new key: the output of
+# `openssl rand -hex 16`
+
+# sonarr_api_key = ""
+# radarr_api_key = ""
+# prowlarr_api_key = ""
+# sabnzbd_api_key = ""
+# sabnzbd_nzb_key = ""
+
+# The OIDC client created for the media apps in the Pocket ID admin UI. The
+# secret is written to a SOPS-encrypted Secret. Set both or neither.
+# REQUIRED when nfs_server is set.
+
+# oidc_client_id = ""
+# oidc_client_secret = ""
+
+# Runs Recyclarr, which syncs quality profiles into Sonarr and Radarr.
+# OPTIONAL. Default: false
+
+# recyclarr = false
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

@@ -1,14 +1,14 @@
+#% if media_enabled %#
 ---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: storage
+namespace: media
 
 components:
   - ../../components/sops
 
 resources:
   - ./namespace.yaml
-  - ./local-path-provisioner/ks.yaml
-#% if media_enabled %#
-  - ./csi-driver-nfs/ks.yaml
+  - ./shared/ks.yaml
+  - ./sonarr/ks.yaml
 #% endif %#

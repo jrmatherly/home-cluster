@@ -51,6 +51,10 @@
       "title": "Api",
       "type": "object"
     },
+    "ApiKey": {
+      "pattern": "^([A-Za-z0-9]{32,})?$",
+      "type": "string"
+    },
     "Asn": {
       "type": "string"
     },
@@ -310,6 +314,80 @@
         }
       },
       "title": "Matherlynet",
+      "type": "object"
+    },
+    "Media": {
+      "additionalProperties": false,
+      "properties": {
+        "nfs_server": {
+          "anyOf": [
+            {
+              "format": "ipv4",
+              "type": "string"
+            },
+            {
+              "const": "",
+              "type": "string"
+            }
+          ],
+          "default": "",
+          "title": "Nfs Server"
+        },
+        "nfs_share": {
+          "default": "/srv/media",
+          "pattern": "^/[^\"\\\\\\s$]*$",
+          "title": "Nfs Share",
+          "type": "string"
+        },
+        "node": {
+          "default": "",
+          "pattern": "^[a-z0-9-]*$",
+          "title": "Node",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "Etc/UTC",
+          "pattern": "^[A-Za-z0-9_+/-]+$",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "sonarr_api_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "radarr_api_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "prowlarr_api_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "sabnzbd_api_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "sabnzbd_nzb_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "recyclarr": {
+          "default": false,
+          "title": "Recyclarr",
+          "type": "boolean"
+        }
+      },
+      "title": "Media",
       "type": "object"
     },
     "Network": {
@@ -940,6 +1018,23 @@
         "oidc_client_id": "",
         "oidc_client_secret": "",
         "public": false
+      }
+    },
+    "media": {
+      "$ref": "#/$defs/Media",
+      "default": {
+        "nfs_server": "",
+        "nfs_share": "/srv/media",
+        "node": "",
+        "timezone": "Etc/UTC",
+        "sonarr_api_key": "",
+        "radarr_api_key": "",
+        "prowlarr_api_key": "",
+        "sabnzbd_api_key": "",
+        "sabnzbd_nzb_key": "",
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "recyclarr": false
       }
     },
     "nodes": {

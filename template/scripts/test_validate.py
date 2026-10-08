@@ -907,6 +907,72 @@ def test_actual_budget_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
+MEDIA_KEYS = {
+    f"media.{name}": "a" * 32
+    for name in (
+        "sonarr_api_key",
+        "radarr_api_key",
+        "prowlarr_api_key",
+        "sabnzbd_api_key",
+        "sabnzbd_nzb_key",
+    )
+}
+MEDIA = (
+    POCKET_ID
+    | MEDIA_KEYS
+    | {
+        "media.nfs_server": "10.10.10.50",
+        "media.node": "k8s-1",
+        "media.oidc_client_id": "fake",
+        "media.oidc_client_secret": "fake",
+    }
+)
+
+
+def test_media_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).media_enabled is False
+    blank = config_from("private.toml", **{"media.nfs_server": ""})
+    assert _load_raw(blank).media_enabled is False
+    assert _load_raw(config_from("private.toml", **MEDIA)).media_enabled is True
+
+
+def test_partial_media_keys_names_missing_field():
+    raw = config_from("private.toml", **MEDIA | {"media.sabnzbd_nzb_key": None})
+    with pytest.raises(
+        ConfigError, match=r"media is partially configured.*\(missing: sabnzbd_nzb_key\)"
+    ):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("recyclarr", True), ("nfs_share", "/tank/media"), ("timezone", "America/Chicago")],
+)
+def test_media_field_requires_nfs_server(field, value):
+    raw = config_from("private.toml", **{f"media.{field}": value})
+    with pytest.raises(ConfigError, match=rf"{field} requires nfs_server"):
+        _load_raw(raw)
+
+
+def test_media_nfs_server_requires_the_rest():
+    raw = config_from("private.toml", **POCKET_ID | {"media.nfs_server": "10.10.10.50"})
+    with pytest.raises(ConfigError, match=r"media requires node, the five API keys"):
+        _load_raw(raw)
+
+
+def test_media_requires_pocket_id():
+    raw = config_from("private.toml", **MEDIA | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"media requires pocket_id"):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize("node", ["k8s-0", "k8s-9"])
+def test_media_node_must_be_a_worker(node):
+    raw = config_from("private.toml", **MEDIA | {"media.node": node})
+    with pytest.raises(ConfigError, match=rf"media\.node {node} must name a \[\[nodes\]\] entry"):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

@@ -1,0 +1,114 @@
+#% if media_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sonarr
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: sonarr
+  interval: 1h
+  values:
+    controllers:
+      sonarr:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        # SQLite on a local-path volume: two pods on the same database corrupt it.
+        strategy: Recreate
+        initContainers:
+          # A one-time carry-over of the Windows install from the pool, removed
+          # after cutover. The marker is written last, so a copy that died
+          # halfway is redone on the next start.
+          restore-config:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.38"
+            command:
+              - sh
+              - -c
+              - if [ -d /data/_migration/sonarr ] && [ ! -e /config/.restored ]; then cp -a /data/_migration/sonarr/. /config/ && touch /config/.restored; fi
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/sonarr
+              # Two builds behind the Windows install's 4.0.20.3014 database on
+              # purpose: both tags are the same commit (checked 2026-10-06), and
+              # Renovate moves it forward.
+              tag: 4.0.20.3012@sha256:1f19eb5e0f421418c1a956bbe01310a0141423afe28bd9a4b1dcb8629ff2bce2
+            env:
+              # The gateway's Pocket ID sign-in and the NetworkPolicy are the
+              # login, so Sonarr trusts whoever reaches it.
+              SONARR__AUTH__METHOD: External
+              SONARR__AUTH__REQUIRED: Enabled
+              SONARR__LOG__LEVEL: info
+              SONARR__LOG__DBENABLED: "False"
+              TZ: "#{ media.timezone }#"
+            envFrom:
+              - secretRef:
+                  name: sonarr-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: &port 8989
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ping
+                    port: *port
+                  periodSeconds: 5
+                  failureThreshold: 60
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # The NFS server is the Proxmox host that runs this worker, so media
+      # traffic never leaves the host, and the config volume is created there.
+      nodeSelector:
+        kubernetes.io/hostname: "#{ media.node }#"
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /config
+      media:
+        type: persistentVolumeClaim
+        existingClaim: media
+        globalMounts:
+          - path: /data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+#% endif %#

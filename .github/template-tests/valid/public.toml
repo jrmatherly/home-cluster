@@ -122,6 +122,20 @@ oidc_client_id     = "fake-actual-budget"
 oidc_client_secret = "fake-actual-budget-secret"
 public             = true
 
+[media]
+nfs_server         = "10.10.10.50"
+nfs_share          = "/srv/media"
+node               = "k8s-1"
+timezone           = "America/Chicago"
+sonarr_api_key     = "fakefakefakefakefakefakefakefak1"
+radarr_api_key     = "fakefakefakefakefakefakefakefak2"
+prowlarr_api_key   = "fakefakefakefakefakefakefakefak3"
+sabnzbd_api_key    = "fakefakefakefakefakefakefakefak4"
+sabnzbd_nzb_key    = "fakefakefakefakefakefakefakefak5"
+oidc_client_id     = "fake-media"
+oidc_client_secret = "fake-media-secret"
+recyclarr          = true
+
 [[nodes]]
 name         = "k8s-0"
 address      = "10.10.10.100"

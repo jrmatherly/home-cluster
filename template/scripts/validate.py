@@ -67,6 +67,8 @@ type Fqdn = Annotated[str, Field(pattern=FQDN_PATTERN)]
 # backslash would change the value. Flux substitutes ${...} in the rendered
 # manifest, so a dollar sign is out too.
 type Secret = Annotated[str, Field(pattern=r'^[^"\\\s$]*$')]
+# The arrs and SABnzbd generate 32 hex characters; a hand-made key is at least that long.
+type ApiKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{32,})?$")]
 
 
 class Model(BaseModel):
@@ -492,6 +494,49 @@ class ActualBudget(Model):
         return self
 
 
+class Media(Model):
+    # The Proxmox host that exports the media tree. Set it to enable the stack.
+    nfs_server: IPv4Address | Literal[""] = ""
+    nfs_share: str = Field(default="/srv/media", pattern=r'^/[^"\\\s$]*$')
+    # The worker whose Proxmox host serves the export.
+    node: str = Field(default="", pattern=r"^[a-z0-9-]*$")
+    timezone: str = Field(default="Etc/UTC", pattern=r"^[A-Za-z0-9_+/-]+$")
+    # Carried over from config.xml and sabnzbd.ini, so every app that stores
+    # another app's key keeps working. Prowlarr's is new.
+    sonarr_api_key: ApiKey = ""
+    radarr_api_key: ApiKey = ""
+    prowlarr_api_key: ApiKey = ""
+    sabnzbd_api_key: ApiKey = ""
+    sabnzbd_nzb_key: ApiKey = ""
+    # The OIDC client created in the Pocket ID admin UI for the gateway sign-in.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+    recyclarr: bool = False
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        keys = (
+            "sonarr_api_key",
+            "radarr_api_key",
+            "prowlarr_api_key",
+            "sabnzbd_api_key",
+            "sabnzbd_nzb_key",
+        )
+        _all_or_none(self, "media", keys)
+        _all_or_none(self, "media", ("oidc_client_id", "oidc_client_secret"))
+        if self.nfs_server == "":
+            for name, field in type(self).model_fields.items():
+                if name != "nfs_server" and getattr(self, name) != field.default:
+                    raise ValueError(
+                        f"{name} requires nfs_server: the media stack only runs when "
+                        "the export is set"
+                    )
+        # One field per group is enough: _all_or_none above holds the rest of each group.
+        elif not (self.node and self.sonarr_api_key and self.oidc_client_id):
+            raise ValueError("media requires node, the five API keys and the OIDC client pair")
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -543,6 +588,7 @@ class Config(Model):
     network_optimizer: NetworkOptimizer = NetworkOptimizer()
     pegaprox: PegaProx = PegaProx()
     actual_budget: ActualBudget = ActualBudget()
+    media: Media = Media()
     nodes: list[Node]
 
     @computed_field
@@ -686,6 +732,11 @@ class Config(Model):
 
     @computed_field
     @property
+    def media_enabled(self) -> bool:
+        return self.media.nfs_server != ""
+
+    @computed_field
+    @property
     def cluster_issuer(self) -> str:
         if self.dns.provider == "cloudflare":
             return "letsencrypt-production"
@@ -789,6 +840,14 @@ class Config(Model):
             raise ValueError(
                 "actual_budget.public requires pocket_id.public: a visitor from the internet "
                 "must reach the Pocket ID login"
+            )
+        if self.media_enabled and not self.pocket_id_enabled:
+            raise ValueError("media requires pocket_id: the gateway sign-in is the only login")
+        if self.media_enabled and not any(
+            node.name == self.media.node and not node.controller for node in self.nodes
+        ):
+            raise ValueError(
+                f"media.node {self.media.node} must name a [[nodes]] entry with controller = false"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(
