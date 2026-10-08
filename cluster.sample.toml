@@ -803,15 +803,19 @@ schematic_id = ""
 # recyclarr = false
 
 # The Plex Media Server on the LAN and an X-Plex-Token for it. When set,
-# Sonarr and Radarr get a Plex connection that refreshes the library on import.
-# Set both or neither. The token is written to a SOPS-encrypted Secret.
+# Sonarr and Radarr get a Plex connection that refreshes the library on import,
+# and Tautulli, Seerr and Maintainerr are deployed. Set both or neither. The
+# token is written to a SOPS-encrypted Secret. Clearing the pair later removes
+# those three apps and their config volumes (watch history, requests, rules), so
+# to rotate the token change it in place rather than blanking it first.
 # OPTIONAL. Example: plex_host = "192.168.1.60"
 
 # plex_host = ""
 # plex_token = ""
 
 # Also attaches every app's route to the external gateway, so the internet
-# reaches them through the tunnel behind the Pocket ID sign-in. The /api
+# reaches them through the tunnel behind the Pocket ID sign-in, except Seerr,
+# which has only its own Plex login because household members use it. The /api
 # routes stay on the internal gateway. Needs pocket_id.public = true, because
 # a visitor from the internet must reach the Pocket ID login.
 # OPTIONAL. Default: false

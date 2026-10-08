@@ -1,0 +1,97 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bazarr
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: bazarr
+  interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      bazarr:
+        # SQLite on a local-path volume: two pods on the same database corrupt it.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/bazarr
+              tag: 1.6.2@sha256:17dc1cff22e99694ffbfb06555526cb47a66b362b4d6c982f06b557f7caae2bb
+            env:
+              TZ: "America/New_York"
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/system/ping
+                    port: &port 6767
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/system/ping
+                    port: *port
+                  periodSeconds: 5
+                  failureThreshold: 60
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # The NFS server is the Proxmox host that runs this worker, so media
+      # traffic never leaves the host, and the config volume is created there.
+      nodeSelector:
+        kubernetes.io/hostname: "k8s-worker-4"
+    service:
+      app:
+        controller: bazarr
+        ports:
+          http:
+            port: *port
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        advancedMounts:
+          bazarr:
+            app:
+              - path: /config
+      # Subtitles are written next to the media files.
+      media:
+        type: persistentVolumeClaim
+        existingClaim: media
+        advancedMounts:
+          bazarr:
+            app:
+              - path: /data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp

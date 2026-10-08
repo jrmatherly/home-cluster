@@ -934,6 +934,9 @@ def test_media_enabled_only_when_configured():
     blank = config_from("private.toml", **{"media.nfs_server": ""})
     assert _load_raw(blank).media_enabled is False
     assert _load_raw(config_from("private.toml", **MEDIA)).media_enabled is True
+    assert _load_raw(config_from("private.toml", **MEDIA)).media_plex_enabled is False
+    with_plex = MEDIA | {"media.plex_host": "10.10.10.60", "media.plex_token": "fake"}
+    assert _load_raw(config_from("private.toml", **with_plex)).media_plex_enabled is True
 
 
 def test_partial_media_keys_names_missing_field():

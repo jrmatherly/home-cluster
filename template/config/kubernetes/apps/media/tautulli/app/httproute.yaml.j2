@@ -1,0 +1,45 @@
+#% if media_plex_enabled %#
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tautulli
+  labels:
+    media.sign-in: pocket-id
+spec:
+  hostnames: ["tautulli.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+#% if media.public %#
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+#% endif %#
+  rules:
+    - backendRefs:
+        - name: tautulli
+          port: 8181
+---
+# Tautulli Remote on a phone registers once and then calls /api/v2 directly, so
+# /api skips the Pocket ID sign-in and the API key is the credential, as
+# upstream. This route stays off envoy-external, so the key alone never faces
+# the internet.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tautulli-api
+spec:
+  hostnames: ["tautulli.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /api }
+      backendRefs:
+        - name: tautulli
+          port: 8181
+#% endif %#

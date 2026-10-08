@@ -740,6 +740,12 @@ class Config(Model):
     def media_enabled(self) -> bool:
         return self.media.nfs_server != ""
 
+    # Gates Tautulli, Seerr and Maintainerr, which do nothing without Plex.
+    @computed_field
+    @property
+    def media_plex_enabled(self) -> bool:
+        return self.media_enabled and self.media.plex_host != ""
+
     # Changes when any media key changes, so a HelmRelease that carries it is
     # upgraded and its configure hook pushes the new keys into the apps.
     @computed_field

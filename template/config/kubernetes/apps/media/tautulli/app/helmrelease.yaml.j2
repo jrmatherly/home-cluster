@@ -1,0 +1,90 @@
+#% if media_plex_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tautulli
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: tautulli
+  interval: 1h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      tautulli:
+        # SQLite on a local-path volume: two pods on the same database corrupt it.
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/tautulli
+              tag: 2.18.2@sha256:5d55eb06f2b77eb09001b2f884b0b3a9ed3adf8416c6209c563796e18eaa43a4
+            env:
+              TZ: "#{ media.timezone }#"
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /status
+                    port: &port 8181
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /status
+                    port: *port
+                  periodSeconds: 5
+                  failureThreshold: 60
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      # The media apps share one worker, and the config volume is created there.
+      nodeSelector:
+        kubernetes.io/hostname: "#{ media.node }#"
+    service:
+      app:
+        controller: tautulli
+        ports:
+          http:
+            port: *port
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        advancedMounts:
+          tautulli:
+            app:
+              - path: /config
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+#% endif %#

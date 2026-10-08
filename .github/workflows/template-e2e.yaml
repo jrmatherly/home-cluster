@@ -137,6 +137,7 @@ jobs:
           - public
           - private
           - selfhosted
+          - media-without-plex
           - no-webhook
           - internal
           - direct
