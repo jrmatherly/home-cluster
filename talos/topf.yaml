@@ -87,3 +87,14 @@ nodes:
       mtu: 1500
       encryptDisk: false
       kernelModules: [nvidia, nvidia_uvm, nvidia_drm, nvidia_modeset]
+  - host: "k8s-worker-4"
+    ip: "192.168.22.35"
+    role: worker
+    schematicId: "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+    data:
+      installDisk: "/dev/sda"
+      installDiskSerial: ""
+      macAddr: "bc:24:11:00:22:35"
+      mtu: 1500
+      encryptDisk: false
+      kernelModules: []
