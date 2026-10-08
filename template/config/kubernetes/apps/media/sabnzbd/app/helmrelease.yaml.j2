@@ -202,6 +202,9 @@ spec:
                 echo "post-processing: set"
 
                 set_misc enable_https 0
+                # The gateway is the only way in and it signs users in, so SABnzbd must not
+                # refuse a forwarded public address.
+                set_misc verify_xff_header 0
                 echo "https: off"
             securityContext: *securityContext
             resources:

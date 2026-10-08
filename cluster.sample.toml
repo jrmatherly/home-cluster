@@ -810,6 +810,14 @@ schematic_id = ""
 # plex_host = ""
 # plex_token = ""
 
+# Also attaches every app's route to the external gateway, so the internet
+# reaches them through the tunnel behind the Pocket ID sign-in. The /api
+# routes stay on the internal gateway. Needs pocket_id.public = true, because
+# a visitor from the internet must reach the Pocket ID login.
+# OPTIONAL. Default: false
+
+# public = false
+
 
 # =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least

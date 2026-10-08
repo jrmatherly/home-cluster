@@ -988,6 +988,12 @@ def test_media_node_must_be_a_worker(node):
         _load_raw(raw)
 
 
+def test_media_public_requires_public_pocket_id():
+    raw = config_from("private.toml", **MEDIA | {"media.public": True})
+    with pytest.raises(ConfigError, match=r"media\.public requires pocket_id\.public"):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

@@ -10,6 +10,11 @@ spec:
     - name: envoy-internal
       namespace: network
       sectionName: https
+#% if media.public %#
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+#% endif %#
   rules:
     - backendRefs:
         - name: sabnzbd

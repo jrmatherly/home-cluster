@@ -403,6 +403,11 @@
         "plex_token": {
           "$ref": "#/$defs/Secret",
           "default": ""
+        },
+        "public": {
+          "default": false,
+          "title": "Public",
+          "type": "boolean"
         }
       },
       "title": "Media",
@@ -1054,7 +1059,8 @@
         "oidc_client_secret": "",
         "recyclarr": false,
         "plex_host": "",
-        "plex_token": ""
+        "plex_token": "",
+        "public": false
       }
     },
     "nodes": {

@@ -514,6 +514,8 @@ class Media(Model):
     recyclarr: bool = False
     plex_host: IPv4Address | Literal[""] = ""
     plex_token: Secret = ""
+    # Also attaches every app's UI route to the external gateway, so the internet reaches it.
+    public: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -867,6 +869,12 @@ class Config(Model):
         ):
             raise ValueError(
                 f"media.node {self.media.node} must name a [[nodes]] entry with controller = false"
+            )
+        # pocket_id.public already requires an ingress, so no separate ingress check.
+        if self.media.public and not self.pocket_id.public:
+            raise ValueError(
+                "media.public requires pocket_id.public: a visitor from the internet "
+                "must reach the Pocket ID login"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(
