@@ -82,7 +82,7 @@ spec:
                 # The node shares vs03's cores with the Plex container. Unbounded,
                 # yEnc decoding plus direct unpack took every vCPU at 75 MB/s and
                 # a direct-play stream on Plex stalled each time a file completed
-                # (measured 2026-10-08). Two cores keeps downloads at 25 to 40 MB/s.
+                # (measured 2026-10-08). On two cores it still downloads at 62 MB/s.
                 cpu: "2"
                 memory: 4Gi
         initContainers:
