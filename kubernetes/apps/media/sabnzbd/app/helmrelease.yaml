@@ -79,6 +79,11 @@ spec:
                 cpu: 100m
                 memory: 512Mi
               limits:
+                # The node shares vs03's cores with the Plex container. Unbounded,
+                # yEnc decoding plus direct unpack took every vCPU at 75 MB/s and
+                # a direct-play stream on Plex stalled each time a file completed
+                # (measured 2026-10-08). Two cores keeps downloads at 25 to 40 MB/s.
+                cpu: "2"
                 memory: 4Gi
         initContainers:
           # SABnzbd does not create its download folders itself.
@@ -187,7 +192,9 @@ spec:
                 set_misc action_on_unwanted_extensions 2
                 echo "queue: set"
 
-                set_misc pause_on_post_processing 0
+                # Downloading stops while a finished job unpacks and verifies, so the
+                # completion burst on the pool is not stacked on 75 MB/s of writes.
+                set_misc pause_on_post_processing 1
                 set_misc enable_all_par 0
                 set_misc sfv_check 0
                 set_misc safe_postproc 1
