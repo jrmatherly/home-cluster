@@ -1,0 +1,6 @@
+{
+  "name": "cluster-guard",
+  "version": "0.1.0",
+  "description": "Guard rails for home-cluster: rendered files, secrets files, the UniFi update window and sops churn",
+  "author": { "name": "Jason Matherly" }
+}

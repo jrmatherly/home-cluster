@@ -42,6 +42,7 @@ lefthook-local.toml
 .remember/
 CLAUDE.local.md
 docs/superpowers/
+.claude/skills/cluster-guard/.claude-plugin/types/
 
 # Code index
 .codegraph/

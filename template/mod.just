@@ -8,6 +8,7 @@ set working-directory := '..'
 bootstrap_dir := justfile_dir() + '/bootstrap'
 kubernetes_dir := justfile_dir() + '/kubernetes'
 talos_dir := justfile_dir() + '/talos'
+sops_pathspec := "':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'"
 private_dir := justfile_dir() + '/.private'
 
 template_dir := justfile_dir() + '/template'
@@ -27,6 +28,10 @@ cloudflare_tunnel := justfile_dir() + '/cloudflare-tunnel.json'
 [doc('Render and validate configuration files')]
 [group('template')]
 configure: check-layout render encrypt-secrets validate-kubernetes validate-talos
+    n="$(git status --porcelain --untracked-files=no -- {{ sops_pathspec }} | grep -c '^.M' || true)"
+    if [ "$n" -gt 0 ]; then
+        just log warn "$n *.sops.* files re-encrypted; if the secret inputs did not change, restore them with: git checkout -- {{ sops_pathspec }}"
+    fi
 
 [doc('Check that cluster.toml keeps its sections in the order of cluster.sample.toml')]
 [group('template')]
