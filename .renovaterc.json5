@@ -62,11 +62,16 @@
       allowedVersions: "<3",
     },
     {
-      description: "The docs image is rebuilt on every push to main: pin latest to its digest, move it at once and merge without review",
+      description: "The docs image is rebuilt on every push to main: pin latest to its digest. pinDigests must sit in a rule without matchUpdateTypes, because update types are only known after the lookup that pinDigests steers",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/jrmatherly/home-cluster/docs"],
       pinDigests: true,
-      matchUpdateTypes: ["pin", "digest"],
+    },
+    {
+      description: "Move the docs digest at once and merge without review",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/jrmatherly/home-cluster/docs"],
+      matchUpdateTypes: ["pinDigest", "digest"],
       schedule: ["at any time"],
       automerge: true,
     },

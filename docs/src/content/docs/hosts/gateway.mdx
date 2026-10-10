@@ -46,10 +46,11 @@ Do this before a VM boots for the first time. Talos starts in maintenance mode a
     | `k8s-worker-1` | `<mac>` | `<worker-1 address>` |
     | `k8s-worker-2` | `<mac>` | `<worker-2 address>` |
     | `k8s-worker-3` | `<mac>` | `<worker-3 address>` |
+    | `k8s-worker-4` | `<mac>` | `<worker-4 address>` |
 
 2. Start one VM and read the address on its console. It should be the reserved one.
 
-UniFi accepted all seven fixed addresses outside the DHCP pool on 2026-10-03, and every VM came up on its reserved address. If a later reservation fails, use one of these.
+UniFi accepted all seven fixed addresses outside the DHCP pool on 2026-10-03, and every VM came up on its reserved address. The eighth, `k8s-worker-4` on the media host, followed on 2026-10-08. If a later reservation fails, use one of these.
 
 - Start the VM once so that UniFi sees the MAC, add the reservation, then restart the VM.
 - Set the address at the Talos boot menu. Press `e` on the boot entry and add this to the kernel line, with the VM's own address first. Talos documents the format in its kernel reference.
@@ -75,7 +76,7 @@ Do this after `just bootstrap apps`. Cilium is the BGP speaker in the cluster, a
 
 The cluster side is already configured in `cluster.toml`. The router is `<router AS>` at `<router address>`, and every node is `<node AS>`.
 
-The router file is `private/udm-bgp.conf`. It peers with the seven nodes, accepts only single addresses inside `<cluster network>/22`, and sends no routes to the nodes. FRR 10.2.1 parsed it with no errors on 2026-10-03. It was uploaded the same day as the entry `home-cluster`, and all seven nodes then reported an established session, each advertising three addresses. The UniFi routing table shows the three gateway addresses as BGP routes, each with seven next hops.
+The router file is `private/udm-bgp.conf`. It peers with the eight nodes, accepts only single addresses inside `<cluster network>/22`, and sends no routes to the nodes. FRR 10.2.1 parsed it with no errors on 2026-10-03. It was uploaded the same day as the entry `home-cluster`, and all seven nodes of the time then reported an established session, each advertising three addresses. When `k8s-worker-4` joined on 2026-10-08, its `neighbor` line and `maximum-paths 8` were added and the file uploaded again, and `cilium bgp peers` showed eight established sessions. The UniFi routing table shows the three gateway addresses as BGP routes, each with one next hop per node.
 
 ```text
 router bgp <router AS>
@@ -89,6 +90,7 @@ router bgp <router AS>
  neighbor <worker-1 address> peer-group k8s
  neighbor <worker-2 address> peer-group k8s
  neighbor <worker-3 address> peer-group k8s
+ neighbor <worker-4 address> peer-group k8s
  !
  address-family ipv4 unicast
   neighbor k8s activate
