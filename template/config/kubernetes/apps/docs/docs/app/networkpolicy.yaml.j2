@@ -1,0 +1,19 @@
+---
+# Only the gateway reaches the site; nothing else in the cluster needs it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: docs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: docs
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 8080

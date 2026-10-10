@@ -1,0 +1,53 @@
+---
+# The documentation site, built from docs/ by the Docs Image workflow. Renovate
+# pins `latest` to its digest and moves the digest when a push to main rebuilds
+# the image (.renovaterc.json5), so the tag below gains `@sha256:...` on its own.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: docs
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: docs
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: ghcr.io/jrmatherly/home-cluster/docs:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe: &probe
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe: *probe
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
