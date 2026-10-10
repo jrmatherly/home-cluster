@@ -75,6 +75,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   also pulls its images through a mirror, set in two places: `global.imageRegistry` in its `helmrelease.yaml.j2`
   and `imageRepository` in `envoy.yaml.j2`. When the chart moves or renames an image, both need checking.
 - **cloudflare-dns** ships the `DNSEndpoint` CRD, which the cloudflare-tunnel app uses.
+- **k8s-gateway** moved to a `servers[]` layout in chart 4.0.0: the zone, port, Service port and every
+  CoreDNS plugin are listed per server, and `domain`, `ttl`, `watchedResources`, `service.type` and
+  `service.port` do nothing. The chart defaults to `example.com`, root, `dnsPolicy: Default` and a
+  readiness probe that fails on one miss, so the HelmRelease pins `securityContext.runAsUser: 1000`,
+  `deployment.dnsPolicy: ClusterFirst` and the old probe thresholds. The Corefile is the ConfigMap
+  `k8s-gateway` in `network`; compare it before and after any chart bump.
 - **unifi-dns** is a second ExternalDNS, with a webhook sidecar that writes local DNS records to the UniFi
   console for routes on the internal gateway. It has two pins: the `external-dns` chart, shared with
   cloudflare-dns, and the webhook image. The webhook's README lists the minimum ExternalDNS and UniFi Network
