@@ -31,7 +31,12 @@ RUN --mount=type=bind,from=gitdir,target=/repo/.git \
     if [ "$(git rev-parse --is-shallow-repository)" = true ]; then \
       echo "Shallow clone: fetch full history (fetch-depth: 0), or pages lose their dates." >&2; exit 1; \
     fi; \
-    npm run build
+    npm run build; \
+    undated=$(find dist -name index.html -exec grep -L '<time datetime=' {} + || true); \
+    if [ -n "$undated" ]; then \
+      echo "Pages without a Last updated date (not committed, or the history is unreadable):" >&2; \
+      echo "$undated" >&2; exit 1; \
+    fi
 
 FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:adf5042a17f4ecdd200c595fa9ffd1be37efb18f89a830bd1a00e4ab4d59d42c
 COPY nginx.conf /etc/nginx/conf.d/default.conf
