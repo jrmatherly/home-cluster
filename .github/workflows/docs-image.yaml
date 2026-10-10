@@ -1,0 +1,63 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: "Docs Image"
+
+# Builds docs/ into ghcr.io/<owner>/home-cluster/docs. The Dockerfile lints and
+# scrubs the pages before building, so a pull request that only builds still
+# fails on a broken page. A push to main also pushes `latest` and
+# `sha-<commit>`; the cluster pins `latest` by digest and Renovate moves the
+# digest (.renovaterc.json5). DOCS_SCRUB_DENYLIST is the private denylist the
+# scrub reads, set once with: gh secret set DOCS_SCRUB_DENYLIST < private/scrub-denylist.txt
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - docs/**
+      - .github/workflows/docs-image.yaml
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - .github/workflows/docs-image.yaml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  docs-image:
+    name: Docs Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}/docs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # "Last updated" dates come from git history; the Dockerfile refuses a shallow clone.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build the image
+        env:
+          SCRUB_DENYLIST: ${{ secrets.DOCS_SCRUB_DENYLIST }}
+        run: |
+          docker build --build-context gitdir=.git --platform linux/amd64 \
+            --secret id=scrub_denylist,env=SCRUB_DENYLIST \
+            --tag "$IMAGE:latest" --tag "$IMAGE:sha-${GITHUB_SHA::7}" docs
+
+      - name: Push the image
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
+          docker push --all-tags "$IMAGE"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:latest")
+          echo "Pushed \`$IMAGE:sha-${GITHUB_SHA::7}\` as \`$IMAGE:latest@${digest#*@}\`" >>"$GITHUB_STEP_SUMMARY"

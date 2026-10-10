@@ -1,0 +1,14 @@
+# Keep the image build context small and free of secrets.
+node_modules
+dist
+.astro
+.nimbus
+superpowers
+.claude
+AGENT.md
+CLAUDE.md
+.git
+.env
+.env.*
+*.log
+.DS_Store

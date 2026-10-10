@@ -1,0 +1,21 @@
+---
+title: Home Cluster
+description: What this site documents, how it is built, and where to start.
+---
+
+This site documents a home Kubernetes cluster: Talos Linux nodes on Proxmox hosts, Flux
+reconciling the `kubernetes/` tree of the repository, and the apps that run there. It holds the
+architecture, the decisions behind it and the runbooks for operating it.
+
+The site is built from the `docs/` directory of the same repository, packaged as a container
+image by CI, and deployed to the cluster like any other app. Every page is also available as
+Markdown: page URLs end in a slash, and `index.md` after the slash is the Markdown version.
+`/llms.txt` lists them all.
+
+## Writing conventions
+
+- Pages describe the cluster in placeholders. Addresses, host names, account names and
+  credentials never appear; `docs/scrub-check.sh` refuses a page that carries one.
+- A host name in prose is `${SECRET_DOMAIN}`, the value Flux substitutes in the cluster,
+  as in `auth.${SECRET_DOMAIN}`.
+- Each page names its sources, and a claim that was measured says so with the date.

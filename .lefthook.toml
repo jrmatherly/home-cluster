@@ -18,7 +18,7 @@ run = "oxfmt {staged_files}"
 stage_fixed = true
 
 [pre-commit.commands.format-markdown]
-glob = ["*.md", "*.markdown", "*.mdx"]
+glob = ["*.md", "*.markdown"]
 run = "oxfmt {staged_files}"
 stage_fixed = true
 
@@ -26,6 +26,10 @@ stage_fixed = true
 glob = ["*.yaml", "*.yml"]
 run = "oxfmt {staged_files}"
 stage_fixed = true
+
+[pre-commit.commands.scrub-docs]
+glob = ["docs/src/content/**/*"]
+run = "docs/scrub-check.sh {staged_files}"
 
 [pre-commit.commands.mise-lock]
 glob = [".mise.toml", ".mise/config.toml", ".mise/conf.d/*.toml"]
