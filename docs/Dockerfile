@@ -39,7 +39,7 @@ RUN --mount=type=bind,from=gitdir,target=/repo/.git \
       echo "$undated" >&2; exit 1; \
     fi
 
-FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:adf5042a17f4ecdd200c595fa9ffd1be37efb18f89a830bd1a00e4ab4d59d42c
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:15c994d10d6d78658721c3bcafff14cb281fba2a4bdf9d5ba92c416a472516e3
 # Links the GHCR package to the repository, so it shows up on the repository page.
 LABEL org.opencontainers.image.source=https://github.com/jrmatherly/home-cluster
 COPY nginx.conf /etc/nginx/conf.d/default.conf
