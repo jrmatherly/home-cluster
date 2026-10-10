@@ -30,6 +30,16 @@ spec:
           - action: replace
             sourceLabels: [node]
             targetLabel: instance
+    kube-state-metrics:
+      prometheus:
+        monitor:
+          http:
+            metricRelabelings:
+              # Freelens joins node metrics onto kube_pod_info by pod and namespace. A pod
+              # recreated under the same name leaves two series for the staleness window,
+              # differing in uid, and the join fails for every range that covers it.
+              - action: labeldrop
+                regex: uid
     prometheus:
       prometheusSpec:
         retention: 14d
