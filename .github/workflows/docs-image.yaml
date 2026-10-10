@@ -8,6 +8,9 @@ name: "Docs Image"
 # `sha-<commit>`; the cluster pins `latest` by digest and Renovate moves the
 # digest (.renovaterc.json5). DOCS_SCRUB_DENYLIST is the private denylist the
 # scrub reads, set once with: gh secret set DOCS_SCRUB_DENYLIST < private/scrub-denylist.txt
+# A pull request from a fork gets no secret and fails the build, by design. The
+# GHCR package must be public, or the cluster cannot pull it and Renovate cannot
+# pin it: check it under the repository's Packages after the first push.
 on:
   workflow_dispatch:
   pull_request:

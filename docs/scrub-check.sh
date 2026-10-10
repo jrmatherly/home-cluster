@@ -32,6 +32,9 @@ if [ -z "$patterns" ]; then
     echo "scrub-check: no denylist at $denylist, checking the regex rules only" >&2
 fi
 
+# What the rules do not catch, and the denylist must: public and IPv6 addresses,
+# dash-separated MACs, secrets under 40 characters or broken up by + / =, and
+# all-hex tokens of any length.
 # Each rule is a name, a regex, and a filter that drops matches which only
 # look like a token: image digests and checksums (all hex), table rules (all
 # dashes), and git's SSH user in a remote URL.
@@ -56,7 +59,7 @@ report() {
 # grep exits 1 for no match, the good case; anything else is a failure.
 scan() {
     local rule="$1"; shift
-    grep -n -H -o "$@" "${files[@]}" || [ $? -eq 1 ] || {
+    grep -n -H -o -I "$@" "${files[@]}" || [ $? -eq 1 ] || {
         echo "scrub-check: grep failed on the $rule rule" >&2
         exit 2
     }

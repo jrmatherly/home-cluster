@@ -52,19 +52,19 @@ If the wizard appears again later, the database volume was replaced. That happen
 
 The docs recommend `root@pam` with the root password: "several PegaProx features (SMBIOS Auto-Config, Rolling Updates, 2-Node HA, Node Shell) require full root access and will not work with limited users or API tokens" (docs, Proxmox Permissions). The Quick Start also documents "Option B: Create a Dedicated @pam User", a Linux user with passwordless sudo and the Administrator role. Over SSH PegaProx runs `sudo -n bash` with a base64 payload for those features (source, `core/manager.py`), which is why the sudo rule has to be unrestricted. Both options are root-equivalent. Option B is a separate credential that can be revoked without touching root, and it is what this guide uses. Option A is simpler: enter `root@pam` and the root password in step "Add the two hosts" and skip this section.
 
-Run this on both hosts, the GPU host at `<GPU host address>` and the non-GPU host at `<non-GPU host address>`, as root. The Linux user is written `<service account>` below; pick one name and use it everywhere. The commands are the Quick Start's, with one addition: Proxmox VE does not ship `sudo` (measured on the GPU host on 2026-10-05, `sudo: not found`), so install it first. `passwd` prompts for the password:
+Run this on both hosts, the GPU host at `<GPU host address>` and the non-GPU host at `<non-GPU host address>`, as root. The Linux user is written `<proxmox service account>` below; pick one name and use it everywhere. The commands are the Quick Start's, with one addition: Proxmox VE does not ship `sudo` (measured on the GPU host on 2026-10-05, `sudo: not found`), so install it first. `passwd` prompts for the password:
 
 ```sh
 apt install -y sudo
-useradd -m <service account>
-passwd <service account>
-echo "<service account> ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/<service account>
-chmod 0440 /etc/sudoers.d/<service account>
-pveum useradd <service account>@pam -comment "PegaProx Service Account"
-pveum aclmod / -user <service account>@pam -role Administrator
+useradd -m <proxmox service account>
+passwd <proxmox service account>
+echo "<proxmox service account> ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/<proxmox service account>
+chmod 0440 /etc/sudoers.d/<proxmox service account>
+pveum useradd <proxmox service account>@pam -comment "PegaProx Service Account"
+pveum aclmod / -user <proxmox service account>@pam -role Administrator
 ```
 
-Then confirm each piece: `visudo -c` parses the sudoers file, `su - <service account> -c 'sudo -n true' && echo ok` proves the passwordless sudo, and `pveum user list` shows `<service account>@pam`. Use the same password on both hosts. Do not enable two-factor on `<service account>@pam`: PegaProx logs in with the password and then creates its own API token for the account (source), and two-factor breaks that login. The Quick Start's optional token step is not needed for that reason.
+Then confirm each piece: `visudo -c` parses the sudoers file, `su - <proxmox service account> -c 'sudo -n true' && echo ok` proves the passwordless sudo, and `pveum user list` shows `<proxmox service account>@pam`. Use the same password on both hosts. Do not enable two-factor on `<proxmox service account>@pam`: PegaProx logs in with the password and then creates its own API token for the account (source), and two-factor breaks that login. The Quick Start's optional token step is not needed for that reason.
 
 Firewall (docs, Ports and Network): if the Proxmox firewall is on, allow TCP 8006 and 22 from PegaProx at the datacenter or node level. Here PegaProx is a pod, and pod traffic leaves the nodes with the node's address, so allow the Talos node addresses, `<first node address>` to `<last node address>`. Port 3128 is only for SPICE consoles, which are not used. PegaProx does not verify the host's TLS certificate by default (source), so the self-signed certificate is fine.
 
@@ -72,7 +72,7 @@ Firewall (docs, Ports and Network): if the Proxmox firewall is on, allow TCP 800
 
 The hosts are standalone, not a Proxmox cluster (see [Proxmox hosts](/hosts/proxmox/)), so each is added on its own.
 
-1. Settings, Clusters, Add Cluster (docs, Quick Start). Name it after the host, enter its address and port 8006, user `<service account>@pam` (or `root@pam`), and the password. Leave the SSH key field empty.
+1. Settings, Clusters, Add Cluster (docs, Quick Start). Name it after the host, enter its address and port 8006, user `<proxmox service account>@pam` (or `root@pam`), and the password. Leave the SSH key field empty.
 2. PegaProx logs in, creates the API token, and the dashboard fills within seconds. Node count and VM count should match.
 3. Open a VM console and a node shell. Behind a proxy the UI dials both on this origin, and the HTTPRoute sends `.../vncwebsocket` to port 5001 and `.../shellws` to 5002, which is the routing the docs require (docs, Reverse Proxy). If a console stays blank, check those two route rules first.
 4. Repeat for the second host.

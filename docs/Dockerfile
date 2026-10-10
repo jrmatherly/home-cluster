@@ -32,6 +32,7 @@ RUN --mount=type=bind,from=gitdir,target=/repo/.git \
       echo "Shallow clone: fetch full history (fetch-depth: 0), or pages lose their dates." >&2; exit 1; \
     fi; \
     npm run build; \
+    [ -f dist/index.html ] || { echo "No pages were built." >&2; exit 1; }; \
     undated=$(find dist -name index.html -exec grep -L '<time datetime=' {} + || true); \
     if [ -n "$undated" ]; then \
       echo "Pages without a Last updated date (not committed, or the history is unreadable):" >&2; \

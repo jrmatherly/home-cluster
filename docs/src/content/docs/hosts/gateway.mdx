@@ -35,7 +35,7 @@ The eleven cluster addresses are the four the cluster announces itself (the API 
 
 Do this before a VM boots for the first time. Talos starts in maintenance mode and takes an address from DHCP. `just bootstrap talos` then connects to the address in `cluster.toml`, so each VM must already hold its final address.
 
-1. For each VM, create a fixed IP reservation for its MAC on the HomeLab network.
+1. For each VM, create a fixed IP reservation for its MAC on the cluster VLAN.
 
     | VM             | MAC     | Address              |
     | -------------- | ------- | -------------------- |
@@ -126,7 +126,7 @@ vtysh -c 'show ip bgp'
 A neighbor is up when its `State/PfxRcd` column shows a number. Neither fix below has been tried on this gateway.
 
 - If `vtysh` reports that `bgpd` is not running, the upload did not start the service. One community write-up for an older release set `bgpd=yes` in `/etc/frr/daemons` and ran `/usr/sbin/frrinit.sh start`.
-- If the neighbors stay in `Active` or `Connect`, the sessions are not reaching the gateway. The nodes connect from the HomeLab network to `<router address>` on TCP port 179. Check the firewall rules for traffic from HomeLab to the gateway.
+- If the neighbors stay in `Active` or `Connect`, the sessions are not reaching the gateway. The nodes connect from the cluster VLAN to `<router address>` on TCP port 179. Check the firewall rules for traffic from HomeLab to the gateway.
 
 On the cluster side, `cilium bgp peers` shows the same sessions from each node.
 
