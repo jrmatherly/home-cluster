@@ -1,0 +1,439 @@
+---
+title: Proxmox hosts
+description: Take the GPU host and the non-GPU host from a bootable USB stick to a patched Proxmox VE 9.2 install, GPU passthrough and the Talos VMs.
+sidebar:
+  order: 1
+---
+
+This guide takes each host from a bootable USB stick to a patched Proxmox VE 9.2 install. For the GPU host it continues through the preparation for GPU passthrough. It ends with the commands that create the Talos VMs. The gateway steps are on [the gateway page](/hosts/gateway/).
+
+The two hosts stay standalone. They do not form a Proxmox cluster. The media host, the third host, has its own page.
+
+## Status on 2026-10-03
+
+| Step                                      | GPU host               | Non-GPU host    |
+| --- | --- | --- |
+| Firmware checks                           | Done                   | Done            |
+| Install 9.1 on a ZFS mirror               | Done                   | Done            |
+| Remove the old install and its boot entry | Done                   | Not needed      |
+| Switch repositories and upgrade to 9.2    | Done                   | Done            |
+| Microcode package                         | Done                   | Done            |
+| BIOS update                               | Does not apply         | Done, `7E25vAC` |
+| Lid setting                               | Done, lid close tested | Does not apply  |
+| Second pool on the spare disk             | Done                   | Does not apply  |
+| GPU passthrough preparation and trial     | Done, works            | Does not apply  |
+
+Steps marked "Not run yet" in this guide come from documentation and have not been tried on these machines.
+
+## The hosts
+
+| Fact          | GPU host                                                                                 | Non-GPU host                    |
+| --- | --- | --- |
+| Machine       | MSI GT73VR laptop                                                                        | Desktop                         |
+| Management IP | `<GPU host address>`                                                                     | `<non-GPU host address>`        |
+| CPU           | Intel Core i7-6820HK, 4 cores, 8 threads                                                 | Intel Core i7-14700K            |
+| Memory        | 64 GB                                                                                    | 128 GB                          |
+| Proxmox disks | Two Toshiba THNSN5512GPU7 NVMe drives, 477 GB each                                       | Two Samsung 980 PRO 2 TB drives |
+| Spare disk    | Samsung 870 EVO 1 TB, ZFS pool `bulk`                                                    | None                            |
+| GPU           | GeForce GTX 1080 Mobile at `01:00.0`, ID `10de:1be0`, audio at `01:00.1`, ID `10de:10f0` | None                            |
+| Wired network | Killer E2400, named `nic0` by the installer                                              | Not checked                     |
+| Boot menu key | `F11`                                                                                    | Not checked                     |
+
+The GPU host values were measured on the machine. The non-GPU host values are the operator's description.
+
+## Decisions already made
+
+- **Standalone hosts.** A two-node Proxmox cluster goes read-only when one node is down. A host can only join a cluster later if it holds no guests.
+- **ZFS RAID1 on each host.** Each host has two matching NVMe drives, and a mirror survives one drive failing.
+- **Install from the 9.1 ISO, then upgrade.** Proxmox treats 9.1 to 9.2 as a normal update.
+- **The GPU host stays in discrete graphics mode.** In this mode the Intel graphics device is hidden and the GTX 1080 is the boot display.
+
+## Before you install
+
+Do these on both hosts.
+
+1. In the firmware setup, turn on virtualization and VT-d.
+2. Set the storage controller to AHCI. In RAID mode the firmware hides NVMe drives from Linux.
+3. Choose a hostname in full form such as `pve-gpu.example.com`. Choose a static IP outside the router's DHCP pool. Note the gateway and a DNS server.
+4. Connect the wired network cable.
+
+On the GPU host, steps 1 and 2 were already correct. A live USB showed the `DMAR` table, working interrupt remapping, and a SATA controller in AHCI mode.
+
+Do these two extra checks on the non-GPU host.
+
+1. Update the motherboard BIOS. Intel says its fix for the Raptor Lake instability, microcode `0x12B`, must be loaded by the BIOS. News reports say that damage already done is permanent.
+
+   Before the BIOS update on 2026-10-03, the BIOS loaded revision `0x123`, which is older than every fix, and the `intel-microcode` package updated it to `0x132` early in boot. The BIOS update section below fixed this.
+
+   ```sh
+   dmesg | grep -i microcode
+   ```
+
+   After the BIOS update, the `Updated early from` value is `0x12b` or later.
+
+2. Check the firmware of both 980 PRO drives from a live USB.
+
+   ```sh
+   smartctl -a /dev/nvme0
+   smartctl -a /dev/nvme1
+   ```
+
+   Firmware `3B2QGXA7` locks 2 TB drives into read-only mode. If you see it, update to `5B2QGXA7` with Samsung's bootable ISO before you install.
+
+   Checked on 2026-10-03: both drives report `5B2QGXA7`, the fixed version.
+
+## Update the BIOS on the non-GPU host
+
+Done on 2026-10-03. `dmidecode -s bios-version` reports `A.C0`, and the BIOS now loads microcode `0x137`. The board is an MSI MAG Z790 TOMAHAWK MAX WIFI. The steps follow MSI's "How to update BIOS" document.
+
+<Aside type="caution">
+Do not shut down or restart the host while the update runs. The mouse and keyboard are locked until it finishes.
+</Aside>
+
+1. Read the current BIOS version.
+
+   ```sh
+   dmidecode -s bios-version
+   dmidecode -s bios-release-date
+   ```
+
+2. On another computer, download the newest BIOS for this exact board from the board's support page on msi.com. MSI's page lists `7E25vAC`, released 2026-08-25, as the newest. Check its SHA-256 against the one on that page. Third-party trackers say version `7E25vA8` is the first one with microcode `0x12B`.
+3. Extract the zip file. Copy the BIOS file to the root folder of a USB stick.
+4. Shut down Proxmox, start the host, and press `Del` to enter the BIOS setup.
+5. Select **M-Flash**. Confirm the prompt to restart into flash mode.
+6. Select the USB stick, then the BIOS file. Check the **Current BIOS** and **Selected BIOS** lines at the bottom of the screen.
+7. Confirm the file. Wait until the update finishes and the host restarts.
+8. Press `Del` again and check the BIOS version on the setup screen.
+9. Turn VT-d on again, choose the Intel default power profile, and set the boot order. The update resets the settings.
+10. Boot Proxmox and read the microcode lines. The BIOS revision is `0x12b` or later. After this update the output has one line, `Current revision: 0x00000137`, and no `Updated early from` line, because the BIOS revision is newer than the one in the `intel-microcode` package.
+
+    ```sh
+    dmesg | grep -i microcode
+    ```
+
+## Install Proxmox VE
+
+1. Boot the USB stick and choose its UEFI entry.
+2. Choose **Install Proxmox VE (Graphical)**. If the screen goes black, restart and choose **Install Proxmox VE (Terminal UI)**.
+3. Accept the EULA.
+4. On the target disk screen, click **Options** and set the filesystem to **zfs (RAID1)**.
+5. Select the two Proxmox disks for that host. Set every other disk, and the USB stick, to **-- do not use --**.
+6. In the advanced options, set **ashift** to `12`. Leave the other options at their defaults.
+7. Set the location, time zone, and keyboard.
+8. Set the root password and a notification email address.
+9. On the network screen, select the wired interface. Enter the hostname, the IP with its prefix length, the gateway, and the DNS server.
+10. Check the summary, then install.
+11. When the host restarts, remove the USB stick.
+12. From another computer, open `https://<host address>:8006`. Log in as `root` with the **Linux PAM** realm.
+
+## Remove an old install from another disk
+
+Do this only if the host boots an older install after step 11. That happened on the GPU host, because the Samsung 870 EVO still held a previous Proxmox install and its boot entry came first.
+
+<Aside type="danger">
+These commands erase the old install and every VM disk in its volume group.
+</Aside>
+
+1. Restart, open the boot menu, and choose a **Linux Boot Manager** entry. That entry is the new install.
+2. Confirm that you are on the new install. The command prints `rpool/ROOT/pve-1`.
+
+   ```sh
+   findmnt -no SOURCE /
+   ```
+
+3. Confirm which device is the old disk.
+
+   ```sh
+   lsblk -o NAME,SIZE,MODEL
+   ```
+
+4. Remove the old volume group and wipe the disk. On the GPU host the old disk was `/dev/sda`.
+
+   ```sh
+   vgchange -an pve
+   vgremove -y pve
+   wipefs -a /dev/sda3 /dev/sda2 /dev/sda1 /dev/sda
+   ```
+
+5. List the firmware boot entries.
+
+   ```sh
+   efibootmgr
+   ```
+
+6. Delete each entry that points at the old disk. On the GPU host those were `0002` and `0003`.
+
+   ```sh
+   efibootmgr -b 0002 -B
+   efibootmgr -b 0003 -B
+   ```
+
+7. Restart without the boot menu. The host starts the new install.
+
+## Switch repositories and upgrade to 9.2
+
+1. In the web interface, select the node, then **Updates**, then **Repositories**.
+2. Select the `pve-enterprise` row and click **Disable**. If a Ceph row with the `enterprise` component is listed, disable that row too.
+3. Click **Add**, choose **No-Subscription**, and add it.
+4. Open the node's **Shell** and upgrade.
+
+   ```sh
+   apt update
+   apt full-upgrade
+   ```
+
+   If `apt update` prints `401 Unauthorized`, a subscription repository is still enabled.
+
+5. Install the CPU microcode package.
+
+   ```sh
+   apt install intel-microcode
+   ```
+
+6. Restart the host.
+
+## Check the result
+
+```sh
+pveversion
+uname -r
+grep -m1 microcode /proc/cpuinfo
+zpool status
+cat /etc/modprobe.d/zfs.conf
+```
+
+- `pveversion` reports `pve-manager/9.2` and `uname -r` reports a `7.0` kernel. The GPU host reports `pve-manager/9.2.21` and kernel `7.0.14-20-pve`.
+- The microcode line shows the loaded revision. The GPU host reports `0xf0`. On the GPU host the upgrade had already installed `intel-microcode`, so step 5 changed nothing.
+- `zpool status` shows `mirror-0` with both drives `ONLINE`. A note about supported features that are not enabled is expected, because ZFS 2.3 created the pool. `zpool upgrade rpool` clears the note. Both hosts have had it run.
+- `zfs.conf` holds the ZFS cache limit. The installer sets it to 10% of memory. The GPU host has `6737100800`, which is about 6.3 GiB. Expect about 12.8 GiB on the non-GPU host.
+
+## Keep the lid from suspending the GPU host
+
+Run on the GPU host. With the lid closed, the host stays reachable over the network.
+
+```sh
+mkdir -p /etc/systemd/logind.conf.d
+printf '[Login]\nHandleLidSwitch=ignore\nHandleLidSwitchExternalPower=ignore\nHandleLidSwitchDocked=ignore\n' > /etc/systemd/logind.conf.d/lid.conf
+```
+
+The setting applies after the next restart. Nothing shuts the host down when the battery runs low.
+
+## Create a second pool on the GPU host's spare disk
+
+Do this after the upgrade and restart, so that ZFS 2.4 creates the pool.
+
+The Samsung 870 EVO holds large data that is cheap to lose, such as model files for the GPU worker VM. The mirrored pool stays free for Proxmox, VM system disks, and etcd.
+
+1. In the web interface, select the node, then **Disks**, then **ZFS**, then **Create: ZFS**.
+2. Set **Name** to `bulk`.
+3. Set **RAID Level** to **Single Disk**, **Compression** to **on**, and **ashift** to `12`.
+4. Leave **Add Storage** ticked and select `/dev/sda`, the Samsung drive.
+5. Click **Create**.
+
+`zpool status` then lists `bulk` as `ONLINE` with the one Samsung drive. A single disk has no redundancy. ZFS detects corruption on it but cannot repair it.
+
+## Set up GPU passthrough on the GPU host
+
+Run on the GPU host on 2026-10-03. The GTX 1080 works in a VM with no ROM file and no framebuffer option.
+
+What was true before the change:
+
+- VT-d works, and the Proxmox 9.2 kernel enables the IOMMU with no kernel flag. `dmesg` shows `DMAR: Intel(R) Virtualization Technology for Directed I/O`.
+- The host binds the GPU to `nouveau` and lists `nvidiafb` as a second candidate driver.
+- IOMMU group 1 holds only `00:01.0`, `01:00.0`, and `01:00.1`. Those are the root port, the GPU, and the GPU's audio function.
+- The GPU is the boot display, which Proxmox's wiki treats as the harder case.
+
+<Aside type="caution">
+Before you start, confirm that you can reach the web interface or SSH over the network. The laptop screen is driven by the GTX 1080. After the host gives the card to `vfio-pci`, the screen stays dark from early boot.
+</Aside>
+
+1. Load the vfio modules and claim the card.
+
+   ```sh
+   printf 'vfio\nvfio_iommu_type1\nvfio_pci\n' > /etc/modules-load.d/vfio.conf
+   printf 'options vfio-pci ids=10de:1be0,10de:10f0\nblacklist nouveau\nblacklist nvidiafb\n' > /etc/modprobe.d/vfio.conf
+   update-initramfs -u -k all
+   reboot
+   ```
+
+2. Confirm that the host released the card. Both functions say `Kernel driver in use: vfio-pci`.
+
+   ```sh
+   lspci -nnk -s 01:00
+   ```
+
+3. Attach the card to a VM that uses machine type `q35` and OVMF firmware.
+
+   ```sh
+   qm set <vmid> -hostpci0 01:00,pcie=on
+   ```
+
+Never install an NVIDIA driver on the host.
+
+### How the passthrough was proven
+
+The test used a throwaway Ubuntu Server 26.04.1 VM, number 9000.
+
+1. In the web interface, select the `local` storage, then **ISO Images**, then **Download from URL**. The URL is `https://releases.ubuntu.com/26.04/ubuntu-26.04.1-live-server-amd64.iso`. Check the SHA-256 against the one on the Ubuntu release page.
+2. Create the VM, attach the card, and start the VM.
+
+   ```sh
+   qm create 9000 --name gpu-test --machine q35 --bios ovmf \
+     --efidisk0 local-zfs:1,efitype=4m,pre-enrolled-keys=0 \
+     --cpu host --cores 4 --memory 8192 --balloon 0 \
+     --scsihw virtio-scsi-pci --scsi0 local-zfs:32 \
+     --net0 virtio,bridge=vmbr0 \
+     --ide2 local:iso/ubuntu-26.04.1-live-server-amd64.iso,media=cdrom \
+     --boot 'order=scsi0;ide2'
+   qm set 9000 -hostpci0 01:00,pcie=on
+   qm start 9000
+   ```
+
+3. Install Ubuntu with the defaults and the OpenSSH server.
+4. In the VM, install the driver, restart, and query the card.
+
+   ```sh
+   sudo apt update
+   sudo apt install -y nvidia-driver-580
+   sudo reboot
+   nvidia-smi
+   ```
+
+`nvidia-smi` reports driver `580.178.04`, the name `NVIDIA GeForce GTX 1080`, and `8192MiB` of memory.
+
+Three things the test showed that are worth knowing:
+
+- `qm start` prints `failed to reset PCI device '0000:01:00.0', but trying to continue`. The VM starts anyway. The card lists `bus` as its only reset method.
+- Inside the VM the card's subsystem ID is `1462:11ff`. On the host it is `1462:11bb`. The Linux driver works with either value.
+- The card kept working across a restart of the guest, and across `qm shutdown` followed by `qm start`. The reset warning appears on every start and can be ignored.
+
+### If the VM does not start
+
+This host did not need either fix. Read the error in the task log first. Proxmox's wiki names two fixes for a card that is the boot display. Neither has been tried here.
+
+- For `BAR 3: can't reserve [mem]`, add `video=efifb:off` to the single line in `/etc/kernel/cmdline`, then run `proxmox-boot-tool refresh` and restart. This host boots with systemd-boot, so the kernel command line lives in that file.
+- For a ROM error, dump the card's ROM and pass the file to the VM.
+
+  ```sh
+  cd /sys/bus/pci/devices/0000:01:00.0/
+  echo 1 > rom
+  cat rom > /usr/share/kvm/vbios.bin
+  echo 0 > rom
+  qm set <vmid> -hostpci0 01:00,pcie=on,romfile=vbios.bin
+  ```
+
+### If you lose access to the host
+
+This recovery is untested.
+
+1. Restart the host and press a key at the boot menu to stop the countdown.
+2. Press `e` and add `module_blacklist=vfio_pci` to the end of the kernel line. Boot.
+3. Log in at the laptop's own screen and undo the change.
+
+   ```sh
+   rm /etc/modules-load.d/vfio.conf /etc/modprobe.d/vfio.conf
+   update-initramfs -u -k all
+   reboot
+   ```
+
+A live USB does not fix this by itself. The vfio settings are copied into the initramfs, so deleting the two files from the root filesystem is not enough.
+
+## Create the Talos VMs
+
+Run on 2026-10-03. All seven VMs answered in Talos maintenance mode on their planned addresses, each with the planned MAC and a `/dev/sda` of the planned size. The GPU worker lists the GTX 1080 at `01:00.0`. The settings come from Sidero's Proxmox guide for Talos v1.14 and from the `qm create` call that worked for VM 9000.
+
+Each VM has a fixed MAC and address. The last octet of both is the number in the last column, so `k8s-cp-1` is `<cp-1 address>` with the MAC ending in `21`.
+
+| VM             | Host         | ID  | Cores | Memory | System disk | Last octet |
+| -------------- | ------------ | --- | ----- | ------ | ----------- | ---------- |
+| `k8s-cp-1`     | Non-GPU host | 121 | 4     | 5 GB   | 50 GB       | 21         |
+| `k8s-cp-2`     | GPU host     | 122 | 4     | 5 GB   | 50 GB       | 22         |
+| `k8s-worker-1` | Non-GPU host | 132 | 6     | 30 GB  | 200 GB      | 32         |
+| `k8s-worker-2` | Non-GPU host | 133 | 6     | 30 GB  | 200 GB      | 33         |
+| `k8s-worker-3` | Non-GPU host | 134 | 6     | 30 GB  | 200 GB      | 34         |
+| `k8s-cp-3`     | Media host   | 123 | 4     | 5 GB   | 50 GB       | 23         |
+| `k8s-gpu-1`    | GPU host     | 131 | 6     | 40 GB  | 200 GB      | 31         |
+
+Revised 2026-10-10: one control plane per host, each at 5 GB (measured use 2.0 to 2.2 GB). cp-2 moved to the GPU host and cp-3 to the media host by rebuilding the VM there with the same ID, MAC and address; [node maintenance](/operations/node-maintenance/) section 8 is the procedure. The `mkvm` calls below are the 2026-10-03 originals.
+
+The control-plane nodes keep their `NoSchedule` taint and run only the control plane and CoreDNS. The template removes the taint only for a cluster with no workers. Every other workload runs on the four workers.
+
+The non-GPU host's VMs use 26 of its 28 threads and 106 GB of its 128 GB. The GPU host's VMs use 10 virtual cores on 8 threads and 48 GB of its 64 GB. The rest is for the host and the ZFS cache. `cat /sys/module/zfs/parameters/zfs_arc_max` on a host prints the cache limit in bytes. The GPU worker's memory is reserved in full when it starts, because passthrough pins it.
+
+A disk can grow later but cannot shrink. The MAC and address of each VM must match its `[[nodes]]` entry in `cluster.toml`.
+
+1. In the UniFi controller, reserve each address for its MAC before the VM first boots. Talos starts in maintenance mode with a DHCP address, and topf connects to the address in `cluster.toml`. Whether UniFi accepts a fixed address outside the DHCP pool is not confirmed.
+2. On each host, download the Talos ISO. It carries the `qemu-guest-agent` extension, and the URL returned 366 MB on 2026-10-03. The schematic ID is the one in the `cluster.toml` node entries.
+
+   ```sh
+   wget -O /var/lib/vz/template/iso/talos-v1.14.1-metal-amd64.iso \
+     https://factory.talos.dev/image/<schematic id>/v1.14.1/metal-amd64.iso
+   ```
+
+3. On each host, confirm that `pvesm status` lists `local-zfs`, then define the helper. Its arguments are the VM ID, the name, the cores, the memory in MB, the disk in GB, and the last octet of the MAC. The MAC prefix is the first five octets shared by every VM.
+
+   ```sh
+   mkvm() {
+     qm create "$1" --name "$2" --ostype l26 --machine q35 --bios ovmf \
+       --efidisk0 local-zfs:1,efitype=4m,pre-enrolled-keys=0 \
+       --cpu host --cores "$3" --memory "$4" --balloon 0 \
+       --scsihw virtio-scsi-pci --scsi0 "local-zfs:$5,discard=on,ssd=1" \
+       --net0 "virtio=<MAC prefix>:$6,bridge=vmbr0" \
+       --ide2 local:iso/talos-v1.14.1-metal-amd64.iso,media=cdrom \
+       --boot 'order=scsi0;ide2' --agent enabled=1 --onboot 1
+   }
+   ```
+
+4. On the non-GPU host, create the two control-plane VMs and the three workers.
+
+   ```sh
+   mkvm 121 k8s-cp-1 4 8192 50 21
+   mkvm 122 k8s-cp-2 4 8192 50 22
+   mkvm 132 k8s-worker-1 6 30720 200 32
+   mkvm 133 k8s-worker-2 6 30720 200 33
+   mkvm 134 k8s-worker-3 6 30720 200 34
+   ```
+
+5. On the GPU host, create the control-plane VM and the GPU worker, then attach the card.
+
+   ```sh
+   mkvm 123 k8s-cp-3 4 8192 50 23
+   mkvm 131 k8s-gpu-1 6 40960 200 31
+   qm set 131 -hostpci0 01:00,pcie=on
+   ```
+
+6. Start each VM with `qm start <vmid>`. The console shows the maintenance screen with the VM's address. From the workstation, `talosctl get disks -n <address> --insecure` lists `/dev/sda` when the VM is reachable.
+
+Things to know:
+
+- Keep the controller at `virtio-scsi-pci`. Sidero's guide says VirtIO SCSI Single hangs the bootstrap.
+- The disk cache stays at the Proxmox default. Sidero's table says Write Through, and that setting has not been compared on ZFS here.
+- The GPU worker boots the same ISO as the others. Its NVIDIA extensions arrive at install time from the schematic in its `cluster.toml` entry.
+- The GPU worker has no data disk yet. Add one with `qm set 131 --scsi1 bulk:<size in GB>,discard=on,ssd=1` once the cluster has a plan for it.
+
+## Notifications
+
+Added 2026-10-07. Root's mail on both hosts (smartd, ZFS events, backup results) goes through `proxmox-mail-forward` to the notification system's built-in `mail-to-root` target, which hands it to postfix for direct delivery on port 25. That port is blocked outbound: measured on the media host, every connection to the mail provider's MX hosts times out and the mail sits deferred. Both hosts here run the same setup, so nothing has ever arrived. The fix is the one on the [third host](/hosts/third-host/) page, Phase 4 step 3: an SMTP target on port 587 for everything, a `discord` webhook target for warnings and errors, and `default-matcher` disabled, applied with `setup-notify.sh` on each host. Done on both hosts the same evening; each sent a test mail and a test Discord message.
+
+## What is still open
+
+- How Kubernetes uses the `bulk` pool. The plan is a second virtual disk on the GPU worker VM.
+- A 9.2 USB stick. `zpool upgrade rpool` was run on both hosts on 2026-10-03, so the 9.1 stick can no longer import either pool for a rescue.
+- A disk latency test for etcd on each host's pool. etcd's FAQ asks for a 99th percentile WAL fsync under 10 ms.
+- How workloads share the one GPU. The device plugin exposes it as a single `nvidia.com/gpu`, so one pod holds it at a time. A pod asks for it with `runtimeClassName: nvidia` and a limit of `nvidia.com/gpu: 1`. A test pod reported the GTX 1080 with 8192 MiB on 2026-10-03.
+- Whether the firmware has a graphics mode option, and whether the GTX 1080 stays visible in Intel mode. One forum post reports that the operating system sees one card at a time.
+
+## Sources
+
+- [MSI, How to update BIOS](https://storage-asset.msi.com/files/pdf/How_to_flash_the_BIOS.pdf)
+- [Proxmox VE installation guide](https://pve.proxmox.com/wiki/Installation)
+- [Proxmox VE package repositories](https://pve.proxmox.com/wiki/Package_Repositories)
+- [Proxmox VE FAQ, minor version upgrades](https://pve.proxmox.com/wiki/FAQ)
+- [Proxmox VE roadmap, 9.1 and 9.2 release notes](https://pve.proxmox.com/wiki/Roadmap)
+- [Proxmox VE host bootloader](https://pve.proxmox.com/wiki/Host_Bootloader)
+- [Proxmox VE cluster manager](https://pve.proxmox.com/wiki/Cluster_Manager)
+- [Proxmox VE PCI(e) passthrough](<https://pve.proxmox.com/wiki/PCI(e)_Passthrough>)
+- [Proxmox VE PCI passthrough wiki, boot display fixes](https://pve.proxmox.com/wiki/PCI_Passthrough)
+- [Puget Systems, Samsung 980 PRO firmware](https://www.pugetsystems.com/support/guides/critical-samsung-ssd-firmware-update/)
+- [etcd FAQ, disk latency](https://etcd.io/docs/v3.6/faq/)
+- [Arch Linux Forums, GT73VR graphics modes](https://bbs.archlinux.org/viewtopic.php?id=253897)

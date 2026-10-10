@@ -1,0 +1,102 @@
+---
+title: Actual Budget
+description: Take Actual Budget from the templates in Git to a working, Pocket ID-only budget server, and clean up what Sure left behind.
+sidebar:
+  order: 1
+---
+
+This guide takes Actual Budget from the templates in Git to a working, Pocket ID-only budget server, and lists what Sure left behind outside Git. The deployment itself is in Git: the `[actual_budget]` section of `cluster.toml` and `kubernetes/apps/actual-budget/`.
+
+Actual Budget is served at `https://budget.${SECRET_DOMAIN}`. With `public = false` (the default) only the internal gateway serves it, so the LAN reaches it and the internet does not. With `public = true` the route is also on the external gateway, so the phone works away from home through the Cloudflare tunnel; that needs `pocket_id.public = true`, which is already set.
+
+Each step names its source. "Docs" is `actualbudget.org/docs`, read on 2026-10-07. "Source" is the v26.10.0 sync-server code (`packages/sync-server/src`). "Measured" means it was run on the image in Docker on 2026-10-07, under the same security context as the pod (read-only root, uid 1001, every capability dropped).
+
+## What Actual holds
+
+Everything is on one `local-path` volume at `/data`, pinned to one node: `server-files/account.sqlite` (users, roles, sessions, the OpenID configuration including the client secret) and `user-files/` (the budget files as binary blobs; source, `load-config.js`). There is no server-side backup of that volume. Every signed-in browser holds the full budget in its own storage and re-uploads it when the server is empty, and Settings, Export Budget writes a zip you can keep elsewhere. If the node is rebuilt, sign in, open the budget in a browser that had it, and let it sync up. A restic or rclone CronJob to R2 is a later flag if that is not enough.
+
+## How the login is locked down
+
+Measured on the image:
+
+- Pocket ID is the only way in. `ACTUAL_ALLOWED_LOGIN_METHODS=openid` and `ACTUAL_OPENID_ENFORCE=true` make the server refuse the password and header methods, and the client offers only the OpenID button.
+- The server writes the OpenID configuration from the environment into its database on every start (source, `app.ts`, `run()`). If Pocket ID's discovery document is unreachable on the very first start, the instance stays unbootstrapped and anyone who reaches it can set a server password and own it (measured: `POST /account/bootstrap` succeeded). An init container waits until the discovery document answers, and the pod's startup probe then asks `/account/needs-bootstrap` and keeps the pod out of the Service until it reports `bootstrapped: true` and `loginMethod: "openid"`; a failed probe restarts the container, which retries discovery. Once bootstrapped, a later start with Pocket ID down keeps the OpenID state (measured).
+- The first Pocket ID sign-in creates the owner with the ADMIN role (source, `accounts/openid.ts`). `ACTUAL_USER_CREATION_MODE=manual` means no later sign-in creates a user; an admin adds each one in the User Directory first, by Pocket ID username (docs, Multi-User).
+- Sessions last 30 days from sign-in (`ACTUAL_TOKEN_EXPIRATION=2592000`; the upstream default never expires them).
+
+<Aside type="caution">
+Until you have signed in once, any Pocket ID account that the client admits could become the owner. Restrict the client to a group in Pocket ID (step 1) and sign in as soon as the pod is Ready.
+</Aside>
+
+## 1. Create the OIDC client in Pocket ID
+
+1. Open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add.
+2. Name `Actual Budget`. Callback URL `https://budget.${SECRET_DOMAIN}/openid/callback` (docs, OAuth). Leave PKCE on; the server sends a PKCE challenge (source, `accounts/openid.ts`, `code_challenge_method: 'S256'`).
+3. Under Allowed user groups, pick `cluster_admins` (or a group holding only the people who should budget). This is what closes the first-sign-in window.
+4. Save. Copy the client ID and the client secret; Pocket ID shows the secret once.
+
+## 2. Fill `cluster.toml` and deploy
+
+1. In `cluster.toml`, section `[actual_budget]`: `oidc_client_id`, `oidc_client_secret`, and `public = true` if the phone should work away from home.
+2. `just configure`, then restore the sops files that did not change:
+
+   ```sh
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   ```
+
+3. Commit the rendered `kubernetes/apps/actual-budget/` as `feat(actual-budget): deploy Actual Budget` and push. Flux picks it up within the hour; `just kube reconcile` makes it pull now.
+4. Watch it come up:
+
+   ```sh
+   kubectl -n actual-budget get pods -w
+   kubectl -n actual-budget logs deploy/actual-budget | grep -i openid
+   ```
+
+   The log must say `OpenID configured!`. A pod stuck in `Init:0/1` is waiting for Pocket ID's discovery document; a pod stuck not Ready with `OpenID configuration found` followed by an error means discovery failed after that, and the probe is holding it back on purpose. Check that `auth.${SECRET_DOMAIN}` resolves from a pod.
+
+## 3. First sign-in
+
+1. Open `https://budget.${SECRET_DOMAIN}`. The server URL is already set; the login page shows only the OpenID button.
+2. Sign in with Pocket ID. You are now the owner and admin (source, `accounts/openid.ts`).
+3. Confirm from outside:
+
+   ```sh
+   curl -s https://budget.${SECRET_DOMAIN}/account/needs-bootstrap
+   curl -s -XPOST -H 'content-type: application/json' -d '{"password":"x"}' https://budget.${SECRET_DOMAIN}/account/bootstrap
+   ```
+
+   The first answers `"bootstrapped":true` and `"loginMethod":"openid"`, and the second answers `already-bootstrapped`.
+
+4. Create or import the budget. Optional: Settings, Encryption, to end-to-end encrypt the budget file with a passphrase the server never sees (docs, Encryption). Lose the passphrase and the file is gone.
+
+## 4. Other users
+
+Server menu, User Directory, Add. The username is the person's Pocket ID username (`preferred_username`; source, `accounts/openid.ts`, the `identity` lookup). Give them the Basic role, then open the budget, User Access, and tick them. They also need to be in the Pocket ID group from step 1.
+
+## 5. Bank sync
+
+Actual's bank-sync providers (SimpleFIN, GoCardless, Pluggy.ai, Akahu, Enable Banking) keep their credentials in the server's SQLite database, entered from the client under Settings. Nothing in Git. SimpleFIN is the US option; it is a paid bridge (docs, Bank Sync).
+
+## Sure: what was removed and what is left
+
+Git and the cluster: commit `feat: remove Sure` deleted the templates, the validator section, the fixtures, the Renovate rule and the rendered `kubernetes/apps/sure/`. When that commit is pushed, Flux prunes the `sure` Kustomization, which uninstalls the Helm release and deletes the CloudNativePG cluster, the Redis StatefulSet and their volumes. The namespace carries `kustomize.toolkit.fluxcd.io/prune: disabled`, so it stays until deleted by hand, and so does the Redis volume `data-redis-0`, because deleting a StatefulSet never deletes the claims it created. Deleting the namespace removes both:
+
+```sh
+kubectl -n sure get all,cluster,pvc        # wait until only the namespace is left
+kubectl delete namespace sure
+kubectl get pv | grep sure                 # local-path reclaims the directories on the node
+```
+
+`cloudflare-dns` runs with `policy: sync`, so it deletes the `sure.${SECRET_DOMAIN}` CNAME and its TXT owner record once the HTTPRoute is gone; check with `kubectl -n network logs deploy/cloudflare-dns | grep sure`.
+
+Outside the cluster, by hand:
+
+- Cloudflare R2: the `sure` bucket (uploads; empty unless something was attached) and the R2 API token scoped to it.
+- Cloudflare R2: the Postgres backups under the `sure-db/` prefix in the `postgres-backup` bucket. CloudNativePG does not remove backups when a cluster is deleted.
+- Pocket ID: the `Sure` OIDC client.
+- The `[sure]` secrets: the section is gone from `cluster.toml`; nothing else held them.
+
+## Sources
+
+- Docs: [Docker install](https://actualbudget.org/docs/install/docker), [configuration](https://actualbudget.org/docs/config/), [OAuth](https://actualbudget.org/docs/config/oauth-auth), [multi-user](https://actualbudget.org/docs/config/multi-user), [HTTP header auth](https://actualbudget.org/docs/advanced/http-header-auth), [reverse proxies](https://actualbudget.org/docs/config/reverse-proxies).
+- Source, v26.10.0: `packages/sync-server/src/load-config.js` (every `ACTUAL_*` variable), `app.ts` (startup bootstrap, `/health`, trusted proxies), `account-db.js` and `app-account.js` (bootstrap and login endpoints), `accounts/openid.ts` (first user, roles, PKCE), `docker/ubuntu.Dockerfile` (no `USER`, uid 1001, `/data`).

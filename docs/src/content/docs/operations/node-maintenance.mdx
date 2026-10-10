@@ -1,0 +1,433 @@
+---
+title: Node and host maintenance
+description: Take a Talos node or a Proxmox host out of service and bring it back without an outage you did not plan for.
+sidebar:
+  order: 1
+---
+
+The `just talos` and `just kube` recipes do the cluster side; the host side is a few commands over
+SSH. Written 2026-10-10 after the first host reboots since the build, which were done all at once
+and took the whole cluster down for three minutes.
+
+## 1. The map
+
+| Host             | Address                  | Guests                                                                                 | What a reboot costs                                                                                                                                            |
+| --- | --- | --- | --- |
+| The non-GPU host | `<non-GPU host address>` | VM 121 `k8s-cp-1`, VM 132 `k8s-worker-1`, VM 133 `k8s-worker-2`, VM 134 `k8s-worker-3` | Everything on the three workers' local volumes waits, and four of the five Postgres clusters are down (both instances on worker-2 and worker-3). Quorum holds. |
+| The GPU host     | `<GPU host address>`     | VM 122 `k8s-cp-2`, VM 131 `k8s-gpu-1`                                                  | llama-server (GPU, pinned) and whatever replica sits on gpu-1 wait. Quorum holds.                                                                              |
+| The media host   | `<media host address>`   | VM 123 `k8s-cp-3`, VM 135 `k8s-worker-4`, LXC 200 Plex                                 | The media stack (pinned by nodeSelector) and Plex wait. Quorum holds.                                                                                          |
+
+One control plane per host since 2026-10-10 (section 8), so no single host reboot loses etcd quorum.
+Every control plane is 5 GB, worker-4 is 16 GB.
+
+What is pinned to a node and cannot move: anything with a `kubernetes.io/hostname` nodeSelector
+(the media stack on worker-4), anything on a `local-path` volume, which is a directory on one node
+(Prometheus and Network Optimizer on worker-1; Grafana, InfluxDB, PegaProx and Actual Budget on
+worker-3; Alertmanager on gpu-1; Kener, the Redis volumes and every Postgres instance wherever
+they landed), and llama-server, which needs the GPU only gpu-1 has. `just talos status <node>`
+lists all three kinds before you touch anything. Pinned pods sit Pending while the node is down
+and schedule by themselves when it is back. That is expected, not a failure.
+
+Postgres: each CloudNativePG cluster has two instances on different nodes. The primary's
+PodDisruptionBudget blocks eviction, so a drain that meets a primary hangs. `just talos drain`
+switches every primary on the node over to its replica first (about 16 s each, measured).
+
+## 2. Cheat sheet
+
+All node arguments are host names (`k8s-worker-4`), never IPs. An unknown name fails and prints the
+known ones. Recipes that change the cluster ask once; `stop-node` and `reboot-node` include the
+drain's confirmation, so you answer one prompt.
+
+| Command                                                | Changes the cluster | What it does                                                                                                                                                                                                                                                                                      |
+| --- | --- | --- |
+| `just talos health`                                    | no                  | Talos health, nodes, pods not Ready, Flux objects not Ready, CloudNativePG phases. Exits non-zero when a node or a Flux object is not Ready. Run it before and after everything.                                                                                                                  |
+| `just talos status <node>`                             | no                  | Ready and cordon state, the pods that will move, the primaries that will switch over, the pods that will sit Pending, and etcd for a control plane.                                                                                                                                               |
+| `just kube primaries`                                  | no                  | Every Postgres primary and its node.                                                                                                                                                                                                                                                              |
+| `just kube switchover <cluster> <namespace> [replica]` | yes                 | Promote a replica (by default a Ready one on another node than the primary) and wait for the cluster to be healthy.                                                                                                                                                                               |
+| `just talos drain <node>`                              | yes                 | Preflight (every other node Ready unless it is cordoned, which means you took it down on purpose; for a control plane, the other two Ready, schedulable and answering `etcd status`, plus every control plane a voting member), switch over its primaries, `kubectl drain`, list the pinned pods. |
+| `just talos stop-node <node>`                          | yes                 | `drain` (skipped when the node is already cordoned and NotReady, so a re-run is safe), then power the VM off through Talos and wait until its API stops answering. Ends by telling you to confirm `qm status` on the host, reboot it, and run `resume`.                                           |
+| `just talos resume <node>`                             | yes (uncordon)      | Wait for Ready, then for etcd on a control plane, uncordon, wait for every pod on the node and every pinned pod, print the node list. It does not run `health`, because that waits up to five minutes while any other node is still cordoned; run `health` once at the end.                       |
+| `just talos reboot-node <node>`                        | yes                 | `drain`, reboot Talos, wait for a new boot ID and Ready, `resume`. For a Talos reboot with no host work.                                                                                                                                                                                          |
+| `just talos uncordon <node>`                           | yes                 | Undo a drain without a reboot. Waits for the pods.                                                                                                                                                                                                                                                |
+| `just talos nodes`                                     | no                  | topf's view of the nodes.                                                                                                                                                                                                                                                                         |
+
+Host side, on the host as root. Guest IDs are in the map.
+
+```sh
+qm status <vmid>              # expect: stopped, before rebooting the host
+pct shutdown 200 --timeout 60 # Plex, the media host only
+reboot
+```
+
+Timeouts built in: drain 5 min, switchover 3 min, power-off wait 5 min, node Ready 10 min, pods
+Ready 10 min, etcd 10 min. A timeout prints what it was waiting for and exits non-zero. Nothing is
+rolled back by a timeout; section 6 says what to do.
+
+## 3. Pre-flight, every time
+
+1. `just talos health` passes. Do not start maintenance on a cluster that is already unhealthy; the
+   drain's preflight refuses anyway, but find out why first.
+2. `just talos status <node>` for each node that goes down. Read the pinned list and decide whether
+   that downtime is acceptable now.
+3. Plex: no stream playing (Tautulli's activity page). A media host reboot stops Plex; a worker-4
+   drain does not, but SABnzbd and the arrs go away.
+4. SABnzbd: pause the queue (its UI) if anything is downloading. Downloads resume after, but a
+   post-processing step cut mid-way is retried from scratch.
+5. The clock. Avoid: 02:00 local (vzdump of LXC 200 and VM 135 on the media host), 03:00 local
+   (UniFi device auto-update, which reboots the closet switch and splits the non-GPU host from the
+   GPU host), 03:30 local (SnapRAID nightly on the media host), 06:00 UTC (Recyclarr), 10:00 UTC
+   (`restart-reset` CronJob). Daytime is best.
+6. Flux: nothing mid-rollout. `flux get hr -A | grep -v True` shows only the header.
+7. For the non-GPU host: accept the Postgres downtime (section 4C) or do it when nobody needs the
+   cluster.
+
+## 4. Runbooks
+
+### 4A. Reboot the media host (cp-3, worker-4 and Plex)
+
+The common case: host updates, kernel updates, the USB tier. Quorum holds (cp-1 and cp-2 stay up).
+
+```sh
+just talos status k8s-worker-4         # 11 pods move, media stack goes Pending
+just talos stop-node k8s-worker-4      # one prompt; ends with "Talos API is down"
+just talos stop-node k8s-cp-3          # worker-4 is cordoned and NotReady by now, which the preflight accepts
+```
+
+On the media host:
+
+```sh
+pct shutdown 200 --timeout 60
+qm status 123; qm status 135; pct status 200          # all stopped
+reboot
+```
+
+Wait for the host (about three to four minutes; `ssh` answers again). VM 123, VM 135 and LXC 200
+autostart. Control plane first on the way back so etcd is at three members before the worker's
+pods start:
+
+```sh
+just talos resume k8s-cp-3             # waits for etcd on this node
+just talos resume k8s-worker-4         # waits for Ready, uncordons, waits for the media pods, health
+kubectl -n media exec deploy/sonarr -c app -- df -h /data/ext   # expect /srv/media/ext, about 19T
+```
+
+And on the media host, the USB tier checks (section 5):
+
+```sh
+findmnt -t fuse.mergerfs -o TARGET,SOURCE,SIZE,AVAIL   # one usbmedia row, about 18T
+pct exec 200 -- df -h /data/ext                        # usbmedia, not tank/media
+snapraid status | tail -3
+```
+
+### 4B. Reboot the GPU host (cp-2 and gpu-1)
+
+Quorum holds (cp-1 and cp-3 stay up). llama-server needs gpu-1's GPU and waits (`status` lists it
+as pinned by `gpu`), so Grafana's LLM panels and the matherlynet playground fail while it is down.
+Alertmanager's volume is on gpu-1 too.
+
+```sh
+just talos status k8s-gpu-1
+just talos status k8s-cp-2
+just talos stop-node k8s-gpu-1
+just talos stop-node k8s-cp-2          # gpu-1 is cordoned and NotReady by now, which the preflight accepts
+```
+
+On the GPU host: `qm status 131; qm status 122` both stopped, then `reboot`. After it is back:
+
+```sh
+just talos resume k8s-cp-2             # waits for etcd on this node
+just talos resume k8s-gpu-1
+kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health   # {"status":"ok"}
+```
+
+Control plane first on the way back so etcd is at three members before the worker's pods start.
+
+### 4C. Reboot the non-GPU host (cp-1, worker-1, worker-2, worker-3)
+
+Quorum holds (cp-2 and cp-3 stay up), so the API keeps answering throughout. Before 2026-10-10 this
+host also ran cp-2 and every reboot lost quorum; section 8 moved it.
+
+Postgres on this host, measured 2026-10-10: four of the five clusters (matherlynet, pocket-id,
+radar, reactive-resume) have both instances on worker-2 and worker-3, so they are down for the
+reboot whatever you do, and `just talos drain` on those two nodes would only move primaries between
+two nodes that are both about to stop (the second drain then fails with "No replica on another
+node"). Only kener keeps serving, from gpu-1. The data is safe: the instances restart on their
+volumes when the nodes return and the apps reconnect. So worker-2 and worker-3 are drained without
+eviction, which deletes their pods with a normal grace period and bypasses the primary budgets.
+Deleting a primary while its replica is up makes CloudNativePG fail over to the replica rather
+than switch over, and replication is asynchronous, so a write in flight at that instant can be
+lost; then the second drain deletes those new primaries too. Acceptable for a short reboot of a
+home cluster, and not a clean switchover:
+
+```sh
+just talos health
+just kube primaries                    # confirm the placement above still holds
+just talos stop-node k8s-worker-1      # Prometheus and Network Optimizer go Pending; no Postgres
+kubectl drain k8s-worker-2 --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m
+talosctl -n <k8s-worker-2 address> shutdown
+kubectl drain k8s-worker-3 --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m
+talosctl -n <k8s-worker-3 address> shutdown
+just talos stop-node k8s-cp-1          # the three cordoned workers are ignored; cp-2 and cp-3 are checked
+```
+
+On the non-GPU host:
+
+```sh
+for v in 121 132 133 134; do qm status $v; done   # all stopped
+reboot
+```
+
+After the host is back (five minutes; the control plane needs a minute to rejoin etcd):
+
+```sh
+just talos resume k8s-cp-1             # waits for etcd on this node
+just talos resume k8s-worker-3         # Grafana, InfluxDB, PegaProx, Actual Budget, four Postgres instances
+just talos resume k8s-worker-2
+just talos resume k8s-worker-1
+just talos health
+```
+
+Only the last `health` counts. `resume` itself does not run it, so the list goes quickly.
+
+### 4D. Reboot all three hosts
+
+One at a time, in any order, and `just talos health` must pass between hosts: the media host (4A),
+the GPU host (4B), the non-GPU host (4C).
+
+<Aside type="caution" title="Never two hosts down together">
+  Each host now holds one control plane, so two hosts down leaves etcd with one member, which is
+  the 2026-10-09 outage.
+</Aside>
+
+### 4E. Reboot one Talos node, host untouched
+
+After a Talos config apply that needs a reboot, or to clear a node that misbehaves.
+
+```sh
+just talos status k8s-worker-2
+just talos reboot-node k8s-worker-2    # drain, reboot, wait for a new boot ID, resume, health
+```
+
+`just talos apply-node <node>` with topf already reboots when the change needs it; use this for a
+reboot without a config change.
+
+### 4F. Move a Postgres primary
+
+To empty a node by hand, or to put a primary back where it was.
+
+```sh
+just kube primaries
+just kube switchover pocket-id-db security pocket-id-db-2
+```
+
+Sixteen seconds of writes refused for that app, measured. Pocket ID logins blip; the site, Kener,
+Reactive Resume and Radar reconnect on their own.
+
+### 4G. Keep a node down for a while
+
+Hardware work, a disk swap, a long host job.
+
+```sh
+just talos stop-node k8s-worker-4
+```
+
+Leave it. The pinned pods stay Pending and the cluster is otherwise normal. Nothing in the cluster
+times out on a Pending pod. When the node is back, `just talos resume k8s-worker-4`. If the node
+will be gone for days, note that `restart-reset` (10:00 UTC) and Flux keep running without it and
+that the daily Postgres backups run from the primaries, which the drain moved off the node.
+
+### 4H. Unplanned: a host dropped, lost power, or rebooted on its own
+
+Nothing was drained, so the order is diagnosis, then cleanup.
+
+1. `just talos health`. Nodes come back on their own; wait for all Ready before judging anything.
+2. Every pod on the affected nodes has a restart count one higher, because Talos keeps the old
+   containers across a reboot. Clearing them is cosmetic. Deployments: `kubectl rollout restart`.
+   Postgres primaries: `just kube switchover` then `kubectl delete pod <old primary>`, which comes
+   back as a fresh replica. Static control-plane pods on a node whose API server was slow to answer
+   show 1 or 2 restarts that nothing clears until the next Kubernetes upgrade.
+3. The media host only: the USB tier. Run section 5. If `/data/ext` is empty in a pod while the
+   host shows the union populated, the NFS client on worker-4 has a stale cached entry and needs a
+   fresh mount: `kubectl -n media scale deploy bazarr radarr sabnzbd sonarr --replicas=0`, wait
+   until `kubectl -n media get deploy` shows 0 ready for all four, then `--replicas=1`. All four
+   share one mount, so all four must be off at once. Do not `kubectl wait --for=delete` on the
+   `app.kubernetes.io/name` label; the Completed `*-configure` hook pods carry it and never go away.
+4. If the 03:00 UniFi auto-update caused it (a burst of restarts on gpu-1 and cp-2 around 03:00
+   local, both on the GPU host behind the closet switch), nothing is wrong with the apps.
+
+### 4I. A node will not come back
+
+`resume` times out at 10 minutes.
+
+1. Proxmox console of the VM (web UI, or `qm terminal <vmid>` on the host). Talos prints its stage
+   on the console; a node stuck in maintenance mode or at a disk prompt is a Talos problem, not a
+   cluster problem.
+2. `talosctl -n <node address> dmesg | tail -50` and `talosctl -n <node address> services` once
+   apid answers.
+3. The node stays cordoned until `resume` or `uncordon` succeeds, so nothing schedules onto a node
+   that is half back. Once it is Ready, run `just talos resume <node>` again; it is idempotent.
+
+## 5. The media host's USB tier after any reboot
+
+The union at `/srv/media/ext` must mount after ZFS mounts `tank/media` on `/srv/media`, which the
+fstab line now orders (`x-systemd.requires=zfs-mount.service`). A hub drop unmounts the six disks
+and the `99-usb-media.rules` udev file remounts them when they return. Both fixes went in on
+2026-10-10 and are proven by the next reboot and the next hub-port flip. Checks, on the media host:
+
+```sh
+systemctl show srv-media.mount srv-media-ext.mount -p Id -p ActiveEnterTimestamp   # ext later than media
+findmnt -t fuse.mergerfs -o TARGET,SOURCE,SIZE,AVAIL   # exactly one usbmedia row, about 18T
+ls /srv/media/ext                                     # movies tv
+pct exec 200 -- df -h /data/ext                       # usbmedia
+snapraid status | tail -3                             # six disks, not "array is empty"
+```
+
+If the disks are present (`lsblk -o NAME,LABEL | grep usb`) but unmounted, the udev rule did not
+fire: `mount /mnt/usb/d1` and so on by path, never `mount -a` (it stacks a second union). If the
+union is mounted but shows the empty placeholder, `mount /srv/media/ext` once on top of it and plan
+a reboot. The "Boot order and hotplug" section of the [third host](/hosts/third-host/) page has
+the history.
+
+## 6. When a recipe stops
+
+| Symptom                                                                        | Cause                                                                                   | Do                                                                                                                                                                                                                              |
+| --- | --- | --- |
+| `drain` preflight: "Nodes are not Ready"                                       | Another node is down                                                                    | Fix that first; two nodes down at once is how quorum goes.                                                                                                                                                                      |
+| `drain` preflight: "etcd does not have every control plane as a voting member" | A control plane is out or a member is a learner                                         | `talosctl -n <control plane address> etcd members`; wait or repair before draining a control plane.                                                                                                                             |
+| `drain`: "No replica on another node to promote"                               | The cluster's replica is on the node being drained, or not Running                      | Accept that database's downtime and drain with `kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m` (bypasses the PDB; the instance restarts on return), or fix the replica first. |
+| `switchover` timeout                                                           | Replica not streaming, or the promote was refused                                       | `kubectl get clusters.postgresql.cnpg.io -n <ns> <cluster>` shows the phase; `kubectl cnpg status <cluster> -n <ns>` the detail. The old primary keeps serving until the switch completes.                                      |
+| `drain` hangs then times out                                                   | A pod with no controller, or a PDB the recipe does not know                             | `kubectl get pdb -A`; `kubectl drain --dry-run=server` names the pod.                                                                                                                                                           |
+| `stop-node`: power-off wait times out                                          | Talos is still shutting down (a long lameduck) or apid answers from a half-stopped node | `qm status <vmid>` on the host; `qm shutdown <vmid>` if it is still running.                                                                                                                                                    |
+| `resume`: Ready wait times out                                                 | Section 4I.                                                                             |                                                                                                                                                                                                                                 |
+| `resume`: pods wait times out naming a pod                                     | The pod is stuck, not the node                                                          | `kubectl -n <ns> describe pod <pod>`; Pending with a volume message means the PV's node is still down.                                                                                                                          |
+| `health` exits non-zero, or waits five minutes on the Talos step               | Another node is still cordoned or down                                                  | Expected while a runbook is mid-way; run it once at the end.                                                                                                                                                                    |
+
+## 7. Not built, on purpose
+
+- A `reboot-host` recipe. The node-to-host mapping is not in `cluster.toml`, and `ssh` from the
+  recipes would want keys and a prompt. Section 1's map plus three host commands cover it. If this
+  becomes weekly, add `proxmox_host` and `vmid` to the node schema and generate section 1 from it.
+- Moving a control plane with a `just` recipe. Section 8 does it by hand once; after it, every
+  host holds one control plane and 4B to 4D get simpler.
+- A no-eviction mode for `just talos drain`. 4C needs it twice, by hand. If non-GPU host reboots
+  become routine, add an `eviction='on'` argument rather than keep typing the `kubectl drain` line.
+- Spreading each Postgres cluster across hosts. CloudNativePG's anti-affinity is per node, and the
+  scheduler has no idea which VM shares a host, so today four clusters sit entirely on the non-GPU
+  host. A `topology.kubernetes.io/zone` label per host (set in the Talos node labels from
+  `cluster.toml`) plus `topologyKey: topology.kubernetes.io/zone` on the clusters would fix it.
+  Larger change; needs the schema work from the first bullet.
+
+## 8. One control plane per host: moving cp-3 to the media host and cp-2 to the GPU host
+
+Decided 2026-10-10 and done the same night: 8.1 at 01:33, cp-3 moved 01:40 to 01:49, cp-2 moved
+01:51 to 02:06, each nine to fifteen minutes from reset to a clean `health`, `just talos diff`
+clean on all eight nodes afterwards. The old VMs were destroyed at once, not kept. Kept as the
+procedure for rebuilding a control plane. End state: the non-GPU host runs cp-1 plus the three
+workers, the GPU host runs cp-2 plus gpu-1, the media host runs cp-3 plus worker-4 and Plex, so
+any single host reboot keeps etcd at two of three. At the same time every control plane goes to
+5 GB (measured use 2.0 to 2.2 GB) and worker-4 to 16 GB (measured use 4 GB), which is what makes
+cp-3 fit on the media host: 16 + 5 + 6 (Plex) + about 3 (ZFS cache) of 32 GB.
+
+Nothing in `cluster.toml` or the rendered Talos config changes. Every node keeps its name,
+address, MAC and VM ID; only the host that runs the VM changes, and a control plane carries
+nothing but replicated etcd, so each move is "leave the cluster, delete the VM, create it
+elsewhere, join again". Each move holds etcd at two of three for about 15 minutes, so do it with
+the cluster idle, one move at a time, and `just talos health` between steps.
+
+Order matters for memory: the GPU host (64 GB) runs gpu-1 at 40 GB and cp-3 at 8 GB, so cp-3
+leaves the GPU host before cp-2 arrives.
+
+### 8.1 Resize cp-1 and worker-4 in place
+
+```sh
+just talos health
+just talos stop-node k8s-cp-1          # cp-2 and cp-3 carry etcd meanwhile
+```
+
+On the non-GPU host: `qm status 121` says stopped, then `qm set 121 --memory 5120 && qm start 121`.
+Then `just talos resume k8s-cp-1` and `just talos health`.
+
+```sh
+just talos stop-node k8s-worker-4      # media stack goes Pending, Plex is untouched
+```
+
+On the media host: `qm status 135` says stopped, then `qm set 135 --memory 16384 && qm start 135`.
+Then `just talos resume k8s-worker-4` and `just talos health`.
+
+### 8.2 Fetch the Talos 1.14.2 ISO on the GPU host and the media host
+
+Both hosts, as root. The schematic is the cluster's (`talos/topf.yaml`); `-nc` makes a re-run a
+no-op.
+
+```sh
+wget -nc -O /var/lib/vz/template/iso/talos-v1.14.2-metal-amd64.iso \
+  https://factory.talos.dev/image/<schematic id>/v1.14.2/metal-amd64.iso
+```
+
+Define `mkvm` on both hosts as the [Proxmox hosts](/hosts/proxmox/) page does, with the ISO line
+changed to `--ide2 local:iso/talos-v1.14.2-metal-amd64.iso,media=cdrom`. Its arguments are VM ID,
+name, cores, memory in MB, disk in GB, and the last MAC octet.
+
+### 8.3 Move cp-3 from the GPU host to the media host
+
+1. Leave the cluster. `just talos reset-node k8s-cp-3` cordons and drains, leaves etcd, wipes the
+   install disk and reboots into maintenance mode (topf's reset is graceful by default). Confirm:
+
+   ```sh
+   talosctl -n <k8s-cp-1 address> etcd members    # two members, no k8s-cp-3
+   kubectl delete node k8s-cp-3                   # the stale Node object, so the new one registers clean
+   ```
+
+2. On the GPU host, destroy the old VM: `qm stop 123 && qm destroy 123 --purge`. Its disk was
+   wiped by the reset and etcd is replicated, so it holds nothing. Two VMs with the same MAC must
+   never run at once, so this comes before step 3.
+3. On the media host, create and start the new one:
+
+   ```sh
+   mkvm 123 k8s-cp-3 4 5120 50 <mac octet>
+   qm start 123
+   ```
+
+   From the workstation, `talosctl get disks -n <k8s-cp-3 address> --insecure` lists `/dev/sda`
+   once it is in maintenance mode (about a minute).
+
+4. Join. From the repo root, `just talos apply-node k8s-cp-3` installs Talos and the control plane
+   config; the node joins etcd through the cluster endpoint on its own. Then:
+
+   ```sh
+   kubectl get nodes                              # k8s-cp-3 Ready, about three minutes
+   talosctl -n <k8s-cp-1 address> etcd members    # three members again
+   just talos status k8s-cp-3
+   just talos health
+   cilium bgp peers                               # eight established sessions
+   ```
+
+5. On the media host, add VM 123 to the nightly vzdump job (Datacenter, Backup, edit the job's
+   selection) so the host's backups cover it. Optional: etcd is replicated, and a control plane is
+   rebuilt from this section in 15 minutes.
+
+### 8.4 Move cp-2 from the non-GPU host to the GPU host
+
+The same five steps with VM 122, `k8s-cp-2`, `<k8s-cp-2 address>`, cp-2's MAC octet, old host the
+non-GPU host, new host the GPU host. The `etcd members` checks run against `<k8s-cp-1 address>` as
+above. The GPU host has no backup job (`pvesh get /cluster/backup` is empty there), so step 5 has
+nothing to add to; a control plane is rebuilt from this section in 15 minutes anyway.
+
+### 8.5 Afterwards
+
+Done 2026-10-10: section 1's map, 4A to 4D and 4H above, and the VM tables on the Proxmox hosts
+and third host pages. 4C keeps its `--disable-eviction` drains, because those are about four
+Postgres clusters having both instances on worker-2 and worker-3, not about quorum.
+
+- The static-pod restart counters on cp-1 (section 4H) clear on the next Kubernetes upgrade, not
+  on this move.
+
+### 8.6 If something stops
+
+| Symptom                                                             | Do                                                                                                                                                                                              |
+| --- | --- |
+| `reset-node` cannot reach the node, so etcd still lists it          | `talosctl -n <k8s-cp-1 address> etcd remove-member k8s-cp-3`, then carry on; wipe the old VM by destroying it.                                                                                  |
+| `apply-node` fails with a certificate or endpoint error             | The VM booted the ISO but is not in maintenance mode yet, or the old VM is still running on the same MAC. `qm status` on both hosts; `talosctl get disks --insecure` from the workstation.      |
+| The new node is Ready but etcd shows two members                    | Give it two minutes; the control plane joins etcd after the kubelet registers. `talosctl -n <k8s-cp-3 address> service etcd` shows the state.                                                   |
+| `health` fails on the Talos step with a members-consistency message | One stale member. `talosctl -n <k8s-cp-1 address> etcd members` on each control plane address; remove the one that is not a running node.                                                       |
+| Memory pressure on the media host after cp-3 lands                  | `free -m` on the host; `arc_summary \| head` for the ZFS cache. Lower the ARC cap in `/etc/modprobe.d/zfs.conf` before shrinking any VM.                                                        |

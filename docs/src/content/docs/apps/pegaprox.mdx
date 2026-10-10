@@ -1,0 +1,124 @@
+---
+title: PegaProx
+description: Take PegaProx from a freshly deployed pod to a working console for both Proxmox hosts, with a Pocket ID sign-in.
+sidebar:
+  order: 3
+---
+
+This guide takes PegaProx from a freshly deployed pod to a working console for both hosts. It covers the admin account, the account PegaProx uses on each host, adding the hosts, the Pocket ID sign-in, and plugins. The deployment itself is in Git: the `[pegaprox]` section of `cluster.toml` and `kubernetes/apps/pegaprox/`. The host install is on the [Proxmox hosts](/hosts/proxmox/) page.
+
+PegaProx is served at `https://pegaprox.${SECRET_DOMAIN}` on the internal gateway only. The name has no public DNS record and the Cloudflare tunnel refuses it, so only the LAN reaches it.
+
+Each step names its source. "Docs" is [docs.pegaprox.com](https://docs.pegaprox.com), read on 2026-10-05. "Source" is the 1.2.0 code. Pocket ID sign-in has no documentation page upstream, so that section rests on the source and the settings form.
+
+## Status on 2026-10-06
+
+Checked from outside the UI on 2026-10-06 (pod logs, Prometheus, the unauthenticated auth check endpoint). Rows marked unverified need the UI.
+
+| Step | Status |
+| --- | --- |
+| Deploy the app | Done |
+| Create the admin account | Done. The metrics API token exists and Prometheus scrapes 105 PegaProx series, which needs an admin. |
+| Create the account on each host | Done or skipped. Both hosts connect "using API Token" in the log; which account (the service account or `root@pam`) was not checked. |
+| Add the two hosts | Done. The operator renamed the non-GPU host's entry on 2026-10-06, but the UI rename only sets `display_name` (source, `api/groups.py`), and the exporter labels metrics with the add-time `name` (source, `api/metrics_exporter.py`), so both entries still export the GPU host's name as `cluster`. To change the metrics label, use Reconfigure on the non-GPU host's entry (re-enter host, user and password, and the new name; it keeps the cluster id), or delete and re-add it. |
+| Turn `syslog_enabled` off | Done 2026-10-06 (the operator). The pod had no socket on 1514 even before. |
+| Open a VM console and a node shell on each host | Done 2026-10-06 (the operator). |
+| Confirm automations are off on each host | Done 2026-10-06 (the operator). |
+| Sign in with Pocket ID | Configured: the auth check reports `oidc_enabled: true`, the button text, authority `auth.${SECRET_DOMAIN}`, PKCE on. The viewer half of the role test waits for a second Pocket ID user; none exists on 2026-10-06. |
+| Install a plugin | Optional |
+| Metrics | Done 2026-10-06: `metrics_token` in `cluster.toml`, ServiceMonitor and the upstream dashboard. |
+
+## What PegaProx holds
+
+PegaProx keeps everything in one SQLite database on a `local-path` volume on `k8s-worker-3`. That includes the Proxmox account password, an API token it creates for that account with privilege separation off, every user, and the Pocket ID client secret. The database is encrypted with `db_key` from `cluster.toml`, and that key is the only way to read it. Never change the key. Keep a copy of it outside the repo. There is no backup of the volume: if `k8s-worker-3` is rebuilt, the hosts are added again, which takes minutes.
+
+Two things are deliberately off. PegaProx's automations (auto-migrate, dry-run, HA, scheduled actions) default to off, and they must stay off for anything that holds the Talos VMs, because stopping two control-plane VMs loses etcd quorum and stopping `k8s-worker-3` stops PegaProx itself. The syslog receiver on port 1514 starts with the server (docs) but the Service does not expose it; turn it off with the `syslog_enabled` switch in Settings, Server.
+
+<Aside type="caution" title="Do not use Settings, Updates">
+  The in-app updater rewrites PegaProx's own files (docs, Updating), which the read-only root refuses, and updates arrive as a new image tag through Renovate.
+</Aside>
+
+## Create the admin account
+
+A fresh install has no default credentials. The first login attempt returns `NOT_INITIALIZED` and the UI opens a setup wizard (docs, Quick Start), so the first visitor becomes the admin. Do this first.
+
+1. Open `https://pegaprox.${SECRET_DOMAIN}`. The wizard appears.
+2. Pick the admin username, a strong password, an email, and enable 2FA enrolment. The username must differ from your Pocket ID username. An OIDC login never adopts a local account of the same name, by design (source, `utils/oidc.py`, "cannot be taken over by OIDC"), so a local account with the operator's username blocks the operator's Pocket ID login for good. Use `admin`.
+3. In Settings, Server, turn `syslog_enabled` off.
+
+If the wizard appears again later, the database volume was replaced. That happened once on 2026-10-05 when the plugins volume was added and app-template renamed the volumes.
+
+## Create the account on each host
+
+The docs recommend `root@pam` with the root password: "several PegaProx features (SMBIOS Auto-Config, Rolling Updates, 2-Node HA, Node Shell) require full root access and will not work with limited users or API tokens" (docs, Proxmox Permissions). The Quick Start also documents "Option B: Create a Dedicated @pam User", a Linux user with passwordless sudo and the Administrator role. Over SSH PegaProx runs `sudo -n bash` with a base64 payload for those features (source, `core/manager.py`), which is why the sudo rule has to be unrestricted. Both options are root-equivalent. Option B is a separate credential that can be revoked without touching root, and it is what this guide uses. Option A is simpler: enter `root@pam` and the root password in step "Add the two hosts" and skip this section.
+
+Run this on both hosts, the GPU host at `<GPU host address>` and the non-GPU host at `<non-GPU host address>`, as root. The Linux user is written `<service account>` below; pick one name and use it everywhere. The commands are the Quick Start's, with one addition: Proxmox VE does not ship `sudo` (measured on the GPU host on 2026-10-05, `sudo: not found`), so install it first. `passwd` prompts for the password:
+
+```sh
+apt install -y sudo
+useradd -m <service account>
+passwd <service account>
+echo "<service account> ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/<service account>
+chmod 0440 /etc/sudoers.d/<service account>
+pveum useradd <service account>@pam -comment "PegaProx Service Account"
+pveum aclmod / -user <service account>@pam -role Administrator
+```
+
+Then confirm each piece: `visudo -c` parses the sudoers file, `su - <service account> -c 'sudo -n true' && echo ok` proves the passwordless sudo, and `pveum user list` shows `<service account>@pam`. Use the same password on both hosts. Do not enable two-factor on `<service account>@pam`: PegaProx logs in with the password and then creates its own API token for the account (source), and two-factor breaks that login. The Quick Start's optional token step is not needed for that reason.
+
+Firewall (docs, Ports and Network): if the Proxmox firewall is on, allow TCP 8006 and 22 from PegaProx at the datacenter or node level. Here PegaProx is a pod, and pod traffic leaves the nodes with the node's address, so allow the Talos node addresses, `<first node address>` to `<last node address>`. Port 3128 is only for SPICE consoles, which are not used. PegaProx does not verify the host's TLS certificate by default (source), so the self-signed certificate is fine.
+
+## Add the two hosts
+
+The hosts are standalone, not a Proxmox cluster (see [Proxmox hosts](/hosts/proxmox/)), so each is added on its own.
+
+1. Settings, Clusters, Add Cluster (docs, Quick Start). Name it after the host, enter its address and port 8006, user `<service account>@pam` (or `root@pam`), and the password. Leave the SSH key field empty.
+2. PegaProx logs in, creates the API token, and the dashboard fills within seconds. Node count and VM count should match.
+3. Open a VM console and a node shell. Behind a proxy the UI dials both on this origin, and the HTTPRoute sends `.../vncwebsocket` to port 5001 and `.../shellws` to 5002, which is the routing the docs require (docs, Reverse Proxy). If a console stays blank, check those two route rules first.
+4. Repeat for the second host.
+5. For each host, confirm auto-migrate, dry-run, HA and scheduled actions are off.
+
+The Talos VMs are the seven listed on the [Proxmox hosts](/hosts/proxmox/) page. Do not run maintenance mode, evacuation or a rolling update against a host while the cluster depends on its VMs. PegaProx cannot tell which VMs matter.
+
+## Sign in with Pocket ID
+
+PegaProx has native OIDC, configured in its UI and stored in its database. Upstream has no documentation page for it; the settings below come from the settings form and `utils/oidc.py`. Pocket ID is a generic provider to it.
+
+1. In the Pocket ID admin UI, create an OIDC client named PegaProx. Callback URL `https://pegaprox.${SECRET_DOMAIN}/oidc/callback`. That is the page PegaProx's frontend serves to receive the code; the settings form shows the same value as the redirect URI. Turn PKCE on, because PegaProx always sends an S256 challenge. Keep it a confidential client with a secret. Make sure the `groups` scope is available to it.
+2. In PegaProx Settings, the OIDC section: provider `generic`, authority `https://auth.${SECRET_DOMAIN}`, the client ID and secret from step 1, scopes `openid profile email groups`, redirect URI `https://pegaprox.${SECRET_DOMAIN}/oidc/callback`, admin group `cluster_admins`, default role `viewer`, auto-create users on. Set the button text to something like "Sign in with Pocket ID".
+3. Under "Internal IdP / Private Network", turn on "Allow private IPs". From the pod, `auth.${SECRET_DOMAIN}` resolves to the internal gateway, and PegaProx's outbound-URL guard refuses a private address for discovery and the token endpoint unless this is on (source, `utils/oidc.py`).
+4. Sign in with a Pocket ID user that is not in `cluster_admins`. They should land as a viewer. Then sign in as yourself and confirm the admin role.
+
+If the Pocket ID login bounces back to the login page with no OIDC button, the callback failed. `kubectl -n pegaprox logs deploy/pegaprox | grep OIDC` names the reason. The one seen on 2026-10-05 was "Rejected login for `<username>`, a local account of that name exists": the local admin had the same username as the Pocket ID user. Fix: in Settings, Users, create a second local admin named `admin`, sign in as it, delete the local account with the operator's username, then sign in with Pocket ID again. The OIDC user is created on that login and gets the admin role from the `cluster_admins` mapping.
+
+PegaProx reads groups from the ID token and compares them as lowercase strings (source), so Pocket ID's group names match directly. The open upstream bug about a null group name only affects Entra, which sends groups as objects. The local admin keeps working, so a broken mapping never locks you out.
+
+## Install a plugin
+
+PegaProx has no installer. Plugins are auto-discovered from the `plugins/` directory, which here is a volume seeded from the four plugins bundled in the image. A plugin is a folder with a `manifest.json` and an `__init__.py` (docs, Plugin System). Copy it in, then rescan:
+
+```sh
+kubectl -n pegaprox cp <plugin-dir> deploy/pegaprox:/app/plugins/
+```
+
+Then Settings, Server, Plugins, press Rescan and toggle the plugin on. Review the plugin's code first; upstream takes no responsibility for community plugins. Plugin config written from the UI lands in the plugin's own directory on the same volume, so it survives restarts and updates. A bundled plugin that upstream changes is not refreshed on update, because the seed never overwrites. Delete it with the trash icon, which removes the folder, then restart the pod to get the new version.
+
+## Optional: metrics
+
+PegaProx exposes Prometheus metrics at `/api/metrics`, gated by an API token from Settings, API Tokens, or open to the scrape network when "Allow unauthenticated /api/metrics" is enabled under Settings, Compliance (docs, Prometheus Exporter). Set up on 2026-10-06 through `metrics_token` in `cluster.toml`, which renders the ServiceMonitor, the NetworkPolicy rule for `observability` and the upstream dashboard.
+
+## Updates
+
+Renovate opens a pull request for each new image tag. Never automerge them. Two critical authorization bugs were fixed in 1.1.1, the 1.2.0 release lists sixteen behaviour changes, and the console port scheme has changed before. Read the release notes, then merge, then open a console again.
+
+## If you lose access
+
+- Lost admin password: sign in with Pocket ID if it is configured. Otherwise the docs' recovery is to remove the admin row from the database so the wizard reappears, which needs the key and a SQLCipher client; the simpler path is to delete the two PVCs in the `pegaprox` namespace, let the pod recreate them, and redo this guide.
+- Lost `db_key`: the same. The database cannot be read without it.
+- Pod will not start after a host change: nothing on the hosts can stop the pod. Check `kubectl -n pegaprox describe pod` for the volumes on `k8s-worker-3`.
+
+## Sources
+
+- [docs.pegaprox.com](https://docs.pegaprox.com), read 2026-10-05: Getting Started (Installation, Quick Start, Updating, Requirements), Configuration (Environment Variables, Ports and Network, Reverse Proxy, Proxmox Permissions), Access (Plugin System), Automation (Syslog, Prometheus Exporter), Management (Multi-Cluster).
+- PegaProx 1.2.0 source: `pegaprox/api/clusters.py` (add-cluster fields), `pegaprox/core/manager.py` (token creation with `privsep=0`, the `sudo -n bash` path), `pegaprox/utils/oidc.py` (group matching, the private-address guard), `pegaprox/api/auth.py` and `web/src/settings_modal.js` (the `/oidc/callback` redirect URI), `pegaprox/api/plugins.py` (no install endpoint), `web/src/node_modals.js` (console WebSocket URLs).
+- This repo: `kubernetes/apps/pegaprox/pegaprox/app/` and the `[pegaprox]` bullet in `CLAUDE.md`.

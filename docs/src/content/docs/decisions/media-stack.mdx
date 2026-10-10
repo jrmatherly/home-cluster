@@ -1,0 +1,137 @@
+---
+title: The media stack
+description: Why the Plex automation apps run in the cluster the way they do, what the research found, and what was turned down.
+sidebar:
+  order: 2
+---
+
+The question, on 2026-10-06, was how to bring the Plex media-automation apps (Sonarr, Radarr, Bazarr, SABnzbd, Tautulli, Overseerr and Maintainerr, then a Docker Compose stack on a Windows machine) into the cluster. Three explorer agents and one synthesizer researched it and the lead reviewed the result. The same evening the operator chose to wipe the media disks and start the library over on a ZFS pool, which removed the NTFS half of the plan. On 2026-10-08 the plan was revised again, this time to drop the carry-over of the Windows configs; every app now starts fresh and a Helm hook configures it. The repository's `CLAUDE.md` describes what was finally built, and where the plan and the build disagree this record follows the build and says so.
+
+The setup steps, the per-app sheets and the first-deploy checks are on the [media apps page](/apps/media/).
+
+Attributions follow the plan: "fetched" means the page was read, "snippet" means only a search summary was seen, "repo" means a file in this repository, "measured" means it was observed live, and "judgment" means an explorer's or the lead's reasoning with no source. UNVERIFIED marks a claim nobody checked.
+
+## What was decided
+
+- Straight into the cluster as a `media` namespace under the `restricted` pod security level, with no interim Compose VM.
+- Storage is one ZFS dataset on the media host, exported over NFS in the TRaSH `/data` layout, brought in through `csi-driver-nfs` as one static CSI `PersistentVolume` and one pre-bound `ReadWriteMany` claim, and mounted once at `/data` in every pod (revision of 2026-10-06; the plan's drive-letter `subPath` mounts are superseded). Mount options `nfsvers=4.1,hard,noatime,nolock`. The driver runs with `feature.enableFSGroupPolicy: false`.
+- Every media pod runs as uid 1000 and the export squashes every client to 1000. The PV carries a `nodeAffinity` and each app a `nodeSelector` for `media.node`, the worker whose Proxmox host serves the export.
+- Config stays SQLite on a `local-path` volume per app.
+- Fresh start (revision of 2026-10-08). No database or config is restored from Windows. Each first-wave HelmRelease carries a `configure` hook Job that converges the TRaSH and Servarr wiki settings through the app's API, and the SABnzbd Usenet server and the Prowlarr indexers are typed once by hand.
+- The first wave is Sonarr, Radarr, Prowlarr (new) and SABnzbd, each with a hook. The second wave is Bazarr, Tautulli, Seerr (replacing Overseerr) and Maintainerr, each set up once in its UI, with the three Plex apps rendered only when `plex_host` is set.
+- Recyclarr is on (`recyclarr = true`), as a CronJob plus the same hook Job, owning the quality profiles and custom formats, with `delete_old_custom_formats` on (revised from the plan's off) and the six stock profiles deleted after each sync.
+- Sign-in is one Envoy Gateway `SecurityPolicy` in `media/shared` that signs users in with Pocket ID and admits only `cluster_admins`. It selects every HTTPRoute labelled `media.sign-in: pocket-id` through `targetSelectors` (revised from the plan's one policy per route). The arrs run with `AUTH__METHOD=External`, and a NetworkPolicy admits only the `network` namespace and the stack's own pods.
+- Each arr and SABnzbd gets a second HTTPRoute for `/api` on the internal gateway only, without the policy, so the API key is the credential there and a mobile client works over the LAN. Tautulli gets the same route.
+- Seerr keeps its own Plex login and no `SecurityPolicy`. `public = true` attaches every UI route to the external gateway as well; the `/api` routes stay internal.
+- Plex stays an LXC on the media host and reads the same dataset through a bind mount; `plex_host` and `plex_token` script the arrs' Plex connection.
+
+### Per app
+
+| App | Image | Choice |
+| --- | --- | --- |
+| Sonarr | `ghcr.io/home-operations/sonarr` | Keep. Non-root image built for Kubernetes; home-operations publishes only the `develop` branch (fetched: [home-operations/containers](https://github.com/home-operations/containers)) |
+| Radarr | `ghcr.io/home-operations/radarr` | Keep. Same image family; it is on v6, there is no v5 |
+| Prowlarr | `ghcr.io/home-operations/prowlarr` | Add. One place to enter each Usenet indexer and sync it to both arrs on Full Sync |
+| SABnzbd | `ghcr.io/home-operations/sabnzbd` | Keep. The entrypoint takes the API key and host whitelist from env (fetched: [entrypoint.sh](https://raw.githubusercontent.com/home-operations/containers/main/apps/sabnzbd/entrypoint.sh)) |
+| Bazarr | `ghcr.io/home-operations/bazarr` | Keep, second wave, no hook. It cannot take its API key from env or a flag, and its providers need the operator's credentials |
+| Tautulli | `ghcr.io/home-operations/tautulli` | Keep, second wave, no hook. Needs Plex; talks to the LXC over the network, no media mount |
+| Seerr | `ghcr.io/seerr-team/seerr` | Replaces Overseerr, which is archived with a last push on 2026-02-15 (fetched: [sct/overseerr](https://api.github.com/repos/sct/overseerr)). Own Plex login |
+| Maintainerr | `ghcr.io/maintainerr/maintainerr` | Keep, second wave, no hook. No authentication of its own; no media mount, since its rules act through the arr APIs |
+| Recyclarr | `ghcr.io/recyclarr/recyclarr` | Add. TRaSH profiles as YAML that Flux manages (fetched: [TRaSH Recyclarr](https://trash-guides.info/Recyclarr/)) |
+
+## Why
+
+### Straight to Kubernetes
+
+The operator said the Compose file would not be reused, so an interim Compose VM would have been a second fresh deployment for no safety a dry run did not give. The lead's position won over the host plan's phase 6 and the arr explorer's option table, because those rested on the explorers' judgment, not on a sourced constraint. The Compose VM stayed the named fallback if the cluster path stalled; it was never needed.
+
+### One NFS export through a CSI driver
+
+`restricted` allows only `configMap`, `csi`, `downwardAPI`, `emptyDir`, `ephemeral`, `persistentVolumeClaim`, `projected` and `secret` volumes, so the inline `type: nfs` volume that upstream HelmReleases use is refused (verified by the lead; fetched: [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)). Talos 1.14 deprecates the in-tree volume plugins (fetched: [What's new in Talos 1.14](https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos)). The `csi-driver-nfs` chart is a classic Helm repository with no OCI artifact (fetched: [chart README](https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/charts/README.md)), which makes it the repository's only `HelmRepository`. Talos runs no `rpc.statd`, so the mount uses `nolock` (fetched: [Talos KubeVirt guide](https://docs.siderolabs.com/talos/v1.14/advanced-guides/install-kubevirt)).
+
+The driver's `CSIDriver` shipped with `fsGroupPolicy: File`, so every pod's `fsGroup: 1000` made the kubelet chown-walk the whole export before start, and the walk failed for twenty minutes while SABnzbd was writing (measured 2026-10-08). `feature.enableFSGroupPolicy: false` fixed it once in the driver release; the export squashes every client to one uid anyway.
+
+### The TRaSH `/data` layout and the fresh start
+
+The TRaSH single tree assumes one filesystem (fetched: [TRaSH folder structure](https://trash-guides.info/File-and-Folder-Structure/)), which seven NTFS volumes were not, so the plan first reproduced the Windows drive letters in every pod with seven `subPath` mounts of one claim. The operator's decision the same evening to rebuild the library on a ZFS pool made the single tree possible, and the plan was revised to mount it once at `/data`. The revision still carried the Sonarr, Radarr, SABnzbd and Seerr configs over with re-pointed root folders. On 2026-10-08 that was dropped too: the media was being rebuilt from scratch, so the carried-over databases bought nothing and pinned Sonarr to an old build (the home-operations tag on GHCR was two builds older than the Windows database, measured 2026-10-06). Hardlinks are not in play. Usenet has nothing to seed, so an import is a rename within the dataset (measured 2026-10-08, two 2.3 GB files imported in the same second).
+
+### SQLite on `local-path`
+
+Migrating an existing SQLite install to Postgres is unsupported, and the Servarr pgloader steps were written for Postgres 14; for 18 or later the wiki says to start with a fresh database (fetched: [Sonarr Postgres setup](https://raw.githubusercontent.com/Servarr/Wiki/master/sonarr/postgres-setup.md), same for Radarr and Prowlarr). The repository's `ImageCatalog` is major 18 and its postgres component is one per namespace (repo: `template/config/kubernetes/components/postgres/`), so several arrs in one namespace would clash. SQLite on NFS corrupts (fetched: [Servarr FAQ](https://raw.githubusercontent.com/Servarr/Wiki/master/sonarr/faq.md)). The fresh start removed the migration argument but not the component clash, so SQLite stayed.
+
+### Pinned to the media host, as uid 1000
+
+The NFS server is the Proxmox host that runs that worker, so pinning the pods there keeps NFS traffic on the host (lead, judgment), and `local-path` already pins each app to the node that first schedules it (repo: `template/config/talos/all/72-volumes.yaml.j2`). The `nodeAffinity` on the PV is what `nolock` requires: every claimant on one node. Seerr runs as uid 1000 and needs `/app/config` owned 1000:1000 (fetched: [Seerr migration guide](https://docs.seerr.dev/migration-guide/)), Maintainerr defaults to 1000:1000 (fetched: [Maintainerr installation](https://docs.maintainerr.info/installation/)), and the repository's other apps use 1000. All four second-wave images answered their health path under a read-only root, uid 1000 and every capability dropped (measured in Docker, 2026-10-08).
+
+### The configure hook
+
+The settings live in a Helm post-install and post-upgrade hook Job per HelmRelease, not in a laptop script or a CronJob, so helm-controller waits for it and a failed run fails the release. The scripts converge idempotently (GET, compare, PUT for config singletons; upsert by name for providers). Bazarr has no env var or flag for its API key, Tautulli only learns the Plex machine identifier after the server is picked, Seerr's first admin is created only by its Plex OAuth wizard, and Maintainerr has no authentication to set, so none of the second wave gets a hook (research on the four images from source and upstream docs, 2026-10-08).
+
+### Sign-in at the gateway
+
+The repository already signs Hubble UI in with Pocket ID and admits only `cluster_admins` (repo: `hubble-securitypolicy.yaml.j2`), and upstream sets `SONARR__AUTH__METHOD: External` (fetched: [onedr0p sonarr HelmRelease](https://raw.githubusercontent.com/onedr0p/home-ops/main/kubernetes/apps/default/sonarr/app/helmrelease.yaml)). `External` makes an arr trust whoever reaches it, so the NetworkPolicy and the `SecurityPolicy` are the login, not an option (snippet: [authentik Sonarr integration](https://integrations.goauthentik.io/media/sonarr/)). The plan had one policy per route, each with its own `redirectURL`; the build has one policy selecting routes by label with `redirectURL` unset, so Envoy Gateway derives each route's callback and a new app never edits the shared file (verified live: labelled routes answer 302 to Pocket ID, 2026-10-08).
+
+Seerr's documented sign-in methods are local and Plex, Jellyfin or Emby, with no OIDC (fetched: [Seerr users settings](https://docs.seerr.dev/using-seerr/settings/users/); the v3.5.0 source has no such route and the OIDC pull request was closed unmerged, 2026-10-08). A gateway login in front of it would double-prompt and break the Plex sign-in household members use, so it keeps its own.
+
+The `/api` routes answer the operator's wish for a mobile arr client later. The policy's OIDC redirect blocks any API client that comes through the gateway (k8s explorer, reasoning), so the API key is the only credential on that path, as upstream. Those routes stay off the external gateway, because an API key alone on the internet is the exposure CVE-2026-30975 and CVE-2026-30976 punished (fetched: [Sonarr advisory](https://github.com/Sonarr/Sonarr/security/advisories/GHSA-h5qx-5hjf-7c9r)).
+
+### Recyclarr
+
+The operator said yes on the lead's recommendation: TRaSH's profiles and custom formats are the community standard, Recyclarr keeps them current across two apps without hand edits, and the YAML lives in Git. The plan kept `delete_old_custom_formats` off so unreferenced formats would survive; with the fresh start there was nothing to protect, so it is on, which is why a format's `trash_id` is never renamed in the same change that drops or adds one. Recyclarr never removes the stock profiles and the add dialog defaults to one, so the hook Job deletes them. Size caps are the operator's rule of 2026-10-08: no movie over about 12 GB in the HD profile and 16 GB in the UHD profile, held by Radarr's indexer Maximum Size plus a local custom format, and a Sonarr format for 2160p over 16 GB, because no TRaSH format tests size and a quality definition is per minute of runtime.
+
+## What was rejected
+
+- An interim Compose VM: a second fresh deployment for no added safety (lead, judgment); kept as the fallback that was never needed.
+- Drive letters reproduced with seven `subPath` mounts: superseded by the ZFS rebuild the same evening.
+- `ntfs3` on the host with `ntfs-3g` as fallback, and the three gating tests: apply nowhere once NTFS left the design.
+- Carrying the Windows databases over: dropped 2026-10-08, since the rebuilt library made them worthless and Sonarr's pinned old build was the only thing they bought.
+- A static in-tree `nfs:` PV: rests on a deprecated plugin, and whether it mounts under Talos is UNVERIFIED.
+- Postgres through CloudNativePG: unsupported migration path, and one postgres component per namespace.
+- Letting the pods float: loses the local-NFS path and makes the `local-path` pin accidental.
+- Per-app uids or 65534: every file would need a group story; 568 is a homelab convention only.
+- The arrs' own Forms login behind the gateway (two logins), or `External` with no policy (an open UI). "Disabled for Local Addresses" is the setting CVE-2026-30975 abused.
+- One `SecurityPolicy` per route: replaced by one shared policy selecting routes by label.
+- A gateway login in front of Seerr: it has no OIDC and the double prompt breaks its Plex sign-in.
+- Huntarr, never: a reviewed release exposed every connected app's API keys on an unauthenticated endpoint and the repository is gone (snippet, a February 2026 news report); the Newtarr fork too.
+- Profilarr: a UI, a database and two containers for what Recyclarr's YAML does.
+- Notifiarr: needs an account; the arrs' own Discord connections cover alerts.
+- Unpackerr: built for torrent clients; SABnzbd unpacks on its own (fetched: [TRaSH SABnzbd](https://trash-guides.info/Downloaders/SABnzbd/Basic-Setup/)).
+- Byparr and FlareSolverr: only for Cloudflare-protected trackers, and FlareSolverr is archived.
+- Cleanuparr and Decluttarr: only if stalled queue items become a problem; Cleanuparr's SABnzbd support is UNVERIFIED and Decluttarr's failed-import removal can loop.
+- Autopulse: the arrs' built-in Plex connection triggers scans.
+- Kometa (cosmetic), Tdarr (re-encoding is a separate decision), Wizarr (single household).
+- theme-park: its mod loader needs LinuxServer or hotio images, which home-operations lacks (fetched: [theme-park setup](https://docs.theme-park.dev/setup/)). Cosmetic.
+- Exportarr and Grafana dashboards: later; its image tag is UNVERIFIED.
+- mergerfs under the pods: it does not fake hardlinks across branches and steers NFS users to SMB (snippet: [mergerfs man page](https://manpages.debian.org/unstable/mergerfs/mergerfs.1.en.html)).
+
+## What it rules out
+
+- The stack lives on one node. `nolock` and the `local-path` volumes pin every app to `media.node`, so that node's loss takes the whole stack down, and a second NFS path or shared storage would reopen the pinning decision.
+- No CloudNativePG backups for the arrs. SQLite on `local-path` is the only copy of each config, and a fresh install later could use Postgres per app only by starting a new database.
+- `External` auth means the NetworkPolicy and the shared `SecurityPolicy` are load-bearing. A route without the `media.sign-in: pocket-id` label is open to anyone who reaches it, and the namespace policy must keep admitting only the gateway and the stack.
+- The `/api` routes never go on the external gateway. A client from outside reaches them over the LAN or a VPN, not the tunnel.
+- Seerr has no single sign-on. Its Plex login is the login until upstream ships OIDC.
+- Hardlinks are not relied on. Imports are renames within one dataset; a second filesystem under `/data` would turn them into copies.
+- `delete_old_custom_formats` is on, so a format dropped from the Recyclarr config is removed from the app, and a `trash_id` is never renamed in the same change that drops or adds one.
+- The database branch is fixed. home-operations publishes only `develop`, and a database written by a newer build cannot be opened by an older one (fetched: [Radarr FAQ](https://raw.githubusercontent.com/Servarr/Wiki/master/radarr/faq.md)), so image pins only move forward.
+- The export squashes every client to uid 1000 and the driver never chowns it, so every pod stays on uid 1000.
+
+## Sources
+
+Fetched pages the record rests on. Claims resting on a snippet say so inline.
+
+- [TRaSH Guides: folder structure](https://trash-guides.info/File-and-Folder-Structure/), [hardlinks and instant moves](https://trash-guides.info/File-and-Folder-Structure/Hardlinks-and-Instant-Moves/), [SABnzbd basic setup](https://trash-guides.info/Downloaders/SABnzbd/Basic-Setup/), [Recyclarr](https://trash-guides.info/Recyclarr/), [Getting started](https://trash-guides.info/Getting-Started/)
+- [Servarr wiki: Sonarr FAQ](https://raw.githubusercontent.com/Servarr/Wiki/master/sonarr/faq.md), [Sonarr Postgres setup](https://raw.githubusercontent.com/Servarr/Wiki/master/sonarr/postgres-setup.md), [Radarr FAQ](https://raw.githubusercontent.com/Servarr/Wiki/master/radarr/faq.md), [Sonarr environment variables](https://raw.githubusercontent.com/Servarr/Wiki/master/sonarr/environment-variables.md)
+- [Sonarr advisory GHSA-h5qx-5hjf-7c9r](https://github.com/Sonarr/Sonarr/security/advisories/GHSA-h5qx-5hjf-7c9r)
+- [home-operations/containers](https://github.com/home-operations/containers) and the [SABnzbd entrypoint](https://raw.githubusercontent.com/home-operations/containers/main/apps/sabnzbd/entrypoint.sh)
+- [onedr0p home-ops Sonarr HelmRelease](https://raw.githubusercontent.com/onedr0p/home-ops/main/kubernetes/apps/default/sonarr/app/helmrelease.yaml) and the same path for radarr, prowlarr, sabnzbd, bazarr, tautulli, seerr and recyclarr
+- [app-template persistence reference](https://bjw-s-labs.github.io/helm-charts/docs/app-template/reference/persistence/)
+- [Seerr migration guide](https://docs.seerr.dev/migration-guide/), [Seerr users settings](https://docs.seerr.dev/using-seerr/settings/users/), [sct/overseerr](https://api.github.com/repos/sct/overseerr)
+- [Maintainerr installation](https://docs.maintainerr.info/installation/)
+- [Tautulli FAQ](https://docs.tautulli.com/support/frequently-asked-questions)
+- [Recyclarr getting started](https://recyclarr.dev/guide/getting-started/)
+- [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+- [What's new in Talos 1.14](https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos) and the [Talos KubeVirt guide](https://docs.siderolabs.com/talos/v1.14/advanced-guides/install-kubevirt)
+- [csi-driver-nfs chart README](https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/charts/README.md) and the [static PV example](https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/deploy/example/pv-nfs-csi.yaml)
+- [theme-park setup](https://docs.theme-park.dev/setup/)
+- Repository files: `CLAUDE.md`, `.claude/rules/flux-apps.md`, `template/config/kubernetes/components/postgres/`, `template/config/talos/all/72-volumes.yaml.j2`, `template/config/kubernetes/apps/kube-system/cilium/app/hubble-securitypolicy.yaml.j2`

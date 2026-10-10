@@ -1,0 +1,147 @@
+---
+title: The gateway
+description: Set up the UniFi gateway for the cluster, with the node address reservations, a DNS name for the Kubernetes API, BGP and optional split DNS.
+sidebar:
+  order: 3
+---
+
+This page lists what the cluster needs from the UniFi gateway, in the order the steps come up. It covers the node address reservations, a DNS name for the Kubernetes API, and BGP. It ends with split DNS, which is optional.
+
+## Status on 2026-10-03
+
+| Step                             | When                         | Status   |
+| -------------------------------- | ---------------------------- | -------- |
+| Reserve the node addresses       | Before the VMs first boot    | Done     |
+| Add a DNS name for the API       | Any time                     | Done     |
+| Upload the BGP configuration     | After `just bootstrap apps`  | Done     |
+| Forward the domain for split DNS | After the cluster is healthy | Optional |
+
+Only the BGP menu path is confirmed, from a community write-up. For the other steps this page names the setting, not the menu, because the UniFi menus were not checked.
+
+## The gateway
+
+| Fact              | Value                                   |
+| ----------------- | --------------------------------------- |
+| Model             | Dream Machine Special Edition           |
+| UniFi OS          | 6.0.10                                  |
+| Cluster network   | HomeLab, VLAN 7, `<cluster network>/22` |
+| Gateway address   | `<router address>`                      |
+| DHCP pool         | `<DHCP pool>`, a range of 21 addresses  |
+| Cluster addresses | Eleven addresses outside the DHCP pool  |
+
+The eleven cluster addresses are the four the cluster announces itself (the API address and the three gateway addresses), the three control planes, and the four workers. All eleven answered no ping on 2026-10-03.
+
+## Reserve the node addresses
+
+Do this before a VM boots for the first time. Talos starts in maintenance mode and takes an address from DHCP. `just bootstrap talos` then connects to the address in `cluster.toml`, so each VM must already hold its final address.
+
+1. For each VM, create a fixed IP reservation for its MAC on the HomeLab network.
+
+    | VM             | MAC     | Address              |
+    | -------------- | ------- | -------------------- |
+    | `k8s-cp-1`     | `<mac>` | `<cp-1 address>`     |
+    | `k8s-cp-2`     | `<mac>` | `<cp-2 address>`     |
+    | `k8s-cp-3`     | `<mac>` | `<cp-3 address>`     |
+    | `k8s-gpu-1`    | `<mac>` | `<gpu-1 address>`    |
+    | `k8s-worker-1` | `<mac>` | `<worker-1 address>` |
+    | `k8s-worker-2` | `<mac>` | `<worker-2 address>` |
+    | `k8s-worker-3` | `<mac>` | `<worker-3 address>` |
+
+2. Start one VM and read the address on its console. It should be the reserved one.
+
+UniFi accepted all seven fixed addresses outside the DHCP pool on 2026-10-03, and every VM came up on its reserved address. If a later reservation fails, use one of these.
+
+- Start the VM once so that UniFi sees the MAC, add the reservation, then restart the VM.
+- Set the address at the Talos boot menu. Press `e` on the boot entry and add this to the kernel line, with the VM's own address first. Talos documents the format in its kernel reference.
+
+    ```text
+    ip=<cp-1 address>::<router address>:22::eth0:off
+    ```
+
+Do not reserve the four addresses the cluster announces itself: the API address and the three gateway addresses.
+
+## Add a DNS name for the API
+
+The API certificate includes the name `k8s.${SECRET_DOMAIN}`. The name is optional. The API also answers on `<api address>`.
+
+1. Add a local DNS record of type A, with the name `k8s.${SECRET_DOMAIN}` and the address `<api address>`.
+2. From a machine on the network, run `dig +short k8s.${SECRET_DOMAIN}`. It prints `<api address>`.
+
+Do not create this record in Cloudflare. The address is private.
+
+## Upload the BGP configuration
+
+Do this after `just bootstrap apps`. Cilium is the BGP speaker in the cluster, and it does not run before then. Until the upload, the cluster's gateway addresses are reachable through ARP alone, which is enough for the cluster to work.
+
+The cluster side is already configured in `cluster.toml`. The router is `<router AS>` at `<router address>`, and every node is `<node AS>`.
+
+The router file is `private/udm-bgp.conf`. It peers with the seven nodes, accepts only single addresses inside `<cluster network>/22`, and sends no routes to the nodes. FRR 10.2.1 parsed it with no errors on 2026-10-03. It was uploaded the same day as the entry `home-cluster`, and all seven nodes then reported an established session, each advertising three addresses. The UniFi routing table shows the three gateway addresses as BGP routes, each with seven next hops.
+
+```text
+router bgp <router AS>
+ bgp router-id <router address>
+ neighbor k8s peer-group
+ neighbor k8s remote-as <node AS>
+ neighbor <cp-1 address> peer-group k8s
+ neighbor <cp-2 address> peer-group k8s
+ neighbor <cp-3 address> peer-group k8s
+ neighbor <gpu-1 address> peer-group k8s
+ neighbor <worker-1 address> peer-group k8s
+ neighbor <worker-2 address> peer-group k8s
+ neighbor <worker-3 address> peer-group k8s
+ !
+ address-family ipv4 unicast
+  neighbor k8s activate
+  neighbor k8s route-map K8S-IN in
+  neighbor k8s route-map K8S-OUT out
+  maximum-paths 8
+ exit-address-family
+exit
+!
+ip prefix-list K8S-LB seq 10 permit <cluster network>/22 ge 32
+!
+route-map K8S-IN permit 10
+ match ip address prefix-list K8S-LB
+exit
+!
+route-map K8S-OUT deny 10
+exit
+```
+
+1. Go to **Settings**, then **Routing**, then **BGP**.
+2. Create an entry, give it a name, and upload `udm-bgp.conf`.
+3. Open the routing table and select the **BGP** filter. It lists the three gateway addresses, one route for each.
+
+The API address does not appear there. Talos announces the API address itself, without BGP.
+
+### If no BGP routes appear
+
+Connect to the gateway with SSH and ask FRR for the state of each neighbor.
+
+```sh
+vtysh -c 'show bgp summary'
+vtysh -c 'show ip bgp'
+```
+
+A neighbor is up when its `State/PfxRcd` column shows a number. Neither fix below has been tried on this gateway.
+
+- If `vtysh` reports that `bgpd` is not running, the upload did not start the service. One community write-up for an older release set `bgpd=yes` in `/etc/frr/daemons` and ran `/usr/sbin/frrinit.sh start`.
+- If the neighbors stay in `Active` or `Connect`, the sessions are not reaching the gateway. The nodes connect from the HomeLab network to `<router address>` on TCP port 179. Check the firewall rules for traffic from HomeLab to the gateway.
+
+On the cluster side, `cilium bgp peers` shows the same sessions from each node.
+
+### When the node list changes
+
+`udm-bgp.conf` names each node. After you add or remove a node, edit the `neighbor` lines and upload the file again.
+
+## Forward the domain for split DNS
+
+This step is optional, and it can break names you use today.
+
+The cluster runs a DNS server at `<cluster DNS address>` that answers for apps on its internal gateway. To use it, the gateway has to forward queries for `${SECRET_DOMAIN}` to that address. The server has no fallthrough. Once the whole domain is forwarded, a `${SECRET_DOMAIN}` name the cluster does not know stops resolving inside the network.
+
+On 2026-10-03 the public zone held twelve such names, among them `docs`, `link`, `llms`, `mcp`, `sonarr`, `radarr`, and `requests`. Mail is not affected, because mail servers on the internet look up the MX records, not machines on this network.
+
+A narrower forward, for the individual names the cluster serves, avoids the problem. Whether UniFi can forward single names was not checked.
+
+Decide this after the cluster is healthy. Nothing in the bootstrap depends on it.

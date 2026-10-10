@@ -1,0 +1,354 @@
+---
+title: The third host
+description: Turn the Windows Plex machine into the media host, a standalone Proxmox VE host with a RAIDZ2 media pool, a Plex LXC, a USB media tier and a Talos worker.
+sidebar:
+  order: 2
+---
+
+The steps, in order, to turn the Windows 11 Plex machine into the media host, a standalone Proxmox VE 9.2 host with a RAIDZ2 media pool, a Plex LXC and the Talos worker `k8s-worker-4`. Each phase ends with a check. The reasons behind every choice are on [the third host decision record](/decisions/third-host/). The media apps come after this runbook, on [the media stack page](/apps/media/). Screens and commands that match the first two hosts are the same as on [the Proxmox hosts page](/hosts/proxmox/).
+
+Decided: no new disks, all media wiped and rebuilt by Sonarr and Radarr, RAIDZ2 of the WD Blue 4 TB disks (four of them after one failed its self-test, 8 TB usable), the USB disks wiped and kept as backup media only. The USB plan was revised on 2026-10-08 (see the USB media tier below).
+
+## Status
+
+Status on 2026-10-07. The media host is installed at `<media host address>` on Proxmox 9.2.21, kernel `7.0.14-22-pve`, with the repositories switched, `intel-microcode`, `nfs-kernel-server` and `sudo` installed, `zpool upgrade rpool` run, the workstation key in `authorized_keys` and the PegaProx account created. Phase 3 steps 4 and 5 were applied and verified after a reboot the same evening (offloads off, ARC cap 8 GiB, lowered to 6 GiB on 2026-10-08 when Plex went to 6 GB), so Phase 3 is complete. Only one USB partition held files to keep, and they were pulled to the workstation over SFTP (started 21:48 on 2026-10-07), not into `tank`. Notifications (Phase 4 step 3) were set up on all three hosts at 21:58 the same evening, with mail and Discord confirmed from each. The Phase 1 exports that survived are on the workstation, not on the USB disks.
+
+The long self-test started on all five members at 20:20 on 2026-10-07. One member (`<failed member serial>`) failed it at 20:23 (read failure at LBA 2735856120, one pending sector, 14 offline-uncorrectable, 64699 power-on hours) and is out of the pool. Decided the same evening: RAIDZ2 on the remaining four, 8 TB usable, grown to five-wide with `zpool attach` if a disk is ever bought (see "Growing the pool"). `tank` was built at 20:30 the same evening, four members `ONLINE`, 6.92 TiB available, while the four long tests were still running. The other two hosts were surveyed the same day, and this runbook matches what they run.
+
+Phases 6 and 7 were done on 2026-10-08 between 00:11 and 00:26: the Talos 1.14.2 ISO (the cluster's version since the 2026-10-05 upgrade), VM 135 `k8s-worker-4` (6 cores, 20 GB, 100 GB on `local-zfs`; 16 GB since 2026-10-10, when VM 123 `k8s-cp-3` at 5 GB joined this host and the `nightly-usb` job), the node block in `cluster.toml`, the render, `just talos apply-node`, and the BGP file with `maximum-paths 8` uploaded to the UDM. `kubectl get nodes` shows eight Ready nodes and `cilium bgp peers` eight established sessions. `just talos diff` also showed the installer image on the seven existing nodes still at v1.14.1 (Renovate raised the pin on 2026-10-06 after the upgrade, and nobody applied it); `just talos apply` converged them without a reboot, and the diff is clean on all eight.
+
+On 2026-10-08 at 13:35 `storage-status.sh` read the long-test results: all four members passed with zero reallocated, pending and uncorrectable sectors, so none is replaced. The failed member sits unused at `/dev/sdc` and should be unplugged when the case is next open. The first scrub ran at 13:39 (0 B repaired, 0 errors, one second on the empty pool). The 6.92 TiB `AVAIL` is the four-wide RAIDZ2 as built, not a layout error. The SFTP pull finished the same day, so Phase 4 step 4 is done and nothing from the USB disks goes into `tank`.
+
+Phase 4 step 5 is `usb-backup.sh` in the private scripts directory (two stages, dry run unless `CONFIRM=yes`). Revised at 14:11 the same day: a seventh portable turned up (another old library copy, wiped), and the operator chose redundancy for the media on the portables because they have failed repeatedly. `sdg` and `sdh` are the two-disk `usb-backup` rotation (one attached, one off-site, swapped monthly); the other five are a SnapRAID + mergerfs tier of about 15.5 TiB, exported over NFS as a second root folder for the arrs and a second Plex folder. RAIDZ on the portables was rejected: shingled rebuilds run for days and a hub reset suspends the pool. Step 5 finished at 14:18: all seven portables wiped, `sdg`, `sdh` and `sdj` formatted ext4 `usb-backup` by hand (`sfdisk` plus `mkfs.ext4`, since Proxmox ships no `parted`), `sdg` alone switched on, the storage stage of `usb-backup.sh` run (fstab by label, `usb-backup` directory storage with keep 7 daily, 4 weekly, 12 monthly, job `nightly-usb` at 02:00 for 200 and 135, `repeat-missed`), and the first backup run by hand: VM 135 in 43 s (2.26 GB, 95% sparse), LXC 200 in 12 s (442 MB, its `/data` bind mount excluded as intended), notification delivered through the `icloud` target.
+
+The USB media tier was built at 14:42 the same day: the six disks formatted by serial, `usb-array.sh` run (its first run failed on `never-forget-nodes`, the 2.41 name of 2.40's `noforget`, and a stale fstab line, both fixed), union at 17.3 TB, both exports live, SnapRAID's first sync clean, a Sonarr pod listing and writing `/data/ext/tv` through the `crossmnt` submount (so no second PersistentVolume is needed), and `/data/ext/tv` and `/data/ext/movies` added as root folders through the Sonarr and Radarr APIs. Plex's `mp1` was confirmed and both library folders added at 14:52. The first downloads ran at 15:28: a 12-episode season landed on `tank` in nine minutes at 30 MB/s and Plex listed the show after a forced scan (Sonarr's per-import refresh had not registered); the first film grab was a 21.5 GiB Bluray-1080p, which led to Radarr's 12 GiB Maximum Size cap, then an 11.4 GiB grab.
+
+Still open: the hub-drop remount test on `usbd2` (tabled by the operator; until it is done, a drop needs a manual remount, see "Boot order and hotplug"), and the Phase 5 hardware-transcode check.
+
+## Phase 1: on Windows, before anything is wiped
+
+1. Export the libraries from Tautulli and run the triage tool. Keep the `keep.csv`, `drop.csv`, `collections.txt` and `pin.txt` files; they drive the rebuild.
+2. Back up the apps from their UIs and download each file to a disk that survives the wipe (a USB disk is fine). Sonarr and Radarr: System, Backup, Backup Now, download the zip. SABnzbd: Config, General, Create backup. Tautulli: Settings, Help and Info, download the database and config.
+3. Inside WSL, stop the containers and tar the whole config tree as the second copy, plus the compose file for reference.
+
+    ```sh
+    cd /opt/docker && docker compose stop
+    sudo tar -C /opt/docker -cpf /mnt/<usb>/appdata.tar appdata compose.yaml
+    docker compose start
+    ```
+
+4. Run the long self-test on the five RAID members and read the result after about eight hours. A member with a failed test or a growing pending count drops out of the pool (one did; the Decided paragraph above says what was built).
+
+    ```powershell
+    foreach ($n in 1..5) { smartctl -t long /dev/csmi0,$n }
+    # eight hours later
+    foreach ($n in 1..5) { "=== $n"; smartctl -a /dev/csmi0,$n | Select-String 'test result|Pending|Uncorrectable|Reallocated' }
+    ```
+
+    Read the NVMe as well, since it becomes the only copy of the Proxmox root. Firmware, Percentage Used, Available Spare and Media Errors are the lines that matter. The first two hosts had their Proxmox disks checked the same way.
+
+    ```powershell
+    smartctl -a /dev/nvme0
+    ```
+
+    Once Windows is gone, the same test runs from Proxmox. Start it on the five members by id, read the results after about eight hours, and only then run Phase 4 step 1.
+
+    ```sh
+    for d in /dev/disk/by-id/ata-WDC_WD40EZRZ-*; do case $d in *-part*) ;; *) smartctl -t long "$d";; esac; done
+    # eight hours later
+    for d in /dev/disk/by-id/ata-WDC_WD40EZRZ-*; do case $d in *-part*) ;; *) echo "=== $d"; smartctl -a "$d" | grep -E 'test result|Pending|Uncorrectable|Reallocated';; esac; done
+    ```
+
+5. Note the Windows Plex version (Settings, About) and that Plex Pass is active.
+
+Check. The backup disk holds the three UI backups, `appdata.tar`, and the triage files. All five members passed. Nothing on the machine has changed.
+
+## Phase 2: firmware
+
+1. Download the newest BIOS for the Z370 Killer SLI/ac from ASRock's support page on another computer and flash it with Instant Flash from a USB stick. 4.20 and later cannot be flashed back.
+2. In the UEFI setup: CPU Configuration, Intel Virtualization Technology, Enabled. Chipset Configuration, VT-d, Enabled; IGPU Multi-Monitor, Enabled. Storage Configuration, SATA Mode Selection, AHCI, and every `M2_x RST PCIe Storage Remapping`, Disabled. Boot, CSM, Disabled. Security, Secure Boot, Disabled.
+3. Save. Windows will no longer boot; that is expected.
+
+Check. Boot the Proxmox 9.2 installer USB stick, choose the Terminal UI entry, and at the debug shell confirm the disks are all visible and VT-d is on.
+
+```sh
+lsblk -o NAME,SIZE,MODEL,TRAN          # nvme0n1 250G, five 3.65T WDC WD40EZRZ on sata, USB disks on usb
+dmesg | grep -i -E 'DMAR|remapping'    # "Intel(R) Virtualization Technology for Directed I/O"
+```
+
+## Phase 3: Proxmox VE
+
+Follow the install, repository and check sections of the Proxmox hosts page with these values. Install from the 9.2-1 ISO, which is published, so ZFS 2.4 creates the pool. If the 9.1 stick is used instead, run `zpool upgrade rpool` after step 3, as on the other two hosts.
+
+1. Target disk: `zfs (RAID0)` on the 250 GB NVMe alone, ashift 12. Set every other disk to `-- do not use --`.
+2. Hostname `<media host name>.<domain>`, static address `<media host address>/22` (the next address after the GPU host and the non-GPU host; pick another if it is taken), gateway `<gateway address>`, DNS `<resolver address>`, the resolver the other two hosts use. Reserve the address in UniFi for the I219-V's MAC first.
+3. After the restart: disable `pve-enterprise`, add No-Subscription, `apt update && apt full-upgrade`, `apt install intel-microcode nfs-kernel-server sudo`, restart. `smartmontools` and `ethtool` ship with Proxmox; `sudo` is for the PegaProx account in step 7.
+4. The I219-V offload fix. The settings are stanza lines in `/etc/network/interfaces`, which the `sed` below adds; never paste the stanza into a shell. ifupdown2 3.3.0 applies them itself on every boot, and only calls `ethtool` for a value that differs from the running one, so `tso-offload off` is harmless on this driver, which reports TSO fixed off. The NIC is `nic0`, measured with `ls /sys/class/net/vmbr0/brif/`.
+
+    ```sh
+    cp /etc/network/interfaces /etc/network/interfaces.bak
+    sed -i 's/^iface nic0 inet manual$/iface nic0 inet manual\n\tgso-offload off\n\tgro-offload off\n\ttso-offload off\n\ttx-offload off\n\trx-offload off/' /etc/network/interfaces
+    ifreload -a
+    ethtool -k nic0 | grep -E '^(rx|tx)-checksumming|^generic-(segmentation|receive)'   # all off
+    ```
+
+5. Cap the ZFS cache and reboot. The installer wrote this file at 10% of RAM (3.1 GiB here), and the root pool is imported from the initramfs, so the rebuild is required. 6 GiB plus the worker's 20 GB and Plex's 6 GB is the whole 32 GB (since 2026-10-10 the worker is 16 GB and `k8s-cp-3`, VM 123, 5 GB, sits beside it; see [the node maintenance page](/operations/node-maintenance/)), and the ARC gives memory back under pressure, so that is the split since 2026-10-08 (it was 8 GiB and 4 GB; measured that night, Plex idled at 95 MB and the ARC held 2.9 GiB, so the cache lost nothing). A running host takes the new cap at once through `/sys/module/zfs/parameters/zfs_arc_max`; the file and the initramfs rebuild make it survive a reboot.
+
+    ```sh
+    echo 'options zfs zfs_arc_max=6442450944' > /etc/modprobe.d/zfs.conf
+    update-initramfs -u -k all && reboot
+    ```
+
+6. Install the workstation's key, as on the other hosts: `ssh-copy-id root@<media host address>`.
+7. The PegaProx account, the Option B block from [the PegaProx page](/apps/pegaprox/), with the same password as on the other two hosts. Then add the host in PegaProx under Settings, Clusters, Add Cluster, named after the host at add time (the metrics label comes from the add-time name), user `<proxmox service account>@pam`.
+
+    ```sh
+    useradd -m <proxmox service account>
+    passwd <proxmox service account>
+    echo "<proxmox service account> ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/<proxmox service account>
+    chmod 0440 /etc/sudoers.d/<proxmox service account>
+    pveum useradd <proxmox service account>@pam -comment "PegaProx Service Account"
+    pveum aclmod / -user <proxmox service account>@pam -role Administrator
+    visudo -c
+    su - <proxmox service account> -c 'sudo -n true' && echo ok
+    ```
+
+Check.
+
+```sh
+pveversion                              # pve-manager/9.2
+uname -r                                # 7.0 kernel
+dmesg | grep -i microcode               # Updated early from, as intel-microcode loads
+ethtool -k nic0 | grep -E '^(rx|tx)-checksumming|^generic-(segmentation|receive)'   # all off
+cat /etc/modprobe.d/zfs.conf            # the value chosen in step 5
+cat /sys/module/zfs/parameters/zfs_arc_max                            # the same value
+zpool status rpool                      # ONLINE, the NVMe alone
+id <proxmox service account> && pveum user list   # the account and its @pam user exist
+```
+
+## Phase 4: the media pool
+
+1. Wipe the four surviving members and build the pool by disk id, after the long self-test from Phase 1 has passed on all four. The id list is resolved, not typed, skips the failed serial, and is refused unless it has four entries. `tank/archive` is for the files copied off the USB disks in step 4. Four-wide RAIDZ2 gives 8 TB; `zpool attach tank raidz2-0 <new disk id>` grows it to five-wide later (OpenZFS raidz expansion; blocks written before the expansion keep the narrower parity ratio until rewritten).
+
+    ```sh
+    ids=(); for d in /dev/disk/by-id/ata-WDC_WD40EZRZ-*; do case $d in *-part*|*<failed member serial>*) ;; *) ids+=("$d");; esac; done
+    [ "${#ids[@]}" -eq 4 ] && printf '%s\n' "${ids[@]}"   # four ids, or stop here
+    wipefs -a "${ids[@]}"
+    zpool create -o ashift=12 -O compression=lz4 -O atime=off -O xattr=sa -O recordsize=1M \
+      -O mountpoint=none tank raidz2 "${ids[@]}"
+    zfs create -o mountpoint=/srv/media tank/media
+    zfs create -o mountpoint=/srv/archive tank/archive
+    mkdir -p /srv/media/usenet/incomplete /srv/media/usenet/complete/{tv,movies} /srv/media/media/{tv,movies}
+    chown -R 1000:1000 /srv/media /srv/archive && chmod -R u=rwX,go=rX /srv/media /srv/archive
+    ```
+
+    `build-tank.sh` in the private scripts directory runs the same commands after printing each member's SMART self-test state, as a dry run unless `CONFIRM=yes` is set; run it with `EXCLUDE=<failed member serial> MEMBERS=4`.
+
+2. Export it to the node network as uid 1000.
+
+    ```sh
+    echo '/srv/media <node network CIDR>(rw,sync,no_subtree_check,fsid=100,all_squash,anonuid=1000,anongid=1000)' >> /etc/exports
+    exportfs -ra && systemctl enable --now nfs-server
+    ```
+
+3. SMART monitoring is already on, but its mail never leaves the host. Proxmox ships `smartmontools` enabled with Debian's default `DEVICESCAN ... -m root` line, which covers the NVMe and the members, and root's mail goes through `proxmox-mail-forward` to the notification system, whose built-in `mail-to-root` target hands it to postfix for direct delivery on port 25. Measured on the media host on 2026-10-07: every connection to iCloud's MX hosts on port 25 times out and the messages sit deferred, and the other two hosts run the identical setup, so nothing from any host has ever arrived. Decided the same evening: an `icloud` SMTP target (smtp.mail.me.com, port 587, STARTTLS, the full address as username, the app-specific password; Apple's published settings) for every notification, a `discord` webhook target (the Alertmanager channel, the body from Proxmox's docs) for warnings and errors, and the built-in `default-matcher` disabled. `setup-notify.sh` in the private scripts directory does all of it idempotently, prompts for the two secrets without echoing them, and sends a test through each target. Run it on all three hosts, from an interactive root shell, then drop the mail that was deferred on the dead path.
+
+    ```sh
+    scp setup-notify.sh root@<media host address>:/root/   # from the workstation
+    ssh root@<media host address>                          # then, on the host:
+    bash /root/setup-notify.sh
+    postqueue -p                                           # the deferred port-25 mail
+    postsuper -d ALL deferred
+    ```
+
+    Check. A test mail from "Proxmox `<media host name>`" in the inbox, a test message in the Discord channel, and `pvesh get /cluster/notifications/matchers` listing `all-to-mail`, `urgent-to-discord` and `default-matcher` with `disable` set.
+
+4. Copy off the USB disks. They are NTFS and already mounted read-only by the kernel's `ntfs3` under `/mnt/usb-<partition>` (`usb-inventory.sh` in the private scripts directory did that and remounts them after a reboot; `force` only lets a volume Windows left dirty mount, and read-only it changes nothing). Inventory on 2026-10-07: about 25 TB, of which Movies 3.3 TB and TV-Shows 20.6 TB spread over the six disks, about 1 TB in three other folders, and two `found.00x` chkdsk folders of 12 GB on one disk; every other folder is empty. The pool holds 8 TB, so the keep list needs re-cutting with `--budget-tb 6.4` (80% of 8 TB) in the triage tool before library media is chosen. Browse with `ls` and `du -sh`, and copy a folder at a time. Library media goes into `/srv/media/media/{movies,tv}` so Plex and the arrs find it; anything else into `/srv/archive`. NTFS carries no POSIX ownership, so rsync sets it explicitly. Count files on both sides before unmounting, and run a copy under `screen` or `tmux`, since a USB copy of several TB takes hours.
+
+    ```sh
+    rsync -rt --no-perms --no-owner --no-group --chown=1000:1000 --info=progress2 /mnt/usb-sdg1/<dir>/ /srv/archive/<dir>/
+    find /mnt/usb-sdg1/<dir> -type f | wc -l; find /srv/archive/<dir> -type f | wc -l   # equal
+    umount /mnt/usb-*
+    ```
+
+5. Wipe the USB disks (`wipefs -a` on each), then label two as backup media. Add one as a Proxmox directory storage named `usb-backup` (Datacenter, Storage, Add, Directory, content `VZDump backup file`) and set a nightly `vzdump` of the Plex LXC and the worker VM to it (Datacenter, Backup, Add). The other rotates off-site. The remaining five become the USB media tier (section below). This step first planned three backup disks and no media tier; the status says what replaced that.
+
+Check.
+
+```sh
+zpool status tank                       # raidz2-0 ONLINE, four disks, no errors
+zfs get compression,atime,recordsize tank/media
+exportfs -v                             # /srv/media to the node network with all_squash
+showmount -e localhost
+zpool scrub tank && sleep 60 && zpool status tank   # scrub runs clean on the empty pool
+```
+
+## Phase 5: the Plex LXC
+
+1. Download the Ubuntu 24.04 template and create an unprivileged container with 2 cores, 6 GB and a 20 GB root on `local-zfs`. The container was created with 4 GB and raised live with `pct set 200 --memory 6144` on 2026-10-08 (the ARC cap dropped to 6 GiB to pay for it, Phase 3 step 5). Plex itself needs little memory: a hardware transcode session is a few hundred MB, direct play is close to nothing, and the transcoder's temp files are on the rootfs, so the UHD 630 caps simultaneous transcodes long before 6 GB does. The headroom is for library scans with intro and credit detection on a large library, since the container has no swap and the OOM killer is the only backstop.
+
+    ```sh
+    pveam update && pveam available | grep ubuntu-24.04     # take the exact template name from here
+    pveam download local <template name>
+    pct create 200 local:vztmpl/<template name> --hostname plex \
+      --unprivileged 1 --cores 2 --memory 6144 --swap 0 --rootfs local-zfs:20 \
+      --net0 name=eth0,bridge=vmbr0,ip=<plex address>/22,gw=<gateway address> \
+      --nameserver <resolver address> --searchdomain <domain> --onboot 1
+    pct start 200 && pct exec 200 -- getent group render   # note the gid, usually 993
+    pct stop 200
+    ```
+
+2. Hand in the render node and the media tree, then start it. `nesting=1` is what the template's systemd 255 asks for at `pct start`; it is safe in an unprivileged container and the GUI sets it by default.
+
+    ```sh
+    cat >> /etc/pve/lxc/200.conf <<EOF
+    features: nesting=1
+    dev0: /dev/dri/renderD128,gid=<render gid from above>
+    mp0: /srv/media,mp=/data
+    EOF
+    pct start 200
+    ```
+
+3. Inside the container, install Plex from its repository (the repo.plex.tv lines are Plex's current ones, changed with 1.43.0; fetched from [Plex's repository article](https://support.plex.tv/articles/235974187/)) and the Intel media driver.
+
+    ```sh
+    pct exec 200 -- bash -c '
+      apt update && apt install -y curl gnupg intel-media-va-driver-non-free intel-gpu-tools
+      install -d /etc/apt/keyrings
+      curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.v2.key | gpg --dearmor -o /etc/apt/keyrings/plexmediaserver.v2.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/plexmediaserver.v2.gpg] https://repo.plex.tv/deb/ public main" > /etc/apt/sources.list.d/plexmediaserver.list
+      apt update && apt install -y plexmediaserver
+      usermod -aG render,video plex && systemctl restart plexmediaserver'
+    ```
+
+4. The address is static at `<plex address>`, the one the Windows Plex server had, so no UniFi reservation is needed. Open `http://<plex address>:32400/web`, claim the server with your Plex account, and add two libraries, Movies at `/data/media/movies` and TV at `/data/media/tv`, with the Plex Movie and Plex TV Series agents.
+5. Settings, Transcoder: "Use hardware acceleration when available" and "Use hardware-accelerated video encoding" on. Settings, Library: automatic scan on, partial scan on, preview thumbnails off, intro and credit markers, voice activity data and chapter thumbnails as scheduled tasks, "Allow media deletion" off (the arrs own the files). Transcoder temporary directory left at the default, the container's rootfs on the NVMe, not `/dev/shm`: inside an unprivileged container `/dev/shm` is a tmpfs sized from the host's RAM, and its pages are charged to the container's 6 GB limit, so a long transcode would be killed by the OOM killer rather than capped. Plex's own setting text also advises against a RAM disk. Measured 2026-10-08 after the first imports: neither the season's 12 imports nor the film's surfaced in Plex from the path-scoped refresh the arrs send, nor from one sent by hand, while a full `refresh` found them at once. The server log shows path-scoped scans do run (`Scanning /data/media/tv/Loki (2021) {tvdb-362472}/Season 01` at 19:50 UTC, skipped as unchanged after the full scan), so the cause is in the 19:55 to 19:59 UTC window around Radarr's import and still unread; "Scan my library periodically", hourly, was turned on through the API as the fallback. Settings, Network: LAN Networks set as all three RFC 1918 ranges, so the other home VLANs count as local for bandwidth rules; Client Network IPv4; no custom certificate. Decided 2026-10-07: a Cloudflare Origin CA certificate is trusted only between Cloudflare and the origin (Cloudflare docs), Plex clients connect directly, and the `plex.direct` certificate Plex fetches is publicly trusted and renewed by Plex; a Let's Encrypt one through Cloudflare DNS would only add a renewal chore. Known defect, measured 2026-10-07: the `plex.direct` certificate chains leaf, `YR1`, `Root YR` without the cross-signed Root YR, so `openssl` verifies with code 20 on the host, the workstation's browser rejects the handshake and Plex's own self-test logs curl error 60; clients fall back to HTTP because Secure connections is Preferred, so never set it to Required. A Plex forum thread (topic 942379) reports the same, the certificate survives a recreate, no Plex fix found. If a client ever refuses to connect, the fallback is a Let's Encrypt certificate for `<plex host name>.${SECRET_DOMAIN}` via Cloudflare DNS, which carries the cross-signed root, loaded as PKCS#12 into the custom certificate fields. "Strict TLS configuration" was ticked on 2026-10-07 so the next renewal (before 2027-01-05) issues an ECDSA certificate from the `YE1` chain; a restart did not reissue. Run the `openssl` chain check again after that renewal: three certificates and verify code 0 means the ECDSA chain is complete and the defect is behind us.
+6. Custom certificate, decided the same evening rather than waiting. `plex-cert.sh` (in the private scripts directory) runs inside the container from `pct enter 200`: installs `certbot` with the Cloudflare DNS plugin, stores a Cloudflare API token scoped to DNS edit on the zone in `/root/.secrets/cloudflare.ini`, issues `<plex host name>.${SECRET_DOMAIN}` by DNS-01 with `--preferred-chain "ISRG Root X1"` so the chain carries the cross-signed root, and installs a deploy hook that repacks the certificate as `/var/lib/plexmediaserver/plex.p12` (AES-256 and SHA-256, which Plex's OpenSSL 3 needs; password in `/etc/letsencrypt/plex-p12.pass`) and restarts Plex after every renewal. certbot's timer renews it. The script prints the three values for Plex, Settings, Network: the file path, the password and the domain. Outside the container: a Cloudflare A record `<plex host name>.${SECRET_DOMAIN}` to the WAN address, DNS only and never proxied (ExternalDNS leaves records it does not own alone), and a UniFi local DNS record `<plex host name>.${SECRET_DOMAIN}` to `<plex address>` so LAN clients skip the hairpin. The WAN address is not static; if it changes, the A record follows by hand or by the UDM's dynamic DNS. Check: `openssl s_client -connect <plex address>:32400 -servername <plex host name>.${SECRET_DOMAIN}` shows the chain ending at ISRG Root X1 and verify code 0. Done 2026-10-07 at 23:14: certbot chose an ECDSA key, so the chain is the leaf, `YE2`, `Root YE`, `ISRG Root X2` cross-signed by `ISRG Root X1`, four certificates, verify code 0. Clients by IP still get the `plex.direct` certificate, so Secure connections stays Preferred.
+7. Remote access. The UDM already forwards TCP and UDP 32400 to `<plex address>` (port forward `Plex` and its zone policy `Allow Port Forward Plex`, read through the API on 2026-10-07), left over from the Windows server, so the container is reachable from the internet as soon as it listens. In Plex, Settings, Remote Access, tick "Manually specify public port", enter 32400, Enable. Never UPnP, and the Cloudflare tunnel is not for Plex. The Remote Access status flaps between green and red on its own. Measured 2026-10-07 through the UDM's traffic-flows API: every plex.tv probe (Amazon addresses `44.207.218.81`, `34.202.97.122`, `34.239.73.157`) was allowed, and the probe behind a red result reached the UDM 80 seconds after plex.tv issued it and timed out at 120 seconds on their side. The country restriction is not involved (the one blocked Romanian address was an external check node of ours), so Romania stays blocked and nothing on the UDM changes for Plex. The test that matters is a client outside the house connecting direct rather than through the relay. No firewall rule names the address otherwise, and no DNS record points at it. The UniFi client entry for the host's NIC still carries the old Windows name with the fixed IP switched off; rename it to the host's name.
+
+Check. Play any file at a forced lower quality and confirm `(hw)` next to Video in the dashboard, while `intel_gpu_top` on the host shows activity. `pct exec 200 -- ls /data/media` lists the two directories.
+
+## Phase 6: the Talos worker VM
+
+1. Reserve `<worker-4 MAC>` for `<worker-4 address>` in UniFi before the VM boots.
+2. Fetch the Talos ISO and define `mkvm` as on the Proxmox hosts page, then create and start the VM. The ISO is the cluster's current Talos version from the image factory (1.14.2 at the time; the 1.14.1 URL this step first carried is superseded by the 2026-10-05 upgrade).
+
+    ```sh
+    wget -O /var/lib/vz/template/iso/talos-<version>-metal-amd64.iso <factory ISO URL>
+    mkvm 135 k8s-worker-4 6 20480 100 35
+    qm start 135
+    ```
+
+Check. From the workstation, `talosctl get disks -n <worker-4 address> --insecure` lists `/dev/sda`.
+
+## Phase 7: join the cluster (repo work)
+
+1. Add the node block to `cluster.toml` after the last `[[nodes]]` entry.
+
+    ```toml
+    [[nodes]]
+    name       = "k8s-worker-4"
+    address    = "<worker-4 address>"
+    controller = false
+    disk       = "/dev/sda"
+    mac_addr   = "<worker-4 MAC>"
+    ```
+
+2. Render, restore the untouched secrets, apply, commit.
+
+    ```sh
+    just template check-layout && just configure
+    git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+    just talos diff && just talos apply-node k8s-worker-4
+    git add -A && git commit -m "feat(talos): add k8s-worker-4 on the media host" && git push
+    ```
+
+3. Add `neighbor <worker-4 address> peer-group k8s` to the UDM's BGP file, raise `maximum-paths 7` to `8` in the same file (it caps the ECMP next hops at the node count), and re-upload it per [the gateway page](/hosts/gateway/).
+
+Check. `kubectl get nodes` shows `k8s-worker-4` Ready; `cilium bgp peers` shows its session Established; on the UDM the neighbor shows a prefix count.
+
+## Phase 8: the media apps
+
+Continue on the media stack page: csi-driver-nfs and the shared PV first, then Sonarr as the pilot with its UI backup restored, then the rest. The library rebuilds from the keep list.
+
+## Growing the pool
+
+`tank` is a four-wide RAIDZ2 because one of the five members failed its self-test. A fifth disk joins the existing vdev in place; no new vdev and no rebuild from scratch.
+
+- The disk must be at least as large as the smallest member, so 4 TB, and CMR (a resilver on an SMR disk takes days). Run `smartctl -t long` on it first, as on the members.
+- The pool must have the `raidz_expansion` feature. ZFS 2.4 created `tank`, so it does; `zpool get feature@raidz_expansion tank` confirms.
+- Attach it to the vdev, not the pool. `zpool status` reports the expansion's progress, and the pool stays online and usable throughout.
+
+    ```sh
+    zpool attach tank raidz2-0 /dev/disk/by-id/ata-<new disk id>
+    zpool status tank
+    ```
+
+- Blocks written before the expansion keep the four-wide data-to-parity ratio (two data, two parity); only blocks written afterwards use the five-wide ratio (three data, two parity). The pool reports the new space, but the old data does not shrink until it is rewritten, for example by `zfs send | zfs receive` into a new dataset and a rename, or by copying the files. So an expansion is cheapest early, before the library is copied in.
+- Source: the OpenZFS [`zpool-attach`](https://openzfs.github.io/openzfs-docs/man/master/8/zpool-attach.8.html) and `zpool-features` manual pages, read 2026-10-07.
+
+## The USB media tier
+
+Decided 2026-10-08: the six spare portables become a second media tier with parity, because they have failed repeatedly and the operator wants a death to cost no media. Not ZFS: RAIDZ reconstructs a member with random reads and a continuous write stream, which a shingled drive takes at 20 to 40 MB/s once its cache fills, so a rebuild runs for days, and a hub reset detaches every member at once and suspends the pool. SnapRAID computes parity over whole files on plain ext4 disks in a nightly sequential pass, rebuilds a dead disk sequentially, survives two deaths with two parity disks, and a dropped disk only hides its own files. mergerfs presents the data disks as one tree. Verified 2026-10-08 against the SnapRAID manual and the mergerfs documentation (trixie ships snapraid 12.4 and mergerfs 2.40.2, both in main).
+
+| Label      | Disk                         | Serial     | Role   |
+| ---------- | ---------------------------- | ---------- | ------ |
+| usbp1      | Seagate BUP Portable 4.5 TiB | `<serial>` | parity |
+| usbp2      | WD50NDZW-11A8JS1 4.5 TiB     | `<serial>` | parity |
+| usbd1      | WD50NDZW-11A8JS1 4.5 TiB     | `<serial>` | data   |
+| usbd2      | WD50NDZW-11BCSS0 4.5 TiB     | `<serial>` | data   |
+| usbd3      | WD50NDZW-11A8JS1 4.5 TiB     | `<serial>` | data   |
+| usbd4      | WD50NDZW-11BCSS0 4.5 TiB     | `<serial>` | data   |
+| usb-backup | Seagate Expansion 3.6 TiB    | `<serial>` | vzdump |
+
+About 16.3 TiB usable (18.2 TiB of data disks less the 300 GiB floor on each). The smallest disk holds the backups, swapped into that role at 14:49 while the array was still empty; there is no off-site location, so a second backup disk bought nothing and became `usbp2`.
+
+### Boot order and hotplug
+
+Learned 2026-10-09, the first reboot after the build. `tank/media` is mounted on `/srv/media` by `zfs-mount.service` from the dataset property, not from fstab, so the union's fstab line carries `x-systemd.requires=zfs-mount.service,x-systemd.after=zfs-mount.service` and `nofail`, plus `x-systemd.before=nfs-server.service,x-systemd.before=pve-guests.service` (a `nofail` mount is no longer ordered before `local-fs.target`, so its consumers are named) and `x-systemd.mount-timeout=180s` (mergerfs waits up to 120 s for its branches, past systemd's 90 s default). Without the ordering the union mounted at 17:54:21 and ZFS covered it at 17:54:26: `findmnt` showed the union active, `ls /srv/media/ext` showed the immutable placeholder, the Plex LXC's `df /data/ext` said `tank/media`, and every pod saw an empty `/data/ext`. Recovery was `mount` of the union again on top of the ZFS mount (the LXC picks that up through rslave propagation), then scaling bazarr, radarr, sabnzbd and sonarr to 0 and back, because the NFS client on the worker keeps its cached `ext` entry until the share is remounted and the four share one mount.
+
+A hub replug unmounts every `nofail` disk and systemd does not remount them when they return, while the union keeps serving the empty placeholders and SnapRAID reports an empty array. The `99-usb-media.rules` udev file (`SYSTEMD_WANTS` per label) is the fix, verified by switching one data disk's hub port off and on and watching `findmnt /mnt/usb/d1` return. Never `mount -a` here: libmount cannot match the fstab source glob to the mounted `usbmedia`, so it stacks a second union each time (two were stacked on 2026-10-09 until the next reboot; harmless, but unmounting the top one re-exposes what is beneath). After any reboot, check `pct exec 200 -- df /data/ext` says `usbmedia` and a pod lists `/data/ext/tv`.
+
+### Layout
+
+Each disk mounts by label under `/mnt/usb/` (`d1`..`d4`, `p1`, `p2`) with `nofail`. The empty mount directories are immutable and carry mergerfs's `.mergerfs.branch_mounts_here` marker, so an unmounted disk can neither swallow writes onto the root disk nor count as a branch at startup. mergerfs unions `/mnt/usb/d*` at `/srv/media/ext`, inside the existing export tree, with the man page's NFS options for 2.40 (`noforget`, which 2.41 renames `never-forget-nodes`, `inodecalc=path-hash`, its own `fsid`) and `minfreespace=300G`, which also excludes the root filesystem's free space. `/srv/media` gets `crossmnt`, so the pods see the union as `/data/ext` with no cluster change, and the Plex LXC gets it as `mp1` at `/data/ext`. SnapRAID has two parity files, a content copy on the root disk and on every data disk, and a nightly job at 03:30 (after the 02:00 vzdump) that refuses unless all six disks are mounted, then runs `touch`, `sync` and a 3% `scrub` of blocks older than ten days, so the whole array is scrubbed about monthly. SnapRAID itself also refuses a sync when every file on a disk is gone unless forced with `-E`. Parity is as of the last sync, so a file added during the day is unprotected until 03:30; for media that is fine.
+
+### Build it
+
+1. Switch every portable on, then format the six by serial. `-T largefile4` is the manual's recommendation for parity and suits media on the data disks (one inode per 4 MiB). Two of the disks still carry the `usb-backup` label from the earlier plan and must be wiped before any reboot, or the backup mount could pick one of them.
+
+    ```sh
+    declare -A role=( [<serial>]=usbp1 [<serial>]=usbp2 [<serial>]=usbd1
+                      [<serial>]=usbd2 [<serial>]=usbd3 [<serial>]=usbd4 )
+    for serial in "${!role[@]}"; do
+      d=$(lsblk -dno NAME,SERIAL | awk -v s="$serial" '$2==s{print $1}')
+      [ -n "$d" ] || { echo "missing $serial"; continue; }
+      echo "$serial -> /dev/$d -> ${role[$serial]}"
+      for p in $(lsblk -lnpo NAME "/dev/$d" | tail -n +2); do wipefs -aq "$p"; done
+      wipefs -aq "/dev/$d"
+      printf 'label: gpt\n,,L\n' | sfdisk -q "/dev/$d" && udevadm settle
+      mkfs.ext4 -q -F -m 0 -T largefile4 -L "${role[$serial]}" "/dev/${d}1"
+    done
+    lsblk -o NAME,SIZE,SERIAL,FSTYPE,LABEL | grep -E 'NAME|usb[dp]|sd[f-l]'
+    ```
+
+2. `usb-array.sh` in the private scripts directory does the rest, idempotently, as a dry run unless `CONFIRM=yes`: packages, mount points and fstab, the union, the SnapRAID config and nightly job, the export, the Plex mount point, the first sync.
+
+    ```sh
+    ssh root@<media host address> 'bash -s' < usb-array.sh
+    ssh root@<media host address> 'CONFIRM=yes bash -s' < usb-array.sh
+    ```
+
+3. Prove the two things the design rests on before any media lands. From the workstation, `kubectl exec -n media deploy/sonarr -- ls -la /data/ext` must list `tv` and `movies`, which proves the NFS client traverses the `crossmnt` submount from inside a pod; if it does not, the fallback is a second PersistentVolume for the union, a repo change. Then switch `usbd2`'s hub port off, wait ten seconds, switch it on, and check `findmnt /mnt/usb/d2` and `ls /srv/media/ext/tv` on the host; if the disk does not remount on its own, add a udev rule that runs `systemd-mount` on `ID_FS_LABEL=usbd*` (the `99-usb-media.rules` file above is that rule).
+
+4. Root folders and libraries. In Sonarr, Settings, Media Management, add `/data/ext/tv`; in Radarr, `/data/ext/movies`. In Plex, add `/data/ext/tv` to the TV library and `/data/ext/movies` to Movies. New grabs go wherever the root folder chosen at add time points; imports onto the union are copies, not hardlinks, since it is a different filesystem from `/data/usenet`.
+
+Check: `snapraid status` reports no errors and six disks; `df -h /srv/media/ext` shows about 15.5 TiB; `exportfs -v` lists both exports; `pct exec 200 -- ls /data/ext` lists the two folders.
+
+## If something goes wrong
+
+- Pool build fails on a member: `smartctl -a` that disk; drop it with `EXCLUDE` and rebuild. With a second member gone, three-wide RAIDZ2 is 4 TB and a bought disk becomes the better answer.
+- Plex shows no `(hw)`: `pct exec 200 -- ls -l /dev/dri` must show `renderD128` with the render group; check the gid in `200.conf` against `getent group render` inside the container.
+- NFS mount refused from a pod: `exportfs -v` on the host and `showmount -e <media host address>` from the workstation; the export must list the node network.
+- The VM never reaches maintenance mode: UniFi reservation missing, or the MAC in `mkvm` differs from `cluster.toml`.
+- Rollback of the node: `kubectl drain k8s-worker-4`, `talosctl -n <worker-4 address> reset --graceful`, `kubectl delete node k8s-worker-4`, remove the block and the BGP neighbor line, `just configure`, push.

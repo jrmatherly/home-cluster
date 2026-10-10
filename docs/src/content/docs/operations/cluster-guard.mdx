@@ -1,0 +1,116 @@
+---
+title: The cluster-guard mod
+description: What the cluster-guard Claude Code mod refuses, how it loads, how to tell it is running, and how to change or test it.
+sidebar:
+  order: 2
+---
+
+This page covers the `cluster-guard` Claude Code mod: what it refuses, how it loads, how to tell it is running, how to change or test it, what to do when it refuses something it should not, and what the Claude Code mods research behind it decided. The code is in Git at `.claude/skills/cluster-guard/`, committed as `3c407ea` on 2026-10-10. The research spec and the throwaway probe are local only, under `docs/superpowers/specs/` (gitignored).
+
+A "mod" is a Claude Code plugin with a hooks module: TypeScript that runs inside Claude Code itself, sees every tool call before it runs, and may refuse it, rewrite it, or draw something. It is not a shell hook and spawns no process per call. Each claim below names its evidence. "Measured" means run on Claude Code 2.1.296 on 2026-10-10. "Docs" is the plugins loading page at [code.claude.com](https://code.claude.com/docs/en/plugins/loading) and the bundled plugin-authoring reference of 2.1.296.
+
+## Status on 2026-10-10
+
+| Step                                              | Status                                                                                                               |
+| --- | --- |
+| Build the mod                                     | Done. Validator, 7 engine tests and tsc clean.                                                                       |
+| Load it in a live session                         | Done. After `/reload-plugins` in the session that added it, three guards fired with their exact messages (measured). |
+| Live-test the UniFi window guard                  | Not done; it only fires 02:45 to 03:30 local. Covered by the engine test.                                            |
+| Live-test the sops pinned line                    | Not done; needs a `just configure` run from Claude, which re-encrypts the real secrets. Covered by the engine tests. |
+| Push                                              | Done, `main` at `3c407ea`.                                                                                           |
+| `settings.local.json` re-allow for `cluster.toml` | Done on the operator's machine. Needed again on any other machine (see Sandbox interaction).                         |
+
+## What it refuses
+
+Everything applies to Claude's tool calls only. The operator's own terminal is never touched. A refused call never runs; Claude reads the one-line reason as the tool's error and picks another way.
+
+1. **Writes to rendered files.** Edit or Write under `bootstrap/`, `kubernetes/`, `talos/` or to the root `.sops.yaml`, and any Bash command that redirects into those directories or hands such a path to `tee`, `cp`, `mv`, `sd`, `sed -i`, `yq -i` or `sops -i`. Reason given: edit the `.j2` source under `template/config/` and run `just configure`. Why: a hand edit to a rendered file is silently overwritten by the next render (`.claude/rules/templates.md`).
+2. **Reads of secrets files.** A Bash command segment that names `cluster.toml`, `age.key`, `deploy.key`, `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig` or `talosconfig`, unless that same segment runs `template/scripts/validate.py`, `template/scripts/check_layout.py`, a `just template` recipe or `taplo check`. Segments are split on `;`, `&&`, `||`, `|` and newlines, and quoted text is ignored first, so `git commit -m "... cluster.toml ..."` and `grep -rn "cluster\.toml" template/` pass while `cat cluster.toml; just template doctor` is refused. Why: on 2026-10-05 a regex mask printed object storage keys into a transcript (memory `never-print-cluster-toml-lines`).
+3. **Node maintenance in the UniFi window.** From 02:45 to 03:30 local: `just talos apply` and the `drain`, `stop-node`, `reboot-node`, `upgrade-node`, `apply-node`, `reset-node` and `upgrade-k8s` recipes; `talosctl` with `upgrade`, `reset`, `apply-config`, `reboot` or `shutdown`; `topf apply`, `upgrade` or `reset`; and `kubectl drain`. Why: the UniFi gear auto-updates at 03:00 local and a switch reboot mid-drain loses etcd quorum (memory `unifi-auto-update-partition`, 2026-10-07).
+4. **sops churn, shown not refused.** After `just configure`, `git add`, `git commit`, `git restore`, `git stash` or `git checkout`, it runs `git status --porcelain` over the three sops globs and pins one line under the prompt, for example `12 *.sops.* files re-encrypted; restore with git checkout unless the secret inputs changed`, or clears the line when the tree is clean. A commit that carries re-encrypted files (staged, or any with `-a`) also raises a toast. Why: `just configure` re-encrypts every `*.sops.*` file even when the plaintext is unchanged (CLAUDE.md).
+
+The Read tool is handled separately. `.claude/settings.json` denies `Read(/cluster.toml)` next to the existing key-file denies, so Claude cannot pull the whole config into context that way.
+
+## How it loads
+
+Automatically, with nothing to install. Claude Code scans the project's `.claude/skills/` for a folder holding `.claude-plugin/plugin.json` and loads it at session start as `cluster-guard@skills-dir`, project scope (docs, loading page, lines 53 and 69; `claude plugin list` shows it as `Status: loaded`, measured). It reaches anyone who clones the repo, after they accept the workspace trust dialog for the folder, and only when the session starts at the repo root (docs, line 73).
+
+Two limits, both measured:
+
+- A plugin folder added while a session is open is not picked up until that session restarts or runs `/reload-plugins`. The session that built it ran unguarded until the reload.
+- Hooks run but draw nothing under headless `claude -p` and in VS Code chat (docs, mods overview), so the sops pinned line is terminal-only. The refusals still work there.
+
+Anthropic can switch hooks modules off remotely (dotfiles research, 2026-10-09). When that happens the four rules fall back to prose in CLAUDE.md, which is why they are still written there.
+
+## How to tell it is running
+
+Any of these, from Claude or from the operator's shell at the repo root:
+
+- `claude plugin list` prints a `cluster-guard@skills-dir` row with `Status: ✔ loaded`.
+- Ask Claude to run `echo probe > kubernetes/zz-probe.txt`. The transcript shows a tool error reading "that writes a rendered file; edit the .j2 source under template/config/ and run just configure" and no file appears. If the file appears, the mod is not loaded in that session; run `/reload-plugins`.
+- Ask Claude to run `head -c 0 cluster.toml`. It prints nothing even if unguarded, and the guard answers "that command names a secrets file ...".
+
+## Sandbox interaction
+
+The `Read(/cluster.toml)` deny in `.claude/settings.json` also feeds the Bash sandbox's read deny list (measured: after adding it, a sandboxed `cat cluster.toml >/dev/null` failed with "Operation not permitted"). That would break the parser commands the guard points at. So `.claude/settings.local.json`, which is gitignored and per machine, re-allows it:
+
+```json
+"filesystem": { "allowRead": ["./cluster.toml", "./kubeconfig", "./talos/talosconfig"] }
+```
+
+On a new machine, add `./cluster.toml` there again. Proof it works: `just template check-layout` passes from a sandboxed Bash (measured 2026-10-10). Two unrelated sandbox limits seen on the way: uv cannot open its cache under `~/.cache/uv` in the sandbox, so prefix with `UV_CACHE_DIR="$TMPDIR/uv-cache"`, and `taplo` panics in the sandbox on macOS system-configuration access, so `taplo check` on `cluster.toml` works only from the operator's own terminal.
+
+## When it refuses something it should not
+
+The checks are regular expressions, so false refusals exist. Each costs one retry.
+
+- A Bash heredoc or `echo` whose text mentions `cluster.toml` unquoted is refused as a secrets read. Quote the name, or write the file with the Write tool.
+- `cp kubernetes/x.yaml /tmp/` is refused because `cp` with a rendered path is treated as a write. Read with `cat` instead.
+- `ls cluster.toml` or `test -f cluster.toml` is refused. `just template doctor` does that check.
+- A rare 02:45 to 03:30 need to drain a node is refused for Claude. The operator runs the recipe from their own terminal; the guard never sees it.
+
+A refusal you disagree with is a regex change in `hooks/register.ts` (see below), never a bypass with `yes |` or a rewritten command.
+
+## How to change or test it
+
+The module is `.claude/skills/cluster-guard/hooks/register.ts`. The regex constants at the top are the whole configuration: `DIRS` for the rendered directories, `WRITERS`, `NODE_OPS`, `SECRET_FILES`, `SECRET_READERS`, `TRIGGER`. Two hooks follow, one for Edit and Write, one for Bash, each judging before `await next(e)` and ending in a `.catch` that refuses when the hook itself failed before `next` was called. The tests are `tests/guard.test.ts`.
+
+Rules the engine's validator enforces, all measured in the dotfiles probe of 2026-10-09: one named function per event, string-literal event names, `$` calls spelled `$.noun.method(...)` at the call site. No loops over event names, no hook factories.
+
+After an edit, from the repo root:
+
+```sh
+claude plugin validate .claude/skills/cluster-guard
+claude plugin test .claude/skills/cluster-guard
+```
+
+For types, the engine lays declarations in `.claude/skills/cluster-guard/.claude-plugin/types/` (gitignored) when it hot-reloads the mod, and then `tsc -p .claude/skills/cluster-guard` works. `/reload-plugins` did not lay them (measured). Without them, copy `types/claude-code.d.ts` from the bundled plugin-authoring skill (`/plugin-authoring` prints its path) into a scratch folder and point a tsconfig at it and at the plugin's `hooks/` and `tests/`; `docs/superpowers/specs/2026-10-10-mods-probe/tsconfig.external.json` is that tsconfig.
+
+Saving a loaded mod hot-reloads it in open sessions (docs, "Developing one"; not measured here). Commit as usual; lefthook runs oxfmt over the TypeScript and JSON, and oxfmt wants long regex lines wrapped after the `=`.
+
+The Bash sandbox denies writes under `.claude/skills` and to the two settings files, so Claude edits these with the Write and Edit tools, not shell redirects.
+
+## What else the research decided
+
+The full spec is the 2026-10-10 Claude Code mods spec under `docs/superpowers/specs/`. The dotfiles repo's research of 2026-10-08 and 2026-10-09 (its own `docs/superpowers/specs/`) measured the engine and settled that fixed-command gating belongs in permission rules or classic hooks, and a mod earns its place when it draws or needs in-process state.
+
+Rejected for this repo, with the reason:
+
+- A cluster or Flux status pane on a timer. Timers die on reload and session end, and `just talos health`, Radar and FreeLens already show it.
+- A Stop hook latency meter. The hook already skips when the watched files are unchanged.
+- A post-push Flux toast. `just kube reconcile` exists.
+- Copying the dotfiles lint hook. lefthook and the Stop hook cover it.
+- Terminal cosmetics (themes, spinners, row restyling). Nothing in the GitOps loop changes.
+
+Two candidates for later, if demand shows: a maintenance band driven by Claude's own drain and resume calls (empty while the operator runs those recipes by hand), and a `/health` command drawing `just talos health` into a pane without a model turn.
+
+Already active from the dotfiles work, user scope: the jstack step band mod, `bashEditDiffEnabled`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and `AZURE_MCP_COLLECT_TELEMETRY=false`.
+
+## Sources
+
+- `.claude/skills/cluster-guard/` (README, `hooks/register.ts`, `tests/guard.test.ts`), commit `3c407ea`.
+- The 2026-10-10 Claude Code mods spec and `2026-10-10-mods-probe/` under `docs/superpowers/specs/` (local only).
+- The dotfiles repo's `2026-10-09-claude-code-mods-use-cases.md` and `2026-10-09-mods-probe/probe-measurements.md`.
+- The cached plugins loading page (`claude-code__plugins__loading.md`), lines 51 to 75 and 365 to 370.
+- Bundled plugin-authoring skill 2.1.296, `reference.md` and `types/claude-code.d.ts`.
+- Live probes 2026-10-10: headless `claude -p --strict-mcp-config` runs with `api.anthropic.com` allowed (Write, Bash redirect, secrets read), then the same three in the open session after `/reload-plugins`.

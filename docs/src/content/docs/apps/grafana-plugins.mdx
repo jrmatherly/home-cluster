@@ -1,0 +1,129 @@
+---
+title: Grafana plugins
+description: Set up the GitHub App, the Sentry internal integration, the LLM app and Infinity behind the four Grafana plugins, then verify the data sources.
+sidebar:
+  order: 2
+---
+
+This guide takes the Grafana plugins from a template change to working data sources. It covers the GitHub App behind the GitHub data source, the Sentry internal integration behind the Sentry data source, the LLM app on llama-server, and the Infinity data source. The deployment itself is in Git: the `[observability]` section of `cluster.toml` and `kubernetes/apps/observability/kube-prometheus-stack/app/`.
+
+Grafana is served at `grafana.${SECRET_DOMAIN}` on the internal gateway only.
+
+Each step names its source. "GitHub docs" is `docs.github.com` on GitHub Apps. "Plugin docs" is the configure page of each plugin on grafana.com and in its repository, read on 2026-10-06. "Source" names a file in the plugin's repository at the commit given. "Measured" means it was run against this cluster.
+
+## Status on 2026-10-06
+
+| Step                                     | When                     | Status |
+| --- | --- | --- |
+| Infinity installed and provisioned       | With this change         | Done   |
+| LLM app installed and provisioned        | With this change         | Done   |
+| Create the GitHub App                    | Before the GitHub fields | Done   |
+| Create the Sentry internal integration   | Before the Sentry fields | Done   |
+| Fill the fields, render, commit and push | After the two above      | Open   |
+| Verify the data sources                  | After Flux reconciles    | Open   |
+
+Infinity and the LLM app need no input. They deploy as soon as the change is pushed. The GitHub and Sentry data sources stay off until their fields are set.
+
+## How the plugins are installed
+
+All four are in the chart's `grafana.plugins` list, which the chart turns into `GF_PLUGINS_PREINSTALL_SYNC`. Grafana installs those plugins before provisioning runs, which matters because provisioning fails to start when a provisioned plugin is missing. The list carries no versions; `preinstall_auto_update` keeps them current on every start. Each plugin is in the list only when its fields are set, so an unconfigured plugin is never installed.
+
+## Create the GitHub App
+
+GitHub recommends an App over a personal access token for a long-lived integration (GitHub docs). Its installation tokens are short-lived and rotate on their own, so the private key stored in the Secret never expires.
+
+1. Register the App under the personal account: Settings, Developer settings, GitHub Apps, New GitHub App (GitHub docs). Name it, for example `<github app>`. Set any homepage URL. Turn the webhook off, because Grafana never receives events.
+2. Grant these repository permissions, all read-only (plugin docs): Metadata, Contents, Issues, Pull requests, Packages, Repository security advisories, Projects. Grant nothing else.
+3. Under "Where can this GitHub App be installed?", keep "Only on this account".
+4. Create the App. Its settings page shows the App ID. That value goes in `github_app_id`.
+5. On the same page, under Private keys, click "Generate a private key". GitHub downloads a `.pem` file that starts with `-----BEGIN RSA PRIVATE KEY-----` (GitHub docs). The whole file goes in `github_app_private_key`. Delete the download once it is in `cluster.toml`.
+6. Click Install App and install it on the repositories Grafana should read (GitHub docs). Pick only those repositories rather than all of them.
+7. After the install, GitHub opens `https://github.com/settings/installations/<id>`. The last part of that URL is the installation ID, and it goes in `github_app_installation_id` (plugin docs).
+
+In `cluster.toml`, the key is a multi-line literal string, with the three keys under `[observability]`:
+
+```toml
+github_app_id              = "123456"
+github_app_installation_id = "12345678"
+github_app_private_key     = '''
+-----BEGIN RSA PRIVATE KEY-----
+...
+-----END RSA PRIVATE KEY-----
+'''
+```
+
+The validator accepts the key only as a PEM block of base64 lines, and only with the other two fields. The key goes to the `grafana-secret` Secret, which sops encrypts.
+
+## Create the Sentry internal integration
+
+An internal integration token does not expire, and one integration can hold up to 20 tokens (Sentry docs). Only an organization Owner, Manager or Admin can manage integrations.
+
+1. In Sentry, open Settings, Developer Settings, Custom Integrations, and create an Internal Integration (Sentry docs). Name it `grafana`.
+2. Grant Read on Project, Issue & Event, and Organization (plugin docs). Leave everything else at No Access, and leave the webhook URL empty.
+3. Save, then copy the token from the integration's page. It goes in `sentry_token`.
+4. The organization slug is the last part of `https://sentry.io/organizations/<slug>/` (plugin docs). It goes in `sentry_org`.
+5. Pick the URL. `https://sentry.io` is the default and is what the plugin docs give for hosted Sentry. A US-region organization can also use `https://us.sentry.io`, and an EU-region one `https://de.sentry.io`. The organization's settings page shows its region (Sentry API docs, `docs.sentry.io/api`). Set `sentry_url` only when the default does not work.
+
+```toml
+sentry_org   = "my-org"
+sentry_token = "<token>"
+```
+
+## The LLM app
+
+The LLM app (`grafana-llm-app`) is installed whenever the cluster has an NVIDIA GPU, which is when llama-server runs. It needs no field. The ConfigMap `grafana-llm-app` holds its provisioning file, and the chart's plugins sidecar loads it into `/etc/grafana/provisioning/plugins` and asks Grafana to reload it. The file sets the `custom` provider, which uses the OpenAI client against `http://llama-server.ai.svc.cluster.local:8080` with the API path `/v1` and no key. It maps the app's two abstract models, `base` and `large`, to `phi-4-mini`, which is llama-server's `LLAMA_ARG_ALIAS` (source, `packages/grafana-llm-app/pkg/plugin/settings.go` and `llm_provider.go`, commit `ef243ce`). The `observability` namespace carries the label `llama-server.ai/client: "true"`, which llama-server's NetworkPolicy requires.
+
+In Grafana 13.2.3 OSS, the app unlocks four generate buttons: a title and a description for a panel, and a title and a description for a dashboard. The panel buttons fit in llama-server's slot.
+
+Each llama-server slot holds 2048 tokens. A longer request gets HTTP 400 with `exceed_context_size_error` (measured: "request (2611 tokens) exceeds the available context size (2048 tokens)"). A prompt of about 1800 tokens is answered in about 1 second (measured). `LLAMA_ARG_N_PREDICT` is 200, which caps the length of each answer. The dashboard description button sends the dashboard, so it fails with that error on a dashboard whose JSON is over about 2000 tokens (measured). The dashboard title button was not measured.
+
+To check the app, open Administration, Plugins and data, Plugins, and find LLM. Its configuration page shows what was provisioned.
+
+## Infinity
+
+Infinity (`yesoreyeram-infinity-datasource`) reads JSON, CSV, XML and GraphQL from any URL. It is always installed with the observability stack, and one data source named Infinity is provisioned with no authentication. Without authentication it needs no `allowedHosts`.
+
+To use it with a public JSON URL:
+
+1. Open Explore, or add a panel, and pick the Infinity data source.
+2. Set Type to JSON, Parser to Backend, Source to URL, and Method to GET.
+3. Enter the URL, for example `https://api.github.com/repos/grafana/grafana`.
+4. Set Rows/Root to the path of the array in the response, if there is one, and add columns with their selectors and types.
+
+The provisioned data source cannot be edited in the UI. A URL that needs a credential gets a second data source in `additionalDataSources` in the HelmRelease template, with `allowedHosts` and the credential in `secureJsonData`, the secret coming from `grafana-secret` through `envValueFrom` as the GitHub key does. Infinity's GitHub example (plugin docs, `docs/sources/examples/github.md`) is the shape:
+
+```yaml
+- name: Infinity GitHub
+  type: yesoreyeram-infinity-datasource
+  jsonData:
+    auth_method: bearerToken
+    allowedHosts:
+      - https://api.github.com
+  secureJsonData:
+    bearerToken: $SOME_TOKEN
+```
+
+A custom header instead of a bearer token uses `jsonData.httpHeaderName1` and `secureJsonData.httpHeaderValue1` (source, `pkg/models/settings.go`).
+
+## Render, commit and push
+
+1. Fill the GitHub and Sentry fields in `cluster.toml`. They sit after `grafana_secret_key`, already commented out.
+2. Run `just configure`. It validates the fields, renders, and encrypts `secret.sops.yaml`.
+3. Restore every sops file whose plaintext did not change, as `CLAUDE.md` describes, but keep `kubernetes/apps/observability/kube-prometheus-stack/app/secret.sops.yaml`, which now holds the new values.
+4. Commit and push. Flux reconciles within the hour, or run `just kube reconcile`.
+
+Grafana restarts, because the plugin list is part of its config checksum and Reloader also watches `grafana-secret`, and installs the new plugins at start.
+
+## Dashboards
+
+Two dashboards ship with the data sources and appear in Grafana's General folder once Flux reconciles.
+
+- **GitHub Default** (`uid: github-default`) is the dashboard the GitHub plugin bundles, pointed at the `<github account>` with `home-cluster` selected; the repository dropdown lists every repository the App is installed on. Its Packages panel lists Docker packages. The bundled dashboard has no Actions or security panels, and workflow runs and code scanning alerts need two more App permissions, Actions read and Code scanning alerts read, before such panels can query. On 2026-10-06 at 14:05 UTC the installation gained Actions read, and a fresh installation token lists workflow runs; the plugin caches its token for up to an hour, so its query works by about 15:05 UTC. Code scanning alerts still answer 403 with the App's own token, so that permission (`security_events` in the API) is not on the installation. Dependabot alerts are disabled on `home-cluster`, which the API reports as 403, so a Dependabot panel stays empty until they are enabled on the repository. The scripts in the gitignored `private/grafana-dashboards/` run every panel query (`verify-dashboard.py`), append the Actions and security row (`add-actions-row.py`), and regenerate the Sentry dashboard (`generate-sentry.py`).
+- **Sentry Overview** (`uid: sentry-overview`) is hand-written for the `<sentry project>` project: unresolved issue count, event volume, events by level, accepted versus dropped volume, and tables of unresolved issues and recent error events, with project and environment dropdowns.
+
+## Verify
+
+1. Data source health. Each data source has a UID that Grafana generates. Read it from `https://grafana.${SECRET_DOMAIN}/api/datasources/name/GitHub`, then open `https://grafana.${SECRET_DOMAIN}/api/datasources/uid/<uid>/health`. It should answer `"status": "OK"`. Do the same for `Sentry` and `Infinity`. The Test button on each data source's page runs the same check.
+2. The Advisor page (Administration, Advisor) should show no new failing data source checks.
+3. Memory. Grafana used about 252Mi of its 768Mi limit before this change. Check it with `kubectl -n observability top pod -l app.kubernetes.io/name=grafana` after the restart, and again after a day of use. Each backend plugin runs its own process, so the number goes up.
+4. A panel's edit pane shows the generate buttons for its title and description.

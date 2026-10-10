@@ -1,0 +1,180 @@
+---
+title: Architecture
+description: How the hosts, nodes, networking, storage, identity, observability and apps of the cluster fit together.
+sidebar:
+  order: 1
+---
+
+A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork of
+`onedr0p/cluster-template`. One config file, `cluster.toml`, is rendered by makejinja into the
+Talos, Kubernetes, Flux and bootstrap config. Sources: the repo's `CLAUDE.md` and `README.md`,
+`cluster.sample.toml`, `template/config/`, and the private host and node-maintenance guides.
+
+## Hosts and nodes
+
+Three standalone Proxmox VE hosts run the nodes. They do not form a Proxmox cluster, because a
+two-node cluster goes read-only when one node is down. Each host boots from a ZFS mirror of two
+NVMe drives. Since 2026-10-10 each host runs one control plane, so a single host reboot never loses
+etcd quorum.
+
+| Host             | Machine                                             | Guests                                                                                           |
+| --- | --- | --- |
+| The non-GPU host | Desktop, 128 GB                                     | `k8s-cp-1` (control plane), `k8s-worker-1`, `k8s-worker-2`, `k8s-worker-3` (workers, 30 GB each) |
+| The GPU host     | Laptop, 64 GB, GeForce GTX 1080 passed through      | `k8s-cp-2` (control plane), `k8s-gpu-1` (GPU worker, 40 GB)                                      |
+| The media host   | The Plex box, serves the NFS media export           | `k8s-cp-3` (control plane), `k8s-worker-4` (worker, 16 GB), Plex in an LXC                       |
+
+Every control plane VM has 4 cores and 5 GB. The control-plane nodes keep their `NoSchedule`
+taint and run only the control plane; the template removes the taint only for a cluster with no
+workers. Each VM is a `[[nodes]]` entry in `cluster.toml`, and `talos/topf.yaml` gives it the
+role `control-plane` or `worker` from its `controller` flag. The GPU worker gets its NVIDIA
+extensions from the schematic in its entry.
+
+What is pinned to a node and cannot move: the media stack (a `nodeSelector` on `k8s-worker-4`),
+anything on a `local-path` volume, and llama-server, which needs the GPU only `k8s-gpu-1` has.
+Pinned pods sit Pending while their node is down and schedule by themselves when it is back.
+
+## How a change reaches the cluster
+
+`cluster.toml` is gitignored and holds every address, key and password. `just configure` loads it
+through `validate.py`, a pydantic model with defaults and cross-field checks, then through
+`plugin.py`, which hands the validated config, the keys and the tunnel secrets to makejinja as
+template data. makejinja renders the `.j2` sources under `template/config/` into `bootstrap/`,
+`kubernetes/` and `talos/` at the repo root. The same recipe sops-encrypts every `*.sops.*` file
+with the age key, runs kubeconform on `kubernetes/` and checks that topf can render `talos/`.
+
+The data flows in one direction. Edit the `.j2` source, never the rendered copy. Flux reconciles
+`kubernetes/` from Git, so a Kubernetes change reaches the cluster by re-rendering, committing and
+pushing. A Talos change goes to the nodes with `just talos apply`. Renovate updates chart and
+image versions in the `.yaml.j2` files on its own.
+
+Optional apps render only when their section of `cluster.toml` is set. The whole `ai` namespace
+is wrapped in a check for `nvidia_enabled`, `components/postgres` renders only when
+`[postgres.backup]` is set, and the Apps table below lists the gate for each app.
+
+## Networking
+
+Cilium is the CNI. Talos disables its built-in CNI and kube-proxy, and Cilium's load-balancer
+IPAM hands out the addresses in `[gateways]`. `[cilium.hubble]` turns on Hubble, its relay and its
+UI, which has no login of its own.
+
+Envoy Gateway runs two gateways. `envoy-internal` serves routes meant for the LAN, and most apps
+use it. `envoy-external` sits behind the ingress path and serves what the public internet may
+reach. With `ingress.mode = "cloudflare-tunnel"`, `cloudflared` connects outbound, so no router
+port is forwarded. With `"direct"` the operator forwards TCP 443 to the external gateway. With
+`"none"` nothing is exposed.
+
+DNS has three parts. `k8s_gateway` answers for cluster hostnames at `gateways.dns`, for a
+conditional forwarder on the home DNS server. `cloudflare-dns` (ExternalDNS) publishes the
+`envoy-external` routes to Cloudflare, and cert-manager issues a Let's Encrypt wildcard through
+DNS-01; with `dns.provider = "none"` an in-cluster self-signed CA issues it instead. `unifi-dns`,
+gated by `[unifi]`, is a second ExternalDNS that writes the `envoy-internal` names and the
+gateways' own names to the UniFi console. When `unifi.host` is an IPv4 address, CoreDNS also
+forwards lookups for `${SECRET_DOMAIN}` to the console, so pods resolve names that exist only on
+the internal gateway, and `[pocket_id]` adds a CoreDNS `hosts` entry for `auth.${SECRET_DOMAIN}`.
+
+## Storage
+
+`storage/local-path-provisioner` provides the default StorageClass `local-path`. Its volumes are
+directories under `/var/mnt/local-path`, declared as a Talos `UserVolumeConfig` in
+`talos/all/72-volumes.yaml`, so each volume is pinned to one node and has no size limit.
+
+`[media]` adds `storage/csi-driver-nfs` and one static `ReadWriteMany` claim, `media`, for the
+media host's NFS export (`nfsvers=4.1,hard,noatime,nolock`, because Talos runs no `rpc.statd`).
+The export squashes every client to uid 1000, and the kubelet never chowns the share.
+
+`cnpg-system` holds the CloudNativePG operator and its barman-cloud backup plugin. An app with a
+database includes `components/postgres`, which adds the `postgres-backup` ObjectStore from
+`[postgres.backup]`, the `postgresql` ImageCatalog and a `postgres` PodMonitor to its namespace.
+Each Cluster has two instances on different nodes, and Cluster names are unique across
+namespaces because backups land under the Cluster's name in the bucket. A `postgres-backup`
+PrometheusRule alerts on a failed backup, a backup older than 36 hours and failing WAL archiving.
+
+`[redis]` adds `components/redis`. An app that includes it gets a Redis 8 instance of its own at
+`redis:6379` in its namespace, with an append-only file on a 1Gi `local-path` volume and a
+NetworkPolicy that admits only that namespace. Instances are never shared between apps.
+
+## Identity
+
+`security/pocket-id` is Pocket ID, a passkey OpenID Connect provider at `auth.${SECRET_DOMAIN}`
+on the internal gateway. Passkeys are bound to that hostname, so it must not change.
+`pocket_id.public = true` also attaches the route to the external gateway. Each OIDC client is
+created by hand in Pocket ID and its ID and secret go in `cluster.toml`. Apps sign in one of
+three ways.
+
+- Their own OIDC: Grafana, Radar, Reactive Resume, Actual Budget and Network Optimizer take the
+  client from `cluster.toml`. Kener and PegaProx are set up in their own UI and keep the client
+  in their database. Radar binds the Pocket ID group `cluster_admins` to `cluster-admin`.
+- An Envoy Gateway `SecurityPolicy` on the route, for apps with no login of their own: Hubble UI
+  and the media stack (one shared policy selects every route labelled `media.sign-in: pocket-id`).
+  The policy verifies the ID token from a cookie and admits only `cluster_admins`.
+- An API key: each arr's `/api` route is served on the internal gateway without the policy, as
+  upstream, so mobile clients work. Seerr keeps its own Plex sign-in, because it has no OpenID
+  Connect support.
+
+## Observability
+
+`[observability]` gates the `observability` namespace. `kube-prometheus-stack` runs Prometheus,
+Alertmanager and Grafana, scrapes every ServiceMonitor, PodMonitor and rule in the cluster, and
+reaches etcd through the control-plane node addresses. `influxdb` is InfluxDB 2, with org `home`
+and bucket `proxmox`, written to by Network Optimizer. Both have routes on the internal gateway.
+
+Grafana plugins come in two ways. The bundled data source plugins update through the chart's
+`shadowBundledPlugins: true` and `preinstall_auto_update`; never list them in `preinstall`,
+because the updater unloads a plugin before it fails to replace it in the read-only directory
+(this took the Prometheus and InfluxDB data sources down on 2026-10-06). Other plugins go in the
+chart's `plugins` list. Infinity is always on. The GitHub data source (a GitHub App), the Sentry
+data source (an internal integration) and the LLM app (pointed at llama-server when
+`nvidia_enabled`) are each gated by their own fields. See the Grafana plugins page.
+
+The optional `discord_webhook` gives Alertmanager a Discord receiver. Without it every alert goes
+to the `null` receiver.
+
+## Apps
+
+Every app under `template/config/kubernetes/apps/`, by namespace. "Gate" is the `cluster.toml`
+section or field that renders it; "always" means it renders for every config.
+
+| Namespace           | App                      | Gate                                                   | Gateway                                                     | Purpose                                                                |
+| --- | --- | --- | --- | --- |
+| `actual-budget`     | `actual-budget`          | `[actual_budget]`                                      | internal, external with `public`                            | Budgeting app, SQLite on a `local-path` volume                         |
+| `ai`                | `llama-server`           | `nvidia_enabled`                                       | none                                                        | LLM server on the GPU, model mounted as an image volume                |
+| `cert-manager`      | `cert-manager`           | always                                                 | none                                                        | Wildcard certificate for `${SECRET_DOMAIN}`                            |
+| `cnpg-system`       | `cloudnative-pg`         | always                                                 | none                                                        | CloudNativePG operator and the `postgres-backup` alert rules           |
+| `cnpg-system`       | `plugin-barman-cloud`    | always                                                 | none                                                        | Object-store backups for every Postgres cluster                        |
+| `default`           | `echo`                   | always                                                 | external, internal when `ingress.mode` is `none`            | Echo server for testing the ingress path                               |
+| `docs`              | `docs`                   | always                                                 | internal                                                    | This site, built from `docs/` by CI                                    |
+| `flux-system`       | `flux-operator`          | always                                                 | none                                                        | Installs and manages Flux                                              |
+| `flux-system`       | `flux-instance`          | always                                                 | external, internal when `ingress.mode` is `none`            | Flux itself, with the Git webhook route                                |
+| `kener`             | `kener`                  | `[kener]`                                              | internal, external for the status page only                 | Status page with uptime monitoring, Redis job queue                    |
+| `kube-system`       | `cilium`                 | always                                                 | internal (Hubble UI, with `[cilium.hubble]`)                | CNI, load-balancer IPAM, Hubble                                        |
+| `kube-system`       | `coredns`                | always                                                 | none                                                        | Cluster DNS, forwards `${SECRET_DOMAIN}` to the UniFi console          |
+| `kube-system`       | `metrics-server`         | always                                                 | none                                                        | Resource metrics for `kubectl top` and autoscaling                     |
+| `kube-system`       | `nvidia-device-plugin`   | `nvidia_enabled`                                       | none                                                        | Exposes the GPU as `nvidia.com/gpu`                                    |
+| `kube-system`       | `reloader`               | always                                                 | none                                                        | Restarts pods when their ConfigMaps or Secrets change                  |
+| `kube-system`       | `restart-reset`          | always                                                 | none                                                        | Daily CronJob that evicts healthy pods so restart counts reset         |
+| `kube-system`       | `spegel`                 | `spegel.enabled`                                       | none                                                        | Peer-to-peer image mirror between nodes                                |
+| `matherlynet`       | `matherlynet`            | `[matherlynet]`                                        | external                                                    | The public site at the domain's apex, own Postgres cluster             |
+| `media`             | `shared`                 | `[media]`                                              | none                                                        | NFS claim, `media-keys` and `media-oidc` Secrets, the shared policy    |
+| `media`             | `sabnzbd`                | `[media]`                                              | internal, external UI with `media.public`                   | Usenet downloader                                                      |
+| `media`             | `sonarr`                 | `[media]`                                              | internal, external UI with `media.public`                   | TV series manager                                                      |
+| `media`             | `radarr`                 | `[media]`                                              | internal, external UI with `media.public`                   | Movie manager                                                          |
+| `media`             | `prowlarr`               | `[media]`                                              | internal, external UI with `media.public`                   | Indexer manager, syncs to both arrs                                    |
+| `media`             | `bazarr`                 | `[media]`                                              | internal, external UI with `media.public`                   | Subtitles                                                              |
+| `media`             | `recyclarr`              | `media.recyclarr`                                      | none                                                        | Syncs TRaSH profiles into Sonarr and Radarr daily                      |
+| `media`             | `tautulli`               | `media.plex_host`                                      | internal, external UI with `media.public`                   | Plex activity and statistics                                           |
+| `media`             | `seerr`                  | `media.plex_host`                                      | internal, external UI with `media.public`                   | Media requests for household members, own Plex sign-in                 |
+| `media`             | `maintainerr`            | `media.plex_host`                                      | internal, external UI with `media.public`                   | Library clean-up rules through the arr APIs                            |
+| `network`           | `cloudflare-dns`         | `dns.provider` is `cloudflare`, `ingress.mode` not `none` | none                                                     | ExternalDNS for the external gateway's routes                          |
+| `network`           | `cloudflare-tunnel`      | `ingress.mode` is `cloudflare-tunnel`                  | none                                                        | `cloudflared`, the outbound tunnel to the external gateway             |
+| `network`           | `envoy-gateway`          | always                                                 | both                                                        | The `envoy-internal` and `envoy-external` gateways                     |
+| `network`           | `k8s-gateway`            | always                                                 | none                                                        | DNS for cluster hostnames at `gateways.dns`                            |
+| `network`           | `unifi-dns`              | `[unifi]`                                              | none                                                        | ExternalDNS writing internal names to the UniFi console                |
+| `network-optimizer` | `network-optimizer`      | `[network_optimizer]`                                  | internal                                                    | Audits and monitors the UniFi network, writes to InfluxDB              |
+| `observability`     | `kube-prometheus-stack`  | `[observability]`                                      | internal                                                    | Prometheus, Alertmanager and Grafana                                   |
+| `observability`     | `influxdb`               | `[observability]`                                      | internal                                                    | InfluxDB 2 for Network Optimizer's time series                         |
+| `pegaprox`          | `pegaprox`               | `[pegaprox]`                                           | internal                                                    | Web UI for Proxmox, SQLite on a `local-path` volume                    |
+| `radar`             | `radar`                  | `[radar]`                                              | internal                                                    | Kubernetes UI, acts as the signed-in user through impersonation        |
+| `reactive-resume`   | `reactive-resume`        | `[reactive_resume]`                                    | external                                                    | Resume builder, uploads to an S3 bucket                                |
+| `security`          | `pocket-id`              | `[pocket_id]`                                          | internal, external with `public`                            | Passkey OpenID Connect provider                                        |
+| `storage`           | `local-path-provisioner` | always                                                 | none                                                        | Default StorageClass, directories on one node                          |
+| `storage`           | `csi-driver-nfs`         | `[media]`                                              | none                                                        | NFS CSI driver for the media export                                    |

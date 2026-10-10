@@ -1,0 +1,180 @@
+---
+title: Media stack
+description: The steps outside the repo that `[media]` in `cluster.toml` needs, in order, from the Pocket ID client to the first download.
+sidebar:
+  order: 4
+---
+
+The steps outside the repo that `[media]` in `cluster.toml` needs, in order. The design is on
+[Media stack](/decisions/media-stack/) (its carry-over sections are superseded: every app starts
+fresh), and the host side (pool, export, Plex) is on [Third host](/hosts/third-host/).
+
+## 1. The Pocket ID client
+
+One client, named `Media`, with one callback URL per app. The gateway's SecurityPolicy admits only
+the `cluster_admins` group, so the client itself needs no group restriction.
+
+```text
+https://sonarr.${SECRET_DOMAIN}/oauth2/callback
+https://radarr.${SECRET_DOMAIN}/oauth2/callback
+https://prowlarr.${SECRET_DOMAIN}/oauth2/callback
+https://sabnzbd.${SECRET_DOMAIN}/oauth2/callback
+https://bazarr.${SECRET_DOMAIN}/oauth2/callback
+https://tautulli.${SECRET_DOMAIN}/oauth2/callback
+https://maintainerr.${SECRET_DOMAIN}/oauth2/callback
+```
+
+The client ID and the secret go in `oidc_client_id` and `oidc_client_secret`.
+
+## 2. cluster.toml
+
+Nothing is carried over from the Windows install. The five API keys are new:
+
+```sh
+for app in sonarr radarr prowlarr sabnzbd sabnzbd_nzb; do echo "$app $(openssl rand -hex 16)"; done
+```
+
+`plex_host` is the Plex LXC, `<plex address>`. `plex_token` is an X-Plex-Token: in Plex Web open
+any item, choose Get Info, View XML, and copy the `X-Plex-Token` value from the page's URL. Or on
+the LXC read `PlexOnlineToken` from `Preferences.xml` under the Plex data directory.
+
+Then, from the repo root:
+
+```sh
+just template check-layout
+just configure
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git status   # the media sops files stay modified: they are new or changed
+```
+
+The media secrets are new, so `git checkout` leaves them modified; that is the intended change.
+Commit and push.
+
+## 3. What converges on its own
+
+Each app's HelmRelease carries a `configure` Job that runs after every install and upgrade, so the
+settings below are never typed into a UI. A failed job fails the release, and
+`kubectl get jobs -n media` shows which one.
+
+- SABnzbd. Folders `/data/usenet/incomplete` and `/data/usenet/complete`, categories `tv` and
+  `movies`, TRaSH's queue and post-processing switches, the unwanted-extensions blacklist.
+- Sonarr and Radarr. Media management per the Servarr wiki, root folders `/data/media/tv` and
+  `/data/media/movies`, SABnzbd as the download client with its category, completed and failed
+  download handling, and the Plex connection when `plex_token` is set.
+- Prowlarr. Sonarr and Radarr as applications on Full Sync.
+- Recyclarr. Daily at 06:00 UTC and after every install: TRaSH quality definitions and naming,
+  the WEB-1080p and WEB-2160p profiles in Sonarr, HD Bluray + WEB and UHD Bluray + WEB in Radarr,
+  the Language: Not English format, propers and repacks set to Do Not Prefer, and its own
+  `Size: 2160p over 16 GB` format scored -10000 in Sonarr's WEB-2160p, and its
+  `Size: over 12 GB` format scored -10000 in Radarr's HD Bluray + WEB. Radarr's hook also sets
+  Settings, Indexers, Maximum Size to 16 GiB, so no movie file over that is ever grabbed in any
+  profile: UHD Bluray + WEB goes up to 16 GB, HD Bluray + WEB stops at 12. Under 16 GB the UHD
+  profile admits WEB-DL 2160p at any runtime and Bluray-2160p up to about 160 minutes (Remux is
+  not in the profile); a long film that gets nothing there goes on the HD Bluray + WEB profile.
+
+## 4. The two carry-overs, typed once
+
+Only these come from the 2026-10-06 backups in `~/Downloads`. Printed only in the terminal.
+
+The Usenet server, entered at `https://sabnzbd.${SECRET_DOMAIN}`, Config, Servers:
+
+```sh
+cd ~/Downloads
+unzip -p sabnzbd_backup_5.1.3_2026.10.06_19.08.56.zip sabnzbd.ini | sed -n '/^\[servers\]/,/^\[[a-z]/p'
+```
+
+The indexers, entered at `https://prowlarr.${SECRET_DOMAIN}`, Indexers, Add Indexer (the name, URL
+and API key of each; Prowlarr pushes them to Sonarr and Radarr at once, with the Standard sync
+profile):
+
+```sh
+cd ~/Downloads
+unzip -p sonarr_backup_v4.0.20.3014_2026.10.06_19.07.54.zip sonarr.db > "$TMPDIR/sonarr.db"
+sqlite3 "$TMPDIR/sonarr.db" 'select Name, Settings from Indexers'
+rm "$TMPDIR/sonarr.db"
+```
+
+The `_migration` directory on the media host, if it was created, is no longer read by anything:
+
+```sh
+ssh root@<media host address> rm -rf /srv/media/_migration
+```
+
+## 5. Checks after the deploy
+
+- `kubectl get pvc -n media` shows `media` and every config claim Bound.
+- `kubectl get pods -n media -o wide` shows every pod on `k8s-worker-4`, and
+  `kubectl get jobs -n media` shows every `-configure` job Complete.
+- `kubectl exec -n media deploy/sonarr -- ls /data` lists `media` and `usenet`.
+- Each `https://<app>.${SECRET_DOMAIN}` asks for the Pocket ID sign-in, then opens.
+- Sonarr, Settings, Download Clients shows SABnzbd and its Test passes; Settings, Profiles shows
+  WEB-1080p and WEB-2160p; Settings, Custom Formats shows `Size: 2160p over 16 GB`.
+- Radarr, the same with HD Bluray + WEB and UHD Bluray + WEB.
+- Prowlarr, Settings, Apps shows Sonarr and Radarr on Full Sync.
+- `kubectl logs -n media job/recyclarr-configure` ends without errors.
+
+## 6. The second root folder
+
+The media host exports a second media tree, a SnapRAID + mergerfs union of the USB portables (the
+third host page's "The USB media tier"), inside the same export at `/srv/media/ext`, so every pod
+sees it as `/data/ext` with no cluster change. Each arr's configure hook adds `/data/ext/tv` or
+`/data/ext/movies` as a second root folder whenever that directory exists in the mount. Recyclarr's
+job deletes the six stock quality profiles from both arrs after each sync, so only the TRaSH
+profiles are offered. Plex's two libraries get the `ext` folders by hand in its UI (done
+2026-10-08). `/data/media/...` on the ZFS pool is the fast, hardlinking tier; a grab whose root
+folder is under `/data/ext` is copied from `/data/usenet` instead, since it is another filesystem,
+and the download is removed as usual.
+
+Plex ignores the path-scoped scan the arrs send after an import (measured 2026-10-08, see the third
+host page's Phase 5), so new files appear on Plex's hourly scheduled scan, or at once with Scan
+Library Files on the library.
+
+## 7. The second wave, set up once in each UI
+
+Bazarr, Tautulli, Seerr and Maintainerr have no configure hook, so each is set up once in its UI
+and keeps the result in its own database. Tautulli, Seerr and Maintainerr deploy only when
+`plex_host` is set. The Pocket ID client in section 1 already lists the bazarr, tautulli and
+maintainerr callback URLs. Seerr needs none, because it is not behind the gateway's sign-in.
+
+- Bazarr, `https://bazarr.${SECRET_DOMAIN}` (1.6 layout). Settings, Library, Sonarr tab: Enabled
+  on, address `sonarr`, port 8989, base URL empty, SSL off, the `sonarr_api_key` from
+  `cluster.toml`, no path mappings. Library, Radarr tab: the same with `radarr`, port 7878,
+  `radarr_api_key`. Settings, Languages, General tab: add English to Languages Filter. Languages,
+  Profiles tab: add a profile with English, then under "Default Language Profiles For Newly Added
+  Shows" set it for Series and for Movies. Settings, Providers, Subtitles tab: the plus button adds
+  each provider. Settings, Integrations, Plex is optional (a library refresh after each subtitle
+  download).
+- Tautulli, `https://tautulli.${SECRET_DOMAIN}` (2.18). The wizard refuses an empty HTTP username
+  and password, so set one, finish, then Settings, Web Interface, clear both fields and Save: an
+  empty password turns Tautulli's login off and the gateway is the login. The server is the
+  `<plex server name>` entry, SSL on; the name resolves to the LAN address from the pod. Press
+  Show Advanced and tick Enable HTTP Proxy (X-Forwarded-Proto from the gateway), Save, restart.
+  Finishing the wizard leaves Check for Tautulli Updates off, which is wanted. The API key is
+  under Settings, Web Interface, API. Tautulli Remote on a phone pairs over the LAN through the
+  internal `/api` route, which skips the sign-in.
+- Seerr, `https://requests.${SECRET_DOMAIN}` (3.5). The wizard: server type Plex, sign in with
+  Plex (the first account is the admin), pick the `<plex server name> [remote] [secure]` entry
+  (plex.tv labels a custom URL remote; the pod resolves it to the LAN address), Save Changes, Sync
+  Libraries, enable Movies and TV Shows, Start Scan once. Services: Radarr `radarr` 7878 and
+  Sonarr `sonarr` 8989 with their keys, Test, root folders `/data/media/movies` and
+  `/data/media/tv`, profiles HD Bluray + WEB and WEB-1080p, Default Server on, Enable Scan on,
+  Season Folders on for Sonarr. After the wizard: General, Application URL
+  `https://requests.${SECRET_DOMAIN}`, Version Check off, Discover Region United States; Plex tab,
+  Tautulli Settings `tautulli` 8181 with its key; Network, Enable Proxy Support and Force IPv4
+  Resolution First on (restart); Users, Enable Local Sign-In off, Plex sign-in on, Default
+  Permissions Request, limits 3 movies and 1 season per 7 days (rolling, declined requests do not
+  count, admins bypass). Notifications: Discord webhook with Pending Approval, Processing Failed
+  and Request Available. Restart with `kubectl rollout restart deployment/seerr -n media`.
+- Maintainerr, `https://maintainerr.${SECRET_DOMAIN}` (3.30). Integrations are under Services, not
+  Settings: Media Server (Authenticate with Plex, pick the server), Seerr `http://seerr:5055` and
+  Tautulli `http://tautulli:8181` with their keys, Radarr `http://radarr:7878` and Sonarr
+  `http://sonarr:8989` with theirs, Test Connection on each. Telemetry is at Settings, About,
+  Telemetry, forced off by the pod's `TELEMETRY=off`. Every rule group stays inactive until it
+  has been re-read, because a rule that fires deletes media.
+
+## 8. First downloads
+
+Add one series and one movie, pick the 1080p profile, and run a search. The file should land in
+`/data/usenet/complete/<category>` and be imported into `/data/media/<tv|movies>` with a hardlink:
+`ls -li` on both copies shows the same inode. Plex picks it up through the connection, or on its
+next scan.

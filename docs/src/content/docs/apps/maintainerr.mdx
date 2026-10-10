@@ -1,0 +1,132 @@
+---
+title: Maintainerr
+description: Set up Maintainerr's three rule groups, arm them one at a time, and keep the two guards that stop a rule from deleting the wrong thing.
+sidebar:
+  order: 5
+---
+
+This guide takes Maintainerr from the connected-but-empty state it is in after section 7 of [the media stack setup](/apps/media/) to three armed rule groups, and records the two guards that stop a rule from deleting the wrong thing. The deployment itself is in Git: `kubernetes/apps/media/maintainerr/`, gated by `plex_host` in `cluster.toml`. The rule groups are not in Git. They live in Maintainerr's SQLite database on its `local-path` volume, so this page is the record of them.
+
+Maintainerr is served at `maintainerr.${SECRET_DOMAIN}`, behind the gateway's Pocket ID sign-in, which is its only login.
+
+Each step names its source. "Docs" is `docs.maintainerr.info/3.30.0`, read on 2026-10-08. "Source" is the Maintainerr main branch on that date (`apps/server/src/modules/collections/`, `packages/contracts/src/`). "Measured" means it was read from the live apps through their APIs on 2026-10-08.
+
+## How a rule group acts
+
+- A rule run (every 8 hours, or the Run Rules button) evaluates every item in the chosen library and adds the matches to the group's collection. An item that stops matching is removed again. (Docs, Rules.)
+- The collection handler (every 12 hours, or Handle Collections) runs the group's action on each item that has been in the collection for the configured number of days. An item being streamed is deferred to the next run. An item whose last rule evaluation failed is skipped until it evaluates cleanly. (Docs, Collections.)
+- Delete, with a Radarr server selected, calls Radarr's `DELETE /movie/{id}?deleteFiles=true`, which removes the record, the files and the folder. Delete entire show does the same through Sonarr. (Docs, Radarr and Sonarr actions.)
+- An item the selected arr does not know is not left alone. The handler falls back to deleting it through Plex (source, `actions/radarr-action-handler.ts`, the "Couldn't find movie in Radarr" branch calls `mediaServer.deleteFromDisk`). That fallback only works when Plex's "Allow media deletion" is on.
+- A watch-history rule treats a failed lookup as unknown, never as "never watched", so an outage cannot push items into a never-watched group. (Docs, Watch History Rules.)
+- A `-10000`-style score does not exist here. A rule either matches or it does not.
+
+## The two guards
+
+1. **The `keep` tag.** Every title to protect carries a tag named `keep` in Radarr (tag id 1) or Sonarr (tag id 1). Every rule group below has a `Tags NOT CONTAINS keep` line from the matching arr. That line also keeps anything the arr does not know out of the collection, because an unknown value never matches. Measured on 2026-10-08: 45 of Radarr's 51 films carry it (every Marvel Studios title and every Deadpool title; the six Sony Spider-Man films do not), and Loki carries it in Sonarr. A new title to protect gets the tag in the arr when it is added, before its first rule run.
+2. **Plex "Allow media deletion" off.** Measured off on 2026-10-08 (`allowMediaDeletion = false` in Plex's prefs). Leave it off. It is what blocks the Plex fallback above for anything outside the arrs, which is the guard for the USB tier under `/data/ext` once it holds files.
+
+## Settings that stay as they are
+
+- Rules every 8 hours and collection handling every 12 hours are the defaults and are fine.
+- Telemetry is off from the pod's `TELEMETRY=off`; Settings, About, Telemetry shows it.
+- Force reset Seerr record stays off on every group. It needs Seerr's CSRF protection off, and Seerr's own availability sync marks deleted media on its own.
+
+## The rule groups
+
+Rules, New rule. Settings common to all three:
+
+| Field                       | Value                                                         |
+| --- | --- |
+| Active                      | off at creation                                               |
+| Show on home                | on, so the collection appears in Plex as a "Leaving soon" row |
+| Show on library recommended | off                                                           |
+| Add list exclusions         | on, so an import list cannot re-add a deleted title           |
+| Tag this content            | off                                                           |
+| Force reset Seerr record    | off                                                           |
+| Clean up leftover folders   | off (Delete removes the folder itself)                        |
+| Keep in Maintainerr only    | off                                                           |
+| Use rules                   | on                                                            |
+
+Every rule line is joined with AND. "Second value" below means the comparison target is another property, picked from the value dropdown, not a typed number.
+
+### 1. Movies, watched and stale
+
+| Field             | Value                     |
+| --- | --- |
+| Name              | Movies, watched and stale |
+| Library           | Movies                    |
+| Radarr server     | radarr                    |
+| Radarr action     | Delete                    |
+| Take action after | 14 days                   |
+
+Rules:
+
+| Application | Property       | Operator     | Value   |
+| --- | --- | --- | --- |
+| Plex        | Last view date | BEFORE       | 60 days |
+| Plex        | Date added     | BEFORE       | 90 days |
+| Radarr      | Date added     | BEFORE       | 90 days |
+| Radarr      | Tags           | NOT CONTAINS | keep    |
+
+### 2. Movies, never watched
+
+| Field             | Value                 |
+| --- | --- |
+| Name              | Movies, never watched |
+| Library           | Movies                |
+| Radarr server     | radarr                |
+| Radarr action     | Delete                |
+| Take action after | 30 days               |
+
+Rules:
+
+| Application | Property             | Operator     | Value    |
+| --- | --- | --- | --- |
+| Plex        | Last view date       | NOT EXISTS   |          |
+| Radarr      | File - download date | BEFORE       | 120 days |
+| Radarr      | Tags                 | NOT CONTAINS | keep     |
+
+### 3. Shows, ended and fully watched
+
+| Field             | Value                          |
+| --- | --- |
+| Name              | Shows, ended and fully watched |
+| Library           | TV Shows                       |
+| Media type        | Show                           |
+| Sonarr server     | sonarr                         |
+| Sonarr action     | Delete entire show             |
+| Take action after | 14 days                        |
+
+Rules:
+
+| Application | Property                   | Operator         | Value                                            |
+| --- | --- | --- | --- |
+| Sonarr      | Show ended                 | EQUALS           | true                                             |
+| Plex        | Amount of watched episodes | BIGGER or EQUALS | second value: Plex, Amount of available episodes |
+| Plex        | Newest episode view date   | BEFORE           | 60 days                                          |
+| Sonarr      | Tags (show)                | NOT CONTAINS     | keep                                             |
+
+## Arming them, one at a time
+
+1. Create each group with Active off and the action set to Do nothing.
+2. Rules, Run Rules. Open Collections and read each collection. Every title listed is one the rules would delete after the countdown. Fix a surprise by tagging the title `keep` in its arr, or by excluding it on the collection's Exclusions tab, then run the rules again.
+3. When a collection reads right, edit its group: set the real action (Delete, or Delete entire show), set Active on, Save.
+4. The countdown starts from the day a title entered the collection, not from the day the group was armed, so a title that sat in a Do nothing collection for a week is handled a week sooner. Empty the collection first (Exclusions tab, or set the days higher for the first pass) if that matters.
+5. Watch the first Handle Collections run in the collection's Logs tab. A failed arr call leaves the item in place and retries next run.
+
+## Deferred on purpose
+
+- Per-season cleanup of continuing shows (a Season rule with "Unmonitor and delete season + delete show if empty"). Design it when a long-running show is actually in the library.
+- Plex watchlist rules. Docs flag them experimental and they depend on plex.tv rather than the local server.
+- Force reset Seerr record and Clean up leftover folders, for the reasons above.
+
+## Checking the state
+
+From inside the pod, printing counts only:
+
+```sh
+kubectl exec -n media deploy/maintainerr -- node -e 'fetch("http://127.0.0.1:6246/api/rules").then(r=>r.json()).then(r=>console.log("rule groups:",r.length))'
+kubectl exec -n media deploy/maintainerr -- node -e 'fetch("http://127.0.0.1:6246/api/collections").then(r=>r.json()).then(r=>console.log(r.map(c=>c.title+" active="+c.isActive+" action="+c.arrAction+" days="+c.deleteAfterDays).join("\n")))'
+```
+
+`arrAction` values (source, `packages/contracts/src/collections/servarr-action.ts`): 0 Delete, 1 Unmonitor and delete all, 2 Unmonitor and delete existing, 3 Unmonitor, 4 Do nothing, 5 Delete show if empty, 6 Unmonitor show if empty, 7 Change quality profile.
