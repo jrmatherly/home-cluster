@@ -41,6 +41,7 @@ lefthook-local.toml
 .claude/agent-memory-local/
 .remember/
 CLAUDE.local.md
+docs/superpowers/
 
 # Code index
 .codegraph/
