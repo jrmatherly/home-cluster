@@ -35,7 +35,8 @@ Template stage:
 These commands come from the rendered `mod.just` files, and now work:
 
 - `just bootstrap talos` and `just bootstrap apps` run the two bootstrap phases.
-- `just talos render|diff|apply|apply-node <node>|upgrade-node <node>|upgrade-k8s|reset-node <node>` manage the nodes.
+- `just talos render|diff|apply|apply-node <node>|upgrade-node <node>|upgrade-k8s|reset-node <node>` manage the nodes. `just talos status|drain|uncordon|resume <node>` take one out of service and back by host name: `drain` checks the other nodes and etcd, switches over its CloudNativePG primaries, then drains. `stop-node <node>` drains and powers it off for host maintenance, `reboot-node <node>` drains, reboots and resumes it, and `health` checks Talos, nodes, pods, Flux and CloudNativePG.
+- `just kube primaries` lists the CloudNativePG primaries and their nodes, and `just kube switchover <cluster> <namespace> [replica]` promotes a replica with `kubectl cnpg promote` and waits for a healthy cluster.
 - `just kube reconcile` forces a Flux reconcile.
 
 <!-- END AUTO-MANAGED -->

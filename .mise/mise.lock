@@ -104,6 +104,30 @@ url = "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_macOS_am
 url_api = "https://api.github.com/repos/cli/cli/releases/assets/599854716"
 provenance = "github-attestations"
 
+[[tools."github:cloudnative-pg/cloudnative-pg"]]
+version = "1.30.1"
+backend = "github:cloudnative-pg/cloudnative-pg"
+
+[tools."github:cloudnative-pg/cloudnative-pg"."platforms.linux-arm64"]
+checksum = "sha256:6ffad753bbbf5d353576967233063f2ba0adb843a4e7ef5ff4cb7384b2716d5e"
+url = "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.1/kubectl-cnpg_1.30.1_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/cloudnative-pg/cloudnative-pg/releases/assets/583849045"
+
+[tools."github:cloudnative-pg/cloudnative-pg"."platforms.linux-x64"]
+checksum = "sha256:784bc46f176b24a150d5de84d0691f10ff613b59456af86b1a4868e1bacb9953"
+url = "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.1/kubectl-cnpg_1.30.1_linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/cloudnative-pg/cloudnative-pg/releases/assets/583849034"
+
+[tools."github:cloudnative-pg/cloudnative-pg"."platforms.macos-arm64"]
+checksum = "sha256:74836f530b54f060126fc8cf5fd5c27e77801a6d36f61b66f4457218aa11383f"
+url = "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.1/kubectl-cnpg_1.30.1_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/cloudnative-pg/cloudnative-pg/releases/assets/583849039"
+
+[tools."github:cloudnative-pg/cloudnative-pg"."platforms.macos-x64"]
+checksum = "sha256:165a49352b8a60ba2eb7bf2b56e5388ff678ac5af36dc03129cedeaf3a37aee3"
+url = "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.1/kubectl-cnpg_1.30.1_darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/cloudnative-pg/cloudnative-pg/releases/assets/583849035"
+
 [[tools."github:postfinance/topf"]]
 version = "0.6.1"
 backend = "github:postfinance/topf"
