@@ -39,5 +39,7 @@ RUN --mount=type=bind,from=gitdir,target=/repo/.git \
     fi
 
 FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:adf5042a17f4ecdd200c595fa9ffd1be37efb18f89a830bd1a00e4ab4d59d42c
+# Links the GHCR package to the repository, so it shows up on the repository page.
+LABEL org.opencontainers.image.source=https://github.com/jrmatherly/home-cluster
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/docs/dist /usr/share/nginx/html

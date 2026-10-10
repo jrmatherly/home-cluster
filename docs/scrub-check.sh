@@ -24,9 +24,12 @@ fi
 [ "${#files[@]}" -gt 0 ] || exit 0
 
 patterns=$(grep -v '^[[:space:]]*$' "$denylist" 2>/dev/null || true)
-if [ -n "${SCRUB_DENYLIST:-}" ] && [ -z "$patterns" ]; then
-    echo "scrub-check: SCRUB_DENYLIST=$SCRUB_DENYLIST is missing or empty" >&2
-    exit 2
+if [ -z "$patterns" ]; then
+    if [ -n "${SCRUB_DENYLIST:-}" ]; then
+        echo "scrub-check: SCRUB_DENYLIST=$SCRUB_DENYLIST is missing or empty" >&2
+        exit 2
+    fi
+    echo "scrub-check: no denylist at $denylist, checking the regex rules only" >&2
 fi
 
 # Each rule is a name, a regex, and a filter that drops matches which only
