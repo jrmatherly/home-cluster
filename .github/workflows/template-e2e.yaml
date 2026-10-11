@@ -89,7 +89,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup mise
-        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -117,7 +117,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup mise
-        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -150,7 +150,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup mise
-        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           experimental: true
           install_args: --locked
@@ -171,9 +171,10 @@ jobs:
         run: just configure
 
       # Rendered output must already match the format-yaml pre-commit hook,
-      # otherwise every `just configure` shows up as formatting churn.
-      - name: Assert rendered output is formatted
-        run: oxfmt --check ./.sops.yaml ./bootstrap ./kubernetes ./talos
+      # otherwise every `just configure` shows up as formatting churn. The
+      # check covers the whole tree, so tracked files cannot drift either.
+      - name: Assert the repository and the rendered output are formatted
+        run: oxfmt --check .
 
       - name: Install flate
         uses: home-operations/flate/action@631b76b69c4e58c6f4d1cb01e23616fa61aebafa # v0.6.5

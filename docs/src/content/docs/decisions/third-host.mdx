@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-The question, asked on 2026-10-06, was what to do with the Windows 11 machine that ran Plex and seven Docker media apps (an i7-8700K with 12 threads, 32 GB of RAM, an ASRock Z370 board, a 250 GB NVMe, five SATA disks in an Intel RST RAID 0 and six USB portables). Four explorer agents and one synthesizer researched it, the lead re-verified the load-bearing claims, and the operator made the calls the same day. One storage call was revised on 2026-10-07 after a disk failed its self-test.
+The question, asked on 2026-10-06, was what to do with the Windows 11 machine that ran Plex and seven Docker media apps (an i7-8700K with 12 threads, 32 GB of RAM, an ASRock Z370 board, a 250 GB NVMe, five SATA disks in an Intel RST RAID 0 and six USB portables). Four explorer agents and one synthesizer researched it, the lead re-verified the load-bearing claims, and the operator made the calls the same day. Two storage calls were revised: on 2026-10-07, after a disk failed its self-test, and on 2026-10-08, when the USB portables became a parity-protected media tier.
 
 Claims carry the labels the research used. "Fetched" means the page was read, "snippet" means only a search summary was seen, "repo" names a file in this repository, and UNVERIFIED means nothing was checked. Where an explorer's reasoning rather than a source carries a point, the sentence says so.
 
@@ -21,7 +21,7 @@ The steps that carry this out are in [The media host](/hosts/third-host/). This 
 - Plex runs in an unprivileged Ubuntu 24.04 LXC on the host, from the official deb, with the UHD 630 render node handed in through `dev0` and the library bind-mounted.
 - One Talos worker VM, `k8s-worker-4`, 6 vCPU and 20 GB of RAM, on the NVMe's `local-zfs` with a 100 GB system disk, joined through the repo's `[[nodes]]` pattern. Its address is outside the ranges the other nodes use and inside `node_cidr`.
 - The media apps go straight into the cluster, in a `restricted` `media` namespace over NFS from the pool, with Sonarr as the pilot. That is the media stack decision, recorded on its own page.
-- The USB portables are never pool members. After the wipe, the clean ones become the backup layer (a `vzdump` target for the Plex LXC and the worker VM, rotated with one kept offline, and one holding the UI backup zips), one is the spare, and the two with pending sectors are retired.
+- The USB portables are never pool members. After the wipe, the clean ones become the backup layer (a `vzdump` target for the Plex LXC and the worker VM, rotated with one kept offline, and one holding the UI backup zips), one is the spare, and the two with pending sectors are retired. Revised 2026-10-08: a seventh portable turned up, and the operator chose redundancy for the media on the portables, because they had failed repeatedly and a death should cost no media. The smallest holds the `vzdump` backups; the other six are a SnapRAID and mergerfs tier (two parity, four data, about 16.3 TiB usable) exported inside the same tree as a second root folder for Sonarr and Radarr and a second Plex library folder. RAIDZ on the portables was rejected: a shingled rebuild runs for days, and a hub reset detaches every member at once and suspends the pool. SnapRAID computes parity over whole files in a nightly pass, and a dropped disk hides only its own files. The steps are on the media host page.
 
 ## Why
 

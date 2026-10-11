@@ -45,7 +45,12 @@
       "Bash(flux uninstall *)",
       "Bash(flux * uninstall *)",
       "Bash(flux delete *)",
-      "Bash(flux * delete *)"
+      "Bash(flux * delete *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr close *)",
+      "Bash(gh repo delete *)",
+      "Bash(gh api --method *)",
+      "Bash(gh api -X *)"
     ]
   },
   "hooks": {
