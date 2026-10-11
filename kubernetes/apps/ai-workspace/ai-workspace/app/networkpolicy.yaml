@@ -1,0 +1,20 @@
+---
+# The gateway sign-in is the only login, so only the gateway may reach the pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-workspace
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ai-workspace
+      app.kubernetes.io/controller: ai-workspace
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 3000

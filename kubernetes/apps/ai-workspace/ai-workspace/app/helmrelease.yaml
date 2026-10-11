@@ -1,0 +1,88 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ai-workspace
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: ai-workspace
+  interval: 1h
+  values:
+    controllers:
+      ai-workspace:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          wait-for-database:
+            image:
+              repository: docker.io/library/busybox
+              tag: "1.38"
+            command: ["sh", "-c", "until nc -z -w 2 ai-workspace-db-rw 5432; do sleep 2; done"]
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image:
+              repository: ghcr.io/jrmatherly/ai-workspace
+              tag: latest@sha256:d14b0dd7d60789954e220789255625344c3baeb270ef027c0c2aed777d1a0e17
+            env:
+              POSTGRES_PRISMA_URL: &databaseUrl
+                valueFrom:
+                  secretKeyRef:
+                    name: ai-workspace-db-app
+                    key: uri
+              POSTGRES_URL_NON_POOLING: *databaseUrl
+              LOCALAI_API_HOST: http://llama-server.ai.svc.cluster.local:8080
+            probes:
+              # The app has no health route, so the probes ask for a cheap JSON
+              # endpoint that needs no input.
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: &probePath /api/trpc/backend.listCapabilities
+                    port: &port 3000
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: *probePath
+                    port: *port
+                  periodSeconds: 5
+                  failureThreshold: 60
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 250m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      # next/image writes its optimized images here.
+      next-cache:
+        type: emptyDir
+        globalMounts:
+          - path: /app/.next/cache
