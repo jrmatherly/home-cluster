@@ -1,0 +1,75 @@
+---
+title: AI Workspace
+description: Take AI Workspace from the templates in Git to a chat UI behind the gateway's Pocket ID sign-in, with llama-server wired in and a database for shared chat links.
+sidebar:
+  order: 6
+---
+
+The steps outside the repo that `[ai_workspace]` in `cluster.toml` needs, in order. The deployment itself is in Git: the `[ai_workspace]` section and `kubernetes/apps/ai-workspace/`. The app's own repository is `jrmatherly/ai-workspace`, a copy of big-AGI.
+
+AI Workspace is served at `https://ai.${SECRET_DOMAIN}` on the internal gateway. It has no login of its own, so an Envoy Gateway `SecurityPolicy` on its route signs users in with Pocket ID and admits only the `cluster_admins` group, the Hubble pattern. `public = false` for now; `public = true` (which needs `pocket_id.public = true`) is for later, after the app itself has grown its own authentication and authorization.
+
+Each step names its source. "Source" is a file in the ai-workspace repository, read on 2026-10-11. "Measured" was run against the local production build on 2026-10-11.
+
+## What the app holds
+
+Nothing on the server. Chats live in each browser's IndexedDB (source, `CLAUDE.md`, Storage). The pod has a read-only root with emptyDirs at `/tmp` and `/app/.next/cache`. The only server state is the CloudNativePG cluster `ai-workspace-db` (two instances, WAL archiving and a daily backup at 05:00 UTC through `components/postgres`), and it holds exactly one table, the chat links people choose to share (source, `src/server/prisma/schema.prisma`, model `LinkStorage`). Without that table the share UI is hidden and nothing else changes (source, `src/modules/backend/backend.router.ts`, `hasDB`).
+
+## The Pocket ID client
+
+One client, named `AI Workspace`, with the callback URL `https://ai.${SECRET_DOMAIN}/oauth2/callback`.
+
+The gateway's SecurityPolicy admits only the `cluster_admins` group, so the client itself needs no group restriction. Copy the client ID and the secret; Pocket ID shows the secret once.
+
+## cluster.toml
+
+Section `[ai_workspace]`: `oidc_client_id` and `oidc_client_secret`. Leave `public` at its default and `[ai_workspace.env]` empty: there are no vendor keys yet, and llama-server is wired in on its own when an NVIDIA node exists (`LOCALAI_API_HOST` in the HelmRelease).
+
+Then `just configure`, restore the sops files that did not change:
+
+```sh
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+```
+
+Commit the rendered `kubernetes/apps/ai-workspace/` and push. `just kube reconcile` makes Flux pull now.
+
+## Watch it come up
+
+```sh
+kubectl -n ai-workspace get cluster,pods -w
+```
+
+The pod sits in `Init:0/1` until `ai-workspace-db-rw` accepts connections, then the startup probe asks `/api/trpc/backend.listCapabilities` (measured: 200 with a JSON body, no input needed; there is no health route). From outside, a request to `https://ai.${SECRET_DOMAIN}/` answers a 302 to `auth.${SECRET_DOMAIN}`, which is the SecurityPolicy doing its job.
+
+## Create the share table
+
+The image has no Prisma CLI, so the schema is pushed once from a checkout of the app's repository, at the tag the pod runs, through a port-forward (source, `docs/deploy-database.md`; the CLI reads `POSTGRES_URL_NON_POOLING`):
+
+```sh
+kubectl -n ai-workspace port-forward svc/ai-workspace-db-rw 5432:5432 &
+PGPASS=$(kubectl -n ai-workspace get secret ai-workspace-db-app -o jsonpath='{.data.password}' | base64 -d)
+POSTGRES_URL_NON_POOLING="postgresql://app:${PGPASS}@localhost:5432/app" npx prisma db push
+kill %1
+```
+
+Do this right after the first deploy: the share UI is shown as soon as both `POSTGRES_*` variables are set, and a share attempt before the table exists fails. Repeat it after an image bump whose release notes touch `schema.prisma`.
+
+## First sign-in
+
+1. Open `https://ai.${SECRET_DOMAIN}`. Pocket ID signs you in, then the app's setup dialog opens.
+2. Models: add a LocalAI service. The host is already held server-side (source, `src/modules/llms/server/openai/openai.access.ts`, the LocalAI branch reads `LOCALAI_API_HOST` when the client sends no host), so leave it blank and refresh the model list; llama-server's alias appears. The pod reaches llama-server because the namespace carries the `llama-server.ai/client` label.
+3. Any other vendor is bring-your-own: its key is typed into the browser and stays there, and calls can go browser-direct to the vendor, bypassing the cluster entirely.
+
+## Later: server-held vendor keys
+
+Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `just configure`, restore, commit and push. They land in the `ai-workspace-secret` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `POSTGRES_*`, `PORT`, `NODE_ENV`) are refused by the validator.
+
+The pod's NetworkPolicy restricts ingress only, so a new vendor needs no egress change.
+
+## Later: the image pin
+
+The HelmRelease pins `latest` by digest until a CalVer release tag exists. The release workflow's tag filter was `v2.*`, which never matched a `v2026.*` tag; the fix (`v20*`) is on the app's main. Once a release tag is pushed and built, change the tag in `template/config/kubernetes/apps/ai-workspace/ai-workspace/app/helmrelease.yaml.j2` to that version and let Renovate follow semver from there.
+
+## Later: public
+
+Set `public = true` only after the app's own authentication work lands. The route then also attaches to `envoy-external`, behind the same Pocket ID policy, so the tunnel reaches it. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
