@@ -131,6 +131,11 @@ def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
     )
     if r.returncode:
         failures[("pytest template/scripts/test_validate.py", tail(r))] = []
+    # The whole repo, not only the rendered trees: TOML fixtures and other tracked
+    # files drifted for months while only rendered output was checked.
+    r = run(["oxfmt", "--check", "."], ROOT, env)
+    if r.returncode:
+        failures[("oxfmt --check on the repo", tail(r))] = []
 
     for fixture in sorted(FIXTURES.glob("*.toml"), key=lambda f: f.stem != FULL_FIXTURE):
         for rendered in RENDERED:

@@ -27,6 +27,11 @@ glob = ["*.yaml", "*.yml"]
 run = "oxfmt {staged_files}"
 stage_fixed = true
 
+[pre-commit.commands.format-toml]
+glob = ["*.toml"]
+run = "oxfmt {staged_files}"
+stage_fixed = true
+
 [pre-commit.commands.scrub-docs]
 glob = ["docs/src/content/**/*"]
 run = "docs/scrub-check.sh {staged_files}"

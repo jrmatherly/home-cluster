@@ -1,5 +1,12 @@
 {
   "printWidth": 100,
-  "ignorePatterns": ["**/*.mdx"],
-  "overrides": [{ "files": ["*.jsonc"], "options": { "trailingComma": "none" } }]
+  "ignorePatterns": ["**/*.mdx", "docs/src/**", "docs/astro.config.ts", ".mise/**"],
+  "overrides": [
+    {
+      "files": ["*.jsonc"],
+      "options": {
+        "trailingComma": "none"
+      }
+    }
+  ]
 }

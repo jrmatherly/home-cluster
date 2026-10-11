@@ -171,9 +171,10 @@ jobs:
         run: just configure
 
       # Rendered output must already match the format-yaml pre-commit hook,
-      # otherwise every `just configure` shows up as formatting churn.
-      - name: Assert rendered output is formatted
-        run: oxfmt --check ./.sops.yaml ./bootstrap ./kubernetes ./talos
+      # otherwise every `just configure` shows up as formatting churn. The
+      # check covers the whole tree, so tracked files cannot drift either.
+      - name: Assert the repository and the rendered output are formatted
+        run: oxfmt --check .
 
       - name: Install flate
         uses: home-operations/flate/action@631b76b69c4e58c6f4d1cb01e23616fa61aebafa # v0.6.5
