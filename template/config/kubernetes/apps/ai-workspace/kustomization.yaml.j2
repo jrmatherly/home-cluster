@@ -1,0 +1,13 @@
+#% if ai_workspace_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai-workspace
+
+components:
+  - ../../components/sops
+
+resources:
+  - ./namespace.yaml
+  - ./ai-workspace/ks.yaml
+#% endif %#

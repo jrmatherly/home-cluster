@@ -1,0 +1,22 @@
+#% if ai_workspace_enabled %#
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ai-workspace
+spec:
+  hostnames: ["ai.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+#% if ai_workspace.public %#
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+#% endif %#
+  rules:
+    - backendRefs:
+        - name: ai-workspace
+          port: 3000
+#% endif %#

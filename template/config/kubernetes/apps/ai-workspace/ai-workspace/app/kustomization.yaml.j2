@@ -1,0 +1,19 @@
+#% if ai_workspace_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+components:
+  - ../../../../components/postgres
+resources:
+  - ./cluster.yaml
+  - ./helmrelease.yaml
+  - ./httproute.yaml
+  - ./networkpolicy.yaml
+  - ./ocirepository.yaml
+  - ./oidc-secret.sops.yaml
+  - ./scheduledbackup.yaml
+#% if ai_workspace.env %#
+  - ./secret.sops.yaml
+#% endif %#
+  - ./securitypolicy.yaml
+#% endif %#

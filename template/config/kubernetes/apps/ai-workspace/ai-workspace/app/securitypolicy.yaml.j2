@@ -1,0 +1,50 @@
+#% if ai_workspace_enabled %#
+---
+# The app has no login of its own, so the gateway signs users in with Pocket ID.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: ai-workspace
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ai-workspace
+  oidc:
+    # Set explicitly so the policy does not depend on Pocket ID answering its
+    # discovery document when the gateway reconciles.
+    provider:
+      issuer: https://auth.${SECRET_DOMAIN}
+      authorizationEndpoint: https://auth.${SECRET_DOMAIN}/authorize
+      tokenEndpoint: https://auth.${SECRET_DOMAIN}/api/oidc/token
+    clientID: "#{ ai_workspace.oidc_client_id }#"
+    clientSecret:
+      name: ai-workspace-oidc
+    redirectURL: https://ai.${SECRET_DOMAIN}/oauth2/callback
+    logoutPath: /logout
+    scopes: ["openid", "profile", "email", "groups"]
+    # A fixed name, so the JWT provider below can read the ID token.
+    cookieNames:
+      idToken: ai-workspace-id-token
+  # Claim checks need a verified token from a JWT provider in the same policy.
+  jwt:
+    providers:
+      - name: pocket-id
+        issuer: https://auth.${SECRET_DOMAIN}
+        remoteJWKS:
+          uri: https://auth.${SECRET_DOMAIN}/.well-known/jwks.json
+        extractFrom:
+          cookies: ["ai-workspace-id-token"]
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: cluster-admins
+        action: Allow
+        principal:
+          jwt:
+            provider: pocket-id
+            claims:
+              - name: groups
+                valueType: StringArray
+                values: ["cluster_admins"]
+#% endif %#
