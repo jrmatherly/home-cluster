@@ -76,6 +76,12 @@
       automerge: true,
     },
     {
+      description: "TypeScript majors stay closed until @cloudflare/nimbus-docs (^5) and @astrojs/check (^5 || ^6) allow them",
+      matchPackageNames: ["typescript"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
+    {
       matchUpdateTypes: ["major"],
       addLabels: ["type/major"],
     },

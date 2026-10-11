@@ -157,8 +157,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
   `app/dashboards/pegaprox-overview.json` is upstream's `misc/grafana/` JSON with only `refresh` changed from 10s to 1m to match the scrape interval, so refresh it
   when a release changes that file.
-- **network-optimizer** is pinned to a pre-release while the stable release's Performance Tweaks page refuses
-  the UDM-SE's UniFi OS. That page caps the gateway firmware at `MaxSupportedFirmware` in
+- **network-optimizer** ran pre-release tags until 2026-10-10, while the stable release's Performance Tweaks page
+  refused the UDM-SE's UniFi OS; 2.9.2 carries the same cap as the last preview, so it is on the stable tag. That page caps the gateway firmware at `MaxSupportedFirmware` in
   `src/NetworkOptimizer.Web/Services/PerfTweaksDeploymentService.cs` and shows the firmware red above it, so after
   a UniFi OS update on the gateway, compare the version on that page with the constant in the pinned tag. Previews
   ship about daily as `v<semver>-preview<n>`. The inventory reads `-preview<n>` as a variant, so it shows neither
