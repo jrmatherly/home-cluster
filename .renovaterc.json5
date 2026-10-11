@@ -68,12 +68,13 @@
       pinDigests: true,
     },
     {
-      description: "Move the docs digest at once and merge without review",
+      description: "Move the docs digest at once and merge without review. ignoreTests, because no workflow runs on a Renovate branch and the Docs Image workflow on main already built the image",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/jrmatherly/home-cluster/docs"],
       matchUpdateTypes: ["pinDigest", "digest"],
       schedule: ["at any time"],
       automerge: true,
+      ignoreTests: true,
     },
     {
       description: "TypeScript majors stay closed until @cloudflare/nimbus-docs (^5) and @astrojs/check (^5 || ^6) allow them",
