@@ -4,8 +4,10 @@ A Claude Code hooks module for this repo. It refuses four things before the tool
 
 - **Rendered files.** An Edit or Write under `bootstrap/`, `kubernetes/` or `talos/`, or on the
   root `.sops.yaml`, is refused with a pointer to the `.j2` source. So is a Bash command that
-  redirects into those directories or names a path there as the operand of `tee`, `cp`, `mv`,
-  `sd`, `sed -i`, `yq -i` or `sops -i`.
+  writes there: a redirect target, a file given to `tee`, the destination of `cp` (or either end
+  of `mv`, which removes its source), or a file given to `sd`, `sed -i`, `perl -pi`, `yq -i` or
+  `sops -i`, in relative, `./`, `$PWD` or absolute form, quoted or not. Reading a rendered file
+  and sending the result elsewhere is allowed.
 - **Secrets files.** A Bash command segment that names `cluster.toml`, `age.key`, `deploy.key`,
   `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig` or `talosconfig` is refused
   unless that segment runs `template/scripts/validate.py`, `template/scripts/check_layout.py`, a

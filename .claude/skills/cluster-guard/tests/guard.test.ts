@@ -118,6 +118,21 @@ test("writing a rendered file is refused with the source hint", async ($, on) =>
       "mv a.yaml bootstrap/helmfile/apps.yaml",
       "yq -i '.a=1' kubernetes/apps/x.yaml",
       "sops -e -i kubernetes/apps/x.sops.yaml",
+      "echo x >kubernetes/apps/x.yaml",
+      "echo x >>talos/all/1.yaml",
+      "cp a.yaml kubernetes/apps/x.yaml 2>/dev/null",
+      "cp a.yaml kubernetes/apps/x.yaml # note",
+      "cat a | tee /tmp/a kubernetes/apps/x.yaml",
+      "mv kubernetes/apps/x.yaml /tmp/",
+      'echo x > "kubernetes/apps/x.yaml"',
+      "cp a 'talos/all/1.yaml'",
+      "echo x > $PWD/kubernetes/apps/x.yaml",
+      "echo x > /work/talos/all/99.yaml",
+      "sed -Ei 's/a/b/' kubernetes/apps/x.yaml",
+      "sops encrypt -i kubernetes/apps/x.sops.yaml",
+      "yq --inplace '.a=1' kubernetes/apps/x.yaml",
+      "perl -pi -e 's/a/b/' kubernetes/apps/x.yaml",
+      "echo x > .sops.yaml",
     ],
     /writes a rendered file/,
   );
@@ -133,6 +148,8 @@ test("writing a rendered file is refused with the source hint", async ($, on) =>
     "grep -rn foo kubernetes/ talos/",
     "cp template/config/kubernetes/a.j2 /tmp/",
     "echo x > template/config/kubernetes/apps/x.yaml.j2",
+    'git commit -m "fix: kubernetes/apps/x.yaml > talos/all/1.yaml"',
+    "ls kubernetes/apps 2>/dev/null",
   ]);
 });
 test("a commit with staged sops churn sets the pinned line and toasts", async ($, on) => {
