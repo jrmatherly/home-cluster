@@ -3,10 +3,18 @@ import type { Register } from "claude-code";
 const DIRS = ["bootstrap", "kubernetes", "talos"];
 const DIR = `(?:${DIRS.join("|")})/`;
 const RENDERED = new RegExp(`^(?:${DIR}|\\.sops\\.yaml$)`);
-// A rendered path as a shell operand: after whitespace, a quote, `=` or `>`, never after `template/config/`.
-const RENDERED_OPERAND = new RegExp(`(?:^|[\\s"'=>])(?:\\S*/home-cluster/|\\./)?${DIR}`);
-const WRITERS =
-  /(?:^|[\s;])(?:tee|cp|mv|sd|yq\s+-i|sed\s+-i|sops\s+(?:-e\s+)?(?:-i|--in-place))\b|>/;
+// A rendered path, optionally absolute or ./-prefixed, never under template/config/.
+const RENDERED_PATH = `(?:\\S*/home-cluster/|\\./)?${DIR}\\S*`;
+// Only a rendered path in the destination position is a write: after a redirect or
+// tee, as the last operand of cp/mv, or as an operand of an in-place editor. A rendered
+// file read and redirected elsewhere is not.
+const WRITES_RENDERED = new RegExp(
+  [
+    `(?:>>?|\\btee(?:\\s+-\\S+)*)\\s+["']?${RENDERED_PATH}`,
+    `\\b(?:cp|mv)\\b[^;]*\\s["']?${RENDERED_PATH}["']?\\s*$`,
+    `\\b(?:sd|yq\\s+-i|sed\\s+-i|sops\\s+(?:-e\\s+)?(?:-i|--in-place))\\b[^;]*\\s["']?${RENDERED_PATH}`,
+  ].join("|"),
+);
 const SOPS_PATHSPEC = DIRS.map((d) => `:(top,glob)${d}/**/*.sops.*`);
 const NODE_OPS =
   /\bjust\s+talos\s+(?:apply|drain|stop-node|reboot-node|upgrade-node|apply-node|reset-node|upgrade-k8s)\b|\btalosctl\b.*\b(?:upgrade|upgrade-k8s|reset|apply-config|reboot|shutdown)\b|\btopf\s+(?:apply|upgrade|reset)\b|\bkubectl\b.*\bdrain\b/;
@@ -65,7 +73,7 @@ export const register: Register = (on) => {
         deny: "that command names a secrets file; only template/scripts/validate.py, check_layout.py, just template recipes and taplo check may read one (quote the name if it is only text)",
       };
     }
-    if (parts.some((s) => WRITERS.test(s) && RENDERED_OPERAND.test(s))) {
+    if (parts.some((s) => WRITES_RENDERED.test(s.trim()))) {
       return {
         deny: "that writes a rendered file; edit the .j2 source under template/config/ and run just configure",
       };

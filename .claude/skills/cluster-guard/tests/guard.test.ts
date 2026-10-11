@@ -109,16 +109,30 @@ test("writing a rendered file is refused with the source hint", async ($, on) =>
     $,
     [
       "echo x > ./talos/all/99.yaml",
+      "cat a >> kubernetes/apps/x.yaml",
       "sd 'replicas: 1' 'replicas: 2' kubernetes/apps/media/sonarr/app/helmrelease.yaml",
       "cat x | tee bootstrap/helmfile/apps.yaml",
+      "cat a | tee -a /Users/jason/dev/home-cluster/talos/all/1.yaml",
       "sed -i 's/a/b/' /Users/jason/dev/home-cluster/talos/all/10.yaml",
+      "cp /tmp/x.yaml kubernetes/apps/x.yaml",
+      "mv a.yaml bootstrap/helmfile/apps.yaml",
+      "yq -i '.a=1' kubernetes/apps/x.yaml",
+      "sops -e -i kubernetes/apps/x.sops.yaml",
     ],
     /writes a rendered file/,
   );
+  // Reading a rendered file and sending the result elsewhere is not a write.
   await allowed($, [
     "sd 'a' 'b' template/config/kubernetes/apps/media/sonarr/app/helmrelease.yaml.j2",
     "cat kubernetes/flux/cluster/ks.yaml",
     "git diff -- kubernetes/",
+    "yq '.spec.values' kubernetes/apps/x/helmrelease.yaml > /tmp/v.yaml",
+    "cp kubernetes/apps/x/helmrelease.yaml /tmp/hr.yaml",
+    "cat kubernetes/apps/x.yaml | tee /tmp/out",
+    "helm template x chart.tgz -f <(yq . ./kubernetes/apps/x/helmrelease.yaml) > /tmp/o",
+    "grep -rn foo kubernetes/ talos/",
+    "cp template/config/kubernetes/a.j2 /tmp/",
+    "echo x > template/config/kubernetes/apps/x.yaml.j2",
   ]);
 });
 test("a commit with staged sops churn sets the pinned line and toasts", async ($, on) => {
