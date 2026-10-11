@@ -81,7 +81,7 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 - Edit the `.j2` source under `template/config/`, never the rendered copy. makejinja uses `#{ var }#` and `#% block %#`, and plain `{{ }}` passes through to the output.
 - Area rules in `.claude/rules/` load when you open matching files. `templates.md` covers makejinja, `talos.md` covers topf and Talos patches, `flux-apps.md` covers the Flux app layout, and `validator.md` covers schema changes.
 - Renovate updates chart and image versions in `.yaml.j2` files on its own. `# renovate:` comments are only for the pins its managers cannot find: the Talos and Kubernetes versions in `talos/topf.yaml.j2`, and the `prometheus-operator-crds` chart in `bootstrap/helmfile/crds.yaml.j2`.
-- Formatting follows `.editorconfig`: 2 spaces, LF line endings, 4 spaces for Markdown and shell. oxfmt formats YAML, JSON and Markdown at width 100.
+- Formatting follows `.editorconfig`: 2 spaces, LF line endings, 4 spaces for Markdown and shell. oxfmt formats YAML, JSON, Markdown and TOML at width 100 across the whole tree, minus `.oxfmtrc.json`'s `ignorePatterns`, so TOML has no aligned `=` columns; the pre-commit hook formats staged files, and the stop hook and CI run `oxfmt --check .`.
 - Python: `validate.py` subclasses `Model` (`extra="forbid"`), uses `Annotated` validators, and reports errors through `ConfigError` and `format_errors`, one per line. `plugin.py` uses single quotes, and `validate.py` uses double quotes.
 - just recipes use `[doc()]`, `[group()]` and `[private]` attributes, and run under bash with `-euo pipefail`. They log through `just log <level> "<msg>" key value`, which calls `gum log`.
 
