@@ -997,6 +997,53 @@ def test_media_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
+AI_WORKSPACE = POCKET_ID | {
+    "ai_workspace.oidc_client_id": "fake",
+    "ai_workspace.oidc_client_secret": "fake",
+}
+
+
+def test_ai_workspace_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POCKET_ID)).ai_workspace_enabled is False
+    assert _load_raw(config_from("private.toml", **AI_WORKSPACE)).ai_workspace_enabled is True
+
+
+def test_partial_ai_workspace_names_missing_field():
+    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.oidc_client_secret": None})
+    with pytest.raises(
+        ConfigError, match=r"ai_workspace is partially configured.*\(missing: oidc_client_secret\)"
+    ):
+        _load_raw(raw)
+
+
+def test_ai_workspace_requires_pocket_id():
+    raw = config_from("private.toml", **AI_WORKSPACE | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"ai_workspace requires pocket_id"):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("public", True), ("env", {"ANTHROPIC_API_KEY": "fake"})]
+)
+def test_ai_workspace_options_require_client(field, value):
+    raw = config_from("private.toml", **POCKET_ID | {f"ai_workspace.{field}": value})
+    with pytest.raises(ConfigError, match=rf"ai_workspace\.{field} requires oidc_client_id"):
+        _load_raw(raw)
+
+
+def test_ai_workspace_public_requires_public_pocket_id():
+    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.public": True})
+    with pytest.raises(ConfigError, match=r"ai_workspace\.public requires pocket_id\.public"):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize("key", ["LOCALAI_API_HOST", "lowercase_key"])
+def test_ai_workspace_env_rejects_reserved_and_malformed_keys(key):
+    raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.env.{key}": "fake"})
+    with pytest.raises(ConfigError):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

@@ -824,6 +824,55 @@ schematic_id = ""
 
 
 # =============================================================================
+#    AI Workspace, a multi-model chat UI, at https://ai.<domain.name> on the
+#    internal gateway in the ai-workspace namespace, and also on the external
+#    gateway with public = true. It has no login of its own, so a Pocket ID
+#    sign-in on the gateway is the only login. Needs [pocket_id] and
+#    [postgres.backup], which backs up its database of shared chat links.
+#    Create the OIDC client in the Pocket ID admin UI first, with the callback
+#    URL https://ai.<domain.name>/oauth2/callback, then set BOTH client fields
+#    below to enable; leaving them blank skips it.
+#
+#    Chats stay in each browser. llama-server is wired in when a node loads
+#    the nvidia kernel module. Vendor API keys are brought by each user in the
+#    browser, unless the server holds them through [ai_workspace.env] below.
+# =============================================================================
+[ai_workspace]
+
+# Client ID of the OIDC client created for AI Workspace in Pocket ID.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
+# Also serves AI Workspace on the external gateway, so the internet reaches
+# it. Needs the client fields above and pocket_id.public = true, because a
+# visitor from the internet must reach the Pocket ID login.
+# OPTIONAL. Default: false
+
+# public = false
+
+# Extra server-side environment variables, one key per variable, such as
+# vendor API keys. They are written to a SOPS-encrypted Secret, and the
+# browser then sees those vendors as held by the server. Names are upper case;
+# LOCALAI_API_HOST, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, PORT and
+# NODE_ENV belong to the templates and are refused. Needs the client fields
+# above, and stays the last table in the section, because TOML closes
+# [ai_workspace] at this header.
+# OPTIONAL.
+[ai_workspace.env]
+
+# ANTHROPIC_API_KEY = ""
+# OPENAI_API_KEY = ""
+# GEMINI_API_KEY = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

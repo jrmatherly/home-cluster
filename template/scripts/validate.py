@@ -542,6 +542,37 @@ class Media(Model):
         return self
 
 
+# Server env vars the AI Workspace templates set or depend on (the port and mode
+# the probes and Service assume).
+AI_WORKSPACE_OWNED_ENV = (
+    "LOCALAI_API_HOST",
+    "POSTGRES_PRISMA_URL",
+    "POSTGRES_URL_NON_POOLING",
+    "PORT",
+    "NODE_ENV",
+)
+
+
+class AiWorkspace(Model):
+    # The OIDC client created in the Pocket ID admin UI for the gateway sign-in.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+    # Also attaches the route to the external gateway, so the internet reaches it.
+    public: bool = False
+    # Extra server env vars, such as vendor API keys, written to the app's Secret.
+    env: dict[Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]*$")], Secret] = {}
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "ai_workspace", ("oidc_client_id", "oidc_client_secret"))
+        for key in self.env:
+            if key in AI_WORKSPACE_OWNED_ENV:
+                raise ValueError(
+                    f"ai_workspace.env.{key} belongs to the templates and cannot be overridden"
+                )
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -594,6 +625,7 @@ class Config(Model):
     pegaprox: PegaProx = PegaProx()
     actual_budget: ActualBudget = ActualBudget()
     media: Media = Media()
+    ai_workspace: AiWorkspace = AiWorkspace()
     nodes: list[Node]
 
     @computed_field
@@ -746,6 +778,13 @@ class Config(Model):
     def media_plex_enabled(self) -> bool:
         return self.media_enabled and self.media.plex_host != ""
 
+    # Gates AI Workspace. The client is created in Pocket ID first, so its ID
+    # being set means the login it is served behind already exists.
+    @computed_field
+    @property
+    def ai_workspace_enabled(self) -> bool:
+        return self.ai_workspace.oidc_client_id != ""
+
     # Changes when any media key changes, so a HelmRelease that carries it is
     # upgraded and its configure hook pushes the new keys into the apps.
     @computed_field
@@ -866,6 +905,26 @@ class Config(Model):
         if self.actual_budget.public and not self.pocket_id.public:
             raise ValueError(
                 "actual_budget.public requires pocket_id.public: a visitor from the internet "
+                "must reach the Pocket ID login"
+            )
+        if self.ai_workspace_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "ai_workspace requires postgres.backup: its database is backed up there"
+            )
+        if self.ai_workspace_enabled and not self.pocket_id_enabled:
+            raise ValueError(
+                "ai_workspace requires pocket_id: the gateway sign-in is the only login"
+            )
+        for name in ("public", "env"):
+            if getattr(self.ai_workspace, name) and not self.ai_workspace_enabled:
+                raise ValueError(
+                    f"ai_workspace.{name} requires oidc_client_id: AI Workspace only runs "
+                    "when the client is set"
+                )
+        # pocket_id.public already requires an ingress, so no separate ingress check.
+        if self.ai_workspace.public and not self.pocket_id.public:
+            raise ValueError(
+                "ai_workspace.public requires pocket_id.public: a visitor from the internet "
                 "must reach the Pocket ID login"
             )
         if self.media_enabled and not self.pocket_id_enabled:

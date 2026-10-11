@@ -139,6 +139,14 @@ plex_host = "10.10.10.60"
 plex_token = "fake-plex-token"
 public = true
 
+[ai_workspace]
+oidc_client_id = "fake-ai-workspace"
+oidc_client_secret = "fake-ai-workspace-secret"
+public = true
+
+[ai_workspace.env]
+ANTHROPIC_API_KEY = "fake-anthropic-key"
+
 [[nodes]]
 name = "k8s-0"
 address = "10.10.10.100"

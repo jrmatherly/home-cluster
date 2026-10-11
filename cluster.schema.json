@@ -23,6 +23,38 @@
       "title": "ActualBudget",
       "type": "object"
     },
+    "AiWorkspace": {
+      "additionalProperties": false,
+      "properties": {
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "public": {
+          "default": false,
+          "title": "Public",
+          "type": "boolean"
+        },
+        "env": {
+          "default": {},
+          "patternProperties": {
+            "^[A-Z][A-Z0-9_]*$": {
+              "$ref": "#/$defs/Secret"
+            }
+          },
+          "title": "Env",
+          "type": "object"
+        }
+      },
+      "title": "AiWorkspace",
+      "type": "object"
+    },
     "Api": {
       "additionalProperties": false,
       "properties": {
@@ -1061,6 +1093,15 @@
         "plex_host": "",
         "plex_token": "",
         "public": false
+      }
+    },
+    "ai_workspace": {
+      "$ref": "#/$defs/AiWorkspace",
+      "default": {
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "public": false,
+        "env": {}
       }
     },
     "nodes": {
