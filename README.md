@@ -50,7 +50,7 @@ switches one over before a node is drained.
   markdownlint, and a scrub of the documentation pages for private values.
 - [Renovate](https://www.mend.io/renovate) keeps charts, images, tools and actions current, and
   pins the documentation image to its digest after every build.
-- GitHub Actions build the documentation image and the model images for the LocalAI,
+- GitHub Actions build the documentation image and the model images for LocalAI,
   and run the template's fixture tests.
 
 ## Layout
@@ -63,7 +63,7 @@ kubernetes/           rendered Flux tree, reconciled from main
 talos/                rendered Talos machine configuration (topf)
 bootstrap/            rendered helmfile for the first install
 docs/                 the documentation site (Nimbus on Astro) and its Dockerfile
-images/               recipes for the model images the LocalAI mounts
+images/               recipes for the model images LocalAI mounts
 .github/              workflows, Renovate fixtures and the template's test fixtures
 ```
 
