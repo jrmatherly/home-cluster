@@ -75,8 +75,8 @@ rolled back by a timeout; “When a recipe stops” says what to do.
    post-processing step cut mid-way is retried from scratch.
 5. The clock. Avoid: 02:00 local (vzdump of LXC 200 and VM 135 on the media host), 03:00 local
    (UniFi device auto-update, which reboots the closet switch and splits the non-GPU host from the
-   GPU host), 03:30 local (SnapRAID nightly on the media host), 06:00 UTC (Recyclarr), 10:00 UTC
-   (`restart-reset` CronJob). Daytime is best.
+   GPU host), 03:30 local (SnapRAID nightly on the media host), 06:00 UTC (Recyclarr). Daytime is
+   best. `restart-reset` evicts on the hour, every hour, so start a few minutes past one.
 6. Flux: nothing mid-rollout. `flux get hr -A | grep -v True` shows only the header.
 7. For the non-GPU host: accept the Postgres downtime (see “Reboot the non-GPU host”) or do it when nobody needs the
    cluster.
@@ -233,7 +233,7 @@ just talos stop-node k8s-worker-4
 
 Leave it. The pinned pods stay Pending and the cluster is otherwise normal. Nothing in the cluster
 times out on a Pending pod. When the node is back, `just talos resume k8s-worker-4`. If the node
-will be gone for days, note that `restart-reset` (10:00 UTC) and Flux keep running without it and
+will be gone for days, note that `restart-reset` (hourly) and Flux keep running without it and
 that the daily Postgres backups run from the primaries, which the drain moved off the node.
 
 ### Unplanned: a host dropped, lost power, or rebooted on its own
