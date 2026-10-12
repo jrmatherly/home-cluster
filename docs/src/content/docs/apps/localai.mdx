@@ -93,7 +93,7 @@ The SecurityPolicy is a copy of Hubble's. The gateway signs users in with Pocket
 2. Put the client ID and secret in `cluster.toml` as `oidc_client_id` and `oidc_client_secret` under `[localai]`.
 3. `just configure`, restore the `*.sops.*` files whose inputs did not change (keep the new `localai-oidc` Secret), commit and push. Flux rolls the LocalAI pod, because `LOCALAI_DISABLE_WEBUI` changes.
 4. Open `https://localai.${SECRET_DOMAIN}` and sign in with Pocket ID.
-5. LocalAI's own `/login` page asks for a key. Paste the API key once. LocalAI checks it and keeps it in a `token` cookie (source, LocalAI v4.11.0, `core/http/routes/auth.go`, `POST /api/auth/token-login`).
+5. LocalAI's own sign-in page, `/app/login`, asks for a key (`/` redirects to `/app`, the SPA; the server path `/login` answers 404, measured). Paste the API key once. LocalAI checks it and keeps it in a `token` cookie (source, LocalAI v4.11.0, `core/http/routes/auth.go`, `POST /api/auth/token-login`).
 
 The gallery endpoint and runtime settings stay off, so the WebUI cannot install models or change settings.
 

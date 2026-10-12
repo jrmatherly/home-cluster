@@ -30,7 +30,7 @@ spec:
             env:
               # Closes every API route but /healthz, /readyz and discovery to a request without
               # the key; a legacy key grants full admin, which is why the gallery endpoint and
-              # runtime settings below stay disabled. The WebUI shell is public, and its /login
+              # runtime settings below stay disabled. The WebUI shell is public, and its /app/login
               # page takes the key and keeps it in a `token` cookie.
               LOCALAI_API_KEY:
                 valueFrom:
