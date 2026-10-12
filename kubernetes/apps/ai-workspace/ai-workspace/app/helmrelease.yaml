@@ -30,7 +30,7 @@ spec:
           app:
             image: &image
               repository: ghcr.io/jrmatherly/ai-workspace
-              tag: v2026.10.11.2@sha256:565dd2a26399367bc71daa74b37b921cb2a5a48a10d0b8d50fbd920f302fa506
+              tag: v2026.10.12@sha256:4dae3d40874d2c53f5b6923509521c1b113587e2b60ba148259f92d2f6efceca
             env:
               POSTGRES_PRISMA_URL: &databaseUrl
                 valueFrom:
