@@ -68,6 +68,7 @@ ZmFrZQ==
 sentry_org = "fake-org"
 sentry_token = "fake-sentry-token"
 sentry_url = "https://us.sentry.io"
+proxmox_hosts = ["10.10.10.2", "10.10.10.3"]
 
 [unifi]
 host = "https://192.0.2.1"

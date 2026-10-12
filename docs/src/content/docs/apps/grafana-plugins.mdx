@@ -146,3 +146,37 @@ To check it:
 1. Open `https://grafana.${SECRET_DOMAIN}/login`. The page shows the Pocket ID button next to the password form.
 2. Sign in with Pocket ID as a member of `cluster_admins`. You land signed in as a server admin.
 3. Sign in as a Pocket ID user outside that group. Grafana refuses the sign-in. `kubectl -n observability logs -l app.kubernetes.io/name=grafana --all-containers | grep -i oauth` shows the reason.
+
+## Proxmox hosts and ZFS
+
+The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and pages Alertmanager when a ZFS pool there is not online. Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs the three required `[observability]` fields (source, `template/scripts/validate.py`).
+
+As of 2026-10-12 the templates are built, and the host install below is not done yet.
+
+What it renders (source, `kube-prometheus-stack/app/`):
+
+- `proxmox-hosts-scrapeconfig.yaml`, a `ScrapeConfig` with the job `proxmox-hosts`, every 60 seconds, one target per address at port 9100. The HelmRelease sets `scrapeConfigSelectorNilUsesHelmValues: false`, so Prometheus picks it up with no label.
+- `proxmox-hosts-prometheusrule.yaml`, the `proxmox-hosts` rule group. `ZfsPoolNotOnline` is critical and fires when `node_zfs_zpool_state{job="proxmox-hosts", state!="online"} == 1` holds for 2 minutes. `ProxmoxHostExporterDown` is a warning and fires when `up{job="proxmox-hosts"} == 0` holds for 10 minutes.
+
+The zfs collector of node-exporter exposes `node_zfs_zpool_state` as a 1 or 0 gauge per pool and state, with the labels `zpool` and `state` (docs, node_exporter zfs collector). Nothing here has measured it yet. The first measurement is the `grep` in step 2.
+
+1. On each Proxmox host, as root, install Debian's package. It starts the exporter on port 9100 and enables it at boot.
+
+    ```sh
+    apt install -y prometheus-node-exporter
+    ```
+
+2. On the same host, check that every pool reports `state="online"` with the value 1.
+
+    ```sh
+    curl -s localhost:9100/metrics | grep node_zfs_zpool_state
+    ```
+
+3. If the Proxmox firewall is on, allow TCP 9100 at the datacenter or node level from the Talos node addresses (`<cp-1 address>` to `<worker-N address>`). Cilium masquerades pod traffic that leaves the cluster, so the scrape arrives from the node's address, not the pod CIDR.
+4. In `cluster.toml`, under `[observability]`, set the hosts' addresses, then render, commit and push as in "Render, commit and push".
+
+    ```toml
+    proxmox_hosts = ["<non-GPU host address>", "<GPU host address>", "<media host address>"]
+    ```
+
+5. In Prometheus, query `up{job="proxmox-hosts"}`. Each host shows 1.

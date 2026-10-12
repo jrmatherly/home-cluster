@@ -11,6 +11,10 @@ resources:
   #% endif %#
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  #% if observability.proxmox_hosts %#
+  - ./proxmox-hosts-prometheusrule.yaml
+  - ./proxmox-hosts-scrapeconfig.yaml
+  #% endif %#
   - ./secret.sops.yaml
 #% if observability.github_app_id or observability.sentry_org %#
 configMapGenerator:

@@ -18,7 +18,7 @@ Written from that incident; every number below was measured that day.
 | Restarts at 03:3x local, confined to the nodes on the GPU host                                         | The UniFi auto-update window rebooted the closet switch and split the hosts                                                                   | [Node and host maintenance](/operations/node-maintenance/), "Unplanned"     |
 | Restarts on every node at once after a reboot of all three hosts                                       | Quorum lost; Talos keeps the old containers so every pod comes back with +1                                                                   | [Node and host maintenance](/operations/node-maintenance/), "Reboot all three hosts" |
 | Restarts within one or two minutes on the leader-electing controllers only, any hour, no node NotReady | The API hung: an etcd leader stalled on its disk, or a control plane VM froze                                                                 | This page                                                                   |
-| Counts still there after the daily cleanup                                                             | `kube-system/restart-reset` runs at 10:00 UTC and only clears restarts older than an hour; the burst came later, or the pod was not Ready     | `kubectl -n kube-system get jobs`, then `logs job/<name>`                   |
+| Counts still there two hours after the burst                                                           | `kube-system/restart-reset` runs hourly and only clears restarts older than an hour; the pod was not Ready, or a PodDisruptionBudget held it | `kubectl -n kube-system get jobs`, then `logs job/<name>`                   |
 
 The leader-electing set is the fingerprint of an API outage: the three Flux controllers,
 cert-manager, cilium-operator, envoy-gateway, cloudnative-pg, plugin-barman-cloud, external-dns
@@ -133,11 +133,11 @@ its `/dev/disk/by-id` symlinks stay, which proves nothing. Both drives here run 
 ## Prevention
 
 - A 980 PRO on current firmware that hangs with "Device not ready" after a reset matches the drive's deepest power-saving state (APST) misbehaving with the slot. One hang is thin evidence; on a second, set `nvme_core.default_ps_max_latency_us=0` on the host's kernel command line (`/etc/kernel/cmdline`, then `proxmox-boot-tool refresh`).
-- Nothing in the cluster can see rpool. node-exporter on the three Proxmox hosts with its ZFS collector, scraped by Prometheus, plus a rule on `node_zfs_zpool_state`, turns the next degraded pool into an Alertmanager page. Not built yet.
-- `restart-reset` runs once a day. Hourly would clear a daytime burst within two hours; its guard already skips restarts under an hour old. Not changed yet.
+- Nothing in the cluster could see rpool. `proxmox_hosts` under `[observability]` now scrapes node-exporter on the three Proxmox hosts and pages on `node_zfs_zpool_state` when a pool is not online. Built 2026-10-12; it waits on `prometheus-node-exporter` being installed on each host. The steps are in [Grafana plugins](/apps/grafana-plugins/), under "Proxmox hosts and ZFS".
+- `restart-reset` runs hourly since 2026-10-12, so a burst at any hour clears within two hours. Its guard skips restarts under an hour old, and `concurrencyPolicy: Forbid` keeps runs from overlapping.
 
 ## Sources
 
 - The incident record of 2026-10-12: Prometheus reads from the cluster, and the kernel log, drive reads and pool status captured on the host.
-- `kubernetes/apps/kube-system/restart-reset/` for the daily cleanup and its guards; `talos/mod.just` for `drain`, `stop-node`, `resume` and `health`.
+- `kubernetes/apps/kube-system/restart-reset/` for the hourly cleanup and its guards; `talos/mod.just` for `drain`, `stop-node`, `resume` and `health`.
 - [Node and host maintenance](/operations/node-maintenance/) for the reboot runbooks this page leans on.

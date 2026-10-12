@@ -1,0 +1,35 @@
+#% if observability_enabled and observability.proxmox_hosts %#
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: proxmox-hosts
+spec:
+  groups:
+    - name: proxmox-hosts
+      rules:
+        # node_zfs_zpool_state is a 1/0 gauge per pool and state.
+        - alert: ZfsPoolNotOnline
+          expr: |
+            node_zfs_zpool_state{job="proxmox-hosts", state!="online"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: ZFS pool {{ $labels.zpool }} on {{ $labels.instance }} is {{ $labels.state }}
+            description: >-
+              ZFS pool {{ $labels.zpool }} on Proxmox host {{ $labels.instance }} is
+              {{ $labels.state }}. On 2026-10-12 a REMOVED mirror member froze a control
+              plane's disk, so replace or reattach the device before the pool loses another.
+        - alert: ProxmoxHostExporterDown
+          expr: |
+            up{job="proxmox-hosts"} == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: node-exporter on {{ $labels.instance }} is down
+            description: >-
+              Prometheus cannot scrape node-exporter on Proxmox host {{ $labels.instance }}, so
+              its ZFS pools are not being watched.
+#% endif %#

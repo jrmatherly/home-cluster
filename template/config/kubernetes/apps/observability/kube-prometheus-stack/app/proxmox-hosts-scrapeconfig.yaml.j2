@@ -1,0 +1,15 @@
+#% if observability_enabled and observability.proxmox_hosts %#
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: proxmox-hosts
+spec:
+  jobName: proxmox-hosts
+  scrapeInterval: 60s
+  staticConfigs:
+    - targets:
+        #% for host in observability.proxmox_hosts %#
+        - "#{ host }#:9100"
+        #% endfor %#
+#% endif %#

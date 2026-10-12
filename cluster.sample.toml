@@ -410,6 +410,15 @@ schematic_id = ""
 
 # sentry_url = "https://sentry.io"
 
+# Addresses of the Proxmox hosts. Prometheus scrapes node-exporter on port 9100
+# of each, and Alertmanager pages when a ZFS pool on one is not online. Each
+# host needs Debian's prometheus-node-exporter package installed, and port
+# 9100 reachable from the node addresses, because Cilium masquerades pod
+# traffic that leaves the cluster. Needs the three fields above.
+# OPTIONAL. Example: ["10.10.10.2", "10.10.10.3"]
+
+# proxmox_hosts = []
+
 
 # =============================================================================
 #    UniFi console. When set, the cluster writes a local DNS record to the

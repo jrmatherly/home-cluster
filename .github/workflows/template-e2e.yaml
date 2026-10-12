@@ -51,6 +51,7 @@ jobs:
           - partial-postgres-backup
           - partial-observability
           - discord-without-observability
+          - proxmox-hosts-without-observability
           - partial-unifi
           - pocket-id-without-backup
           - radar-without-pocket-id

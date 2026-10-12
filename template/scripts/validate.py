@@ -302,6 +302,8 @@ class Observability(Model):
     sentry_token: Secret = ""
     # Regional organizations use their region's host.
     sentry_url: str = Field(default="https://sentry.io", pattern=r"^https://[^/\s]+$")
+    # Proxmox hosts running prometheus-node-exporter, scraped on port 9100.
+    proxmox_hosts: list[IPv4Address] = []
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -338,6 +340,11 @@ class Observability(Model):
                     f"{name} requires grafana_password, influxdb_password and "
                     "influxdb_token: Grafana only runs with the rest of the stack"
                 )
+        if self.proxmox_hosts and not self.grafana_password:
+            raise ValueError(
+                "proxmox_hosts requires grafana_password, influxdb_password and "
+                "influxdb_token: Prometheus only runs with the rest of the stack"
+            )
         return self
 
 

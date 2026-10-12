@@ -709,6 +709,15 @@
           "pattern": "^https://[^/\\s]+$",
           "title": "Sentry Url",
           "type": "string"
+        },
+        "proxmox_hosts": {
+          "default": [],
+          "items": {
+            "format": "ipv4",
+            "type": "string"
+          },
+          "title": "Proxmox Hosts",
+          "type": "array"
         }
       },
       "title": "Observability",
@@ -1044,7 +1053,8 @@
         "github_app_private_key": "",
         "sentry_org": "",
         "sentry_token": "",
-        "sentry_url": "https://sentry.io"
+        "sentry_url": "https://sentry.io",
+        "proxmox_hosts": []
       }
     },
     "unifi": {
