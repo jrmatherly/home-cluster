@@ -15,25 +15,25 @@ Each step names its source. "Template" is `template/config/kubernetes/apps/netwo
 
 Everything the app learns is in its SQLite database and keys on a 5Gi `local-path` volume at `/app/data` (template, `helmrelease.yaml.j2`): the UniFi API key, the InfluxDB settings, the Pocket ID role mapping, the credential key and the ASP.NET Data Protection keys. SQLite allows one writer and the volume is pinned to one node, so the Deployment uses `Recreate`. There is no backup of the volume; [node maintenance](/operations/node-maintenance/) lists the pod on `k8s-worker-1`. The migrations run at startup on that only copy, so read them before a bump (apps.md).
 
-## 1. Fill `cluster.toml`
+## Fill `cluster.toml`
 
 1. `[network_optimizer]` needs `[observability]`, because the app writes its time series to that InfluxDB (source, `template/scripts/validate.py`).
 2. `app_password` is the password of the built-in `admin` account. At least 8 characters, at least one digit, and no `"`, `\`, `$` or whitespace (source, `validate.py`). The app's identity store refuses a password without a digit.
-3. For Pocket ID, also set `oidc_client_id` and `oidc_client_secret` (both or neither, needs `[pocket_id]`). Section 4 creates the client.
+3. For Pocket ID, also set `oidc_client_id` and `oidc_client_secret` (both or neither, needs `[pocket_id]`). "Sign in with Pocket ID" below creates the client.
 4. `just configure`, restore the unchanged sops files, commit and push:
 
    ```sh
    git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
    ```
 
-## 2. Connect the UniFi console
+## Connect the UniFi console
 
 These are settings in the app, not in `cluster.toml` (sample).
 
 1. On the gateway at `<router address>`, create an API key and type it into the app's Settings with the console address. Which console menu creates it was not checked. The key lives only in the app's database.
 2. Set SNMP to v2c on the console. Measured 2026-10-05: with v3 on, the app stores v3, and 2.9.1's v3 path sets no privacy password while the default asks for AES, so every poll throws "PrivacyPassword is required when using privacy" and no device or interface rows are written. The community string must be 20 characters or fewer (source, `SnmpDetectionResult.MaxSupportedCommunityLength`). The app re-reads the console's SNMP settings on its own, so no pod restart is needed.
 
-## 3. Connect InfluxDB
+## Connect InfluxDB
 
 The `[observability]` InfluxDB runs org `home`; its first start created bucket `proxmox` for the Proxmox hosts (source, `observability/influxdb/app/helmrelease.yaml.j2`). Network Optimizer gets buckets of its own (sample):
 
@@ -41,9 +41,9 @@ The `[observability]` InfluxDB runs org `home`; its first start created bucket `
 2. Create an API token that can read and write those two buckets only. `influxdb_token` in `[observability]` is the admin token; do not give it to the app.
 3. In the app's Settings InfluxDB form, enter the URL `http://influxdb.observability.svc.cluster.local:8086`, org `home`, the two buckets and the token. Use the Settings form, not the setup wizard, which wants the admin token and in multi-site mode mints an org-wide token (decided 2026-10-05).
 
-## 4. Sign in with Pocket ID (optional)
+## Sign in with Pocket ID (optional)
 
-1. In Pocket ID (`https://auth.${SECRET_DOMAIN}`), Admin, OIDC Clients, Add. Callback URL `https://optimizer.${SECRET_DOMAIN}/signin-oidc/pocket-id` (sample). Copy the client ID and secret into `cluster.toml` (section 1) and deploy.
+1. In Pocket ID (`https://auth.${SECRET_DOMAIN}`), Admin, OIDC Clients, Add. Callback URL `https://optimizer.${SECRET_DOMAIN}/signin-oidc/pocket-id` (sample). Copy the client ID and secret into `cluster.toml` (the "Fill `cluster.toml`" step) and deploy.
 2. The app reads `/app/config/identity.json` at boot (template, `identity-secret.sops.yaml.j2`): provider `pocket-id`, authority `https://auth.${SECRET_DOMAIN}`, scopes `openid profile email groups`, groups from the `groups` claim, a user created on first login, role mapping `Manual`. The client secret is not in that file but in `NETOPT_FED_POCKET_ID_SECRET`, which wins over the file.
 3. Sign in as `admin` and, in the app's Settings, map the Pocket ID group `cluster_admins` to the Admin role. `identity.json` has no field for role mappings, so this is typed once in the UI and stored in the database (sample).
 
@@ -69,7 +69,7 @@ key=$(uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/
 curl -fsSk -H "X-API-KEY: $key" "$base/proxy/network/api/s/default/stat/device" | jq '.data[] | select(.type=="udm") | {model, version}'
 ```
 
-Measured 2026-10-06: it returned UDMPROSE, UniFi OS 6.0.11.36173, Network 10.6.106.
+Measured 2026-10-06: it returned the console model and its UniFi OS and Network versions.
 
 ## Health check
 

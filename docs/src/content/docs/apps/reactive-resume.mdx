@@ -20,19 +20,19 @@ Each step names its source. "Docs" is [the Reactive Resume environment variable 
 ## The two secrets that never change
 
 - `auth_secret` signs sessions and encrypts two-factor secrets. Changing it signs everyone out and breaks every two-factor secret (`cluster.sample.toml`; docs: keep it the same for the life of the instance).
-- `encryption_secret` encrypts the AI keys people save. It must be at least 32 characters and differ from `auth_secret`, and the server refuses to start on fewer (`ReactiveResume` in `validate.py`; docs). Changing it makes every saved key unreadable.
+- `encryption_secret` encrypts the AI keys people save. It must be at least 32 characters and differ from `auth_secret`, and the server refuses to start on fewer (the length is checked by `ReactiveResume` in `validate.py`; the rest is `cluster.sample.toml` and the docs). Changing it makes every saved key unreadable.
 
 Keep a copy of both outside the repo. `auth_secret` is also the field that turns the section on (`reactive_resume_enabled` in `validate.py`).
 
-## 1. Create the bucket and its key
+## Create the bucket and its key
 
 The bucket must exist before the app starts (`cluster.sample.toml`).
 
-1. Create the bucket. Here it is a Cloudflare R2 bucket named `reactive-resume`.
+1. Create the bucket. A Cloudflare R2 bucket works; the sample uses the name `reactive-resume` as its example.
 2. Create an access key pair with read and write access to its objects. For R2, an API token with "Object Read & Write" scoped to the bucket (`cluster.sample.toml`).
 3. Note the S3 endpoint, `https://<account-id>.r2.cloudflarestorage.com` for R2. It holds the Cloudflare account ID and the repo is public, so it goes into the sops Secret, not the HelmRelease (template, `secret.sops.yaml.j2`; commit `271d117`).
 
-## 2. Create the OIDC client in Pocket ID
+## Create the OIDC client in Pocket ID
 
 1. Open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add.
 2. Name `Reactive Resume`. Callback URL `https://resume.${SECRET_DOMAIN}/api/auth/callback/custom` (`cluster.sample.toml`; docs: `APP_URL` followed by `/api/auth/callback/custom`).
@@ -40,7 +40,7 @@ The bucket must exist before the app starts (`cluster.sample.toml`).
 
 Pocket ID itself must be public, so a browser away from home can finish the sign-in: `pocket_id.public = true` attaches its route to `envoy-external` (commit `271d117`).
 
-## 3. Fill `cluster.toml` and deploy
+## Fill `cluster.toml` and deploy
 
 1. In `[reactive_resume]`, set all eight fields: `auth_secret` and `encryption_secret` (each from `openssl rand -hex 32`), `oidc_client_id`, `oidc_client_secret`, `s3_endpoint`, `s3_bucket`, `s3_access_key_id`, `s3_secret_access_key`. The validator refuses a partial set, and refuses the section without `[pocket_id]` (which in turn needs `[postgres.backup]`) or with `ingress.mode = "none"` (`validate.py`).
 2. `just configure`, then restore the sops files whose inputs did not change:
@@ -56,7 +56,7 @@ Pocket ID itself must be public, so a browser away from home can finish the sign
    kubectl -n reactive-resume get pods -w
    ```
 
-## 4. First sign-in
+## First sign-in
 
 1. Open `https://resume.${SECRET_DOMAIN}`. The page offers only the Pocket ID button: `FLAG_DISABLE_EMAIL_AUTH=true` turns off email and password sign-in and sign-up and the password reset (docs).
 2. Sign in with Pocket ID. The first sign-in creates the account (`[reactive_resume]` bullet in `CLAUDE.md`). Whether every later Pocket ID user also gets an account on first sign-in was not checked; to keep the app to some people, restrict the Pocket ID client to a group under Allowed user groups.

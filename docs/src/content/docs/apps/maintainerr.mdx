@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-This guide takes Maintainerr from the connected-but-empty state it is in after section 7 of [the media stack setup](/apps/media/) to three armed rule groups, and records the two guards that stop a rule from deleting the wrong thing. The deployment itself is in Git: `kubernetes/apps/media/maintainerr/`, gated by `plex_host` in `cluster.toml`. The rule groups are not in Git. They live in Maintainerr's SQLite database on its `local-path` volume, so this page is the record of them.
+This guide takes Maintainerr from the connected-but-empty state it is in after "The second wave, set up once in each UI" on [the media stack setup](/apps/media/) to three armed rule groups, and records the two guards that stop a rule from deleting the wrong thing. The deployment itself is in Git: `kubernetes/apps/media/maintainerr/`, gated by `plex_host` in `cluster.toml`. The rule groups are not in Git. They live in Maintainerr's SQLite database on its `local-path` volume, so this page is the record of them.
 
 Maintainerr is served at `maintainerr.${SECRET_DOMAIN}`, behind the gateway's Pocket ID sign-in, which is its only login.
 

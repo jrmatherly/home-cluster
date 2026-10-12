@@ -9,7 +9,7 @@ The steps outside the repo that `[media]` in `cluster.toml` needs, in order. The
 [Media stack](/decisions/media-stack/) (its carry-over sections are superseded: every app starts
 fresh), and the host side (pool, export, Plex) is on [Third host](/hosts/third-host/).
 
-## 1. The Pocket ID client
+## The Pocket ID client
 
 One client, named `Media`, with one callback URL per app. The gateway's SecurityPolicy admits only
 the `cluster_admins` group, so the client itself needs no group restriction.
@@ -26,7 +26,7 @@ https://maintainerr.${SECRET_DOMAIN}/oauth2/callback
 
 The client ID and the secret go in `oidc_client_id` and `oidc_client_secret`.
 
-## 2. cluster.toml
+## cluster.toml
 
 Nothing is carried over from the Windows install. The five API keys are new:
 
@@ -50,7 +50,7 @@ git status   # the media sops files stay modified: they are new or changed
 The media secrets are new, so `git checkout` leaves them modified; that is the intended change.
 Commit and push.
 
-## 3. What converges on its own
+## What converges on its own
 
 Each app's HelmRelease carries a `configure` Job that runs after every install and upgrade, so the
 settings below are never typed into a UI. A failed job fails the release, and
@@ -72,7 +72,7 @@ settings below are never typed into a UI. A failed job fails the release, and
   profile admits WEB-DL 2160p at any runtime and Bluray-2160p up to about 160 minutes (Remux is
   not in the profile); a long film that gets nothing there goes on the HD Bluray + WEB profile.
 
-## 4. The two carry-overs, typed once
+## The two carry-overs, typed once
 
 Only these come from the 2026-10-06 backups in `~/Downloads`. Printed only in the terminal.
 
@@ -100,7 +100,7 @@ The `_migration` directory on the media host, if it was created, is no longer re
 ssh root@<media host address> rm -rf /srv/media/_migration
 ```
 
-## 5. Checks after the deploy
+## Checks after the deploy
 
 - `kubectl get pvc -n media` shows `media` and every config claim Bound.
 - `kubectl get pods -n media -o wide` shows every pod on `k8s-worker-4`, and
@@ -113,7 +113,7 @@ ssh root@<media host address> rm -rf /srv/media/_migration
 - Prowlarr, Settings, Apps shows Sonarr and Radarr on Full Sync.
 - `kubectl logs -n media job/recyclarr-configure` ends without errors.
 
-## 6. The second root folder
+## The second root folder
 
 The media host exports a second media tree, a SnapRAID + mergerfs union of the USB portables (the
 third host page's "The USB media tier"), inside the same export at `/srv/media/ext`, so every pod
@@ -129,11 +129,11 @@ Plex ignores the path-scoped scan the arrs send after an import (measured 2026-1
 host page's Phase 5), so new files appear on Plex's hourly scheduled scan, or at once with Scan
 Library Files on the library.
 
-## 7. The second wave, set up once in each UI
+## The second wave, set up once in each UI
 
 Bazarr, Tautulli, Seerr and Maintainerr have no configure hook, so each is set up once in its UI
 and keeps the result in its own database. Tautulli, Seerr and Maintainerr deploy only when
-`plex_host` is set. The Pocket ID client in section 1 already lists the bazarr, tautulli and
+`plex_host` is set. The Pocket ID client from "The Pocket ID client" above already lists the bazarr, tautulli and
 maintainerr callback URLs. Seerr needs none, because it is not behind the gateway's sign-in.
 
 - Bazarr, `https://bazarr.${SECRET_DOMAIN}` (1.6 layout). Settings, Library, Sonarr tab: Enabled
@@ -172,7 +172,7 @@ maintainerr callback URLs. Seerr needs none, because it is not behind the gatewa
   Telemetry, forced off by the pod's `TELEMETRY=off`. Every rule group stays inactive until it
   has been re-read, because a rule that fires deletes media.
 
-## 8. First downloads
+## First downloads
 
 Add one series and one movie, pick the 1080p profile, and run a search. The file should land in
 `/data/usenet/complete/<category>` and be imported into `/data/media/<tv|movies>` with a hardlink:

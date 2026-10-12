@@ -17,9 +17,9 @@ The operator chose Radar's own OIDC mode (`auth.mode: oidc`) on 2026-10-04, twic
 
 Treat the pod as cluster-admin. In OIDC mode the chart lets Radar's ServiceAccount read every Secret and impersonate any user (repo, the `auth` comment in `app/helmrelease.yaml.j2`). Anyone who can run code in the pod or take its token can act as anyone.
 
-## 1. Create the OIDC client in Pocket ID
+## Create the OIDC client in Pocket ID
 
-Follow the recipe in [Pocket ID](/apps/pocket-id/), section 4, with these values:
+Follow the recipe in [Pocket ID](/apps/pocket-id/), the "Register another app as an OIDC client" steps, with these values:
 
 - Name `Radar`.
 - Callback URL `https://radar.${SECRET_DOMAIN}/auth/callback` (repo, `redirectURL` in `app/helmrelease.yaml.j2`).
@@ -28,7 +28,7 @@ Follow the recipe in [Pocket ID](/apps/pocket-id/), section 4, with these values
 
 Copy the client ID and the secret. Pocket ID shows the secret once.
 
-## 2. Fill `[radar]` and deploy
+## Fill `[radar]` and deploy
 
 Two fields, set together or not at all (repo, `validate.py`, `Radar`):
 

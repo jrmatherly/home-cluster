@@ -28,14 +28,14 @@ Measured on the image:
 Until you have signed in once, any Pocket ID account that the client admits could become the owner. Restrict the client to a group in Pocket ID (step 1) and sign in as soon as the pod is Ready.
 </Aside>
 
-## 1. Create the OIDC client in Pocket ID
+## Create the OIDC client in Pocket ID
 
 1. Open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add.
 2. Name `Actual Budget`. Callback URL `https://budget.${SECRET_DOMAIN}/openid/callback` (docs, OAuth). Leave PKCE on; the server sends a PKCE challenge (source, `accounts/openid.ts`, `code_challenge_method: 'S256'`).
 3. Under Allowed user groups, pick `cluster_admins` (or a group holding only the people who should budget). This is what closes the first-sign-in window.
 4. Save. Copy the client ID and the client secret; Pocket ID shows the secret once.
 
-## 2. Fill `cluster.toml` and deploy
+## Fill `cluster.toml` and deploy
 
 1. In `cluster.toml`, section `[actual_budget]`: `oidc_client_id`, `oidc_client_secret`, and `public = true` if the phone should work away from home.
 2. `just configure`, then restore the sops files that did not change:
@@ -54,7 +54,7 @@ Until you have signed in once, any Pocket ID account that the client admits coul
 
    The log must say `OpenID configured!`. A pod stuck in `Init:0/1` is waiting for Pocket ID's discovery document; a pod stuck not Ready with `OpenID configuration found` followed by an error means discovery failed after that, and the probe is holding it back on purpose. Check that `auth.${SECRET_DOMAIN}` resolves from a pod.
 
-## 3. First sign-in
+## First sign-in
 
 1. Open `https://budget.${SECRET_DOMAIN}`. The server URL is already set; the login page shows only the OpenID button.
 2. Sign in with Pocket ID. You are now the owner and admin (source, `accounts/openid.ts`).
@@ -69,11 +69,11 @@ Until you have signed in once, any Pocket ID account that the client admits coul
 
 4. Create or import the budget. Optional: Settings, Encryption, to end-to-end encrypt the budget file with a passphrase the server never sees (docs, Encryption). Lose the passphrase and the file is gone.
 
-## 4. Other users
+## Other users
 
 Server menu, User Directory, Add. The username is the person's Pocket ID username (`preferred_username`; source, `accounts/openid.ts`, the `identity` lookup). Give them the Basic role, then open the budget, User Access, and tick them. They also need to be in the Pocket ID group from step 1.
 
-## 5. Bank sync
+## Bank sync
 
 Actual's bank-sync providers (SimpleFIN, GoCardless, Pluggy.ai, Akahu, Enable Banking) keep their credentials in the server's SQLite database, entered from the client under Settings. Nothing in Git. SimpleFIN is the US option; it is a paid bridge (docs, Bank Sync).
 

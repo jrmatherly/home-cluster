@@ -20,7 +20,7 @@ Each step names its source. "Docs" is [Kener's OpenID Connect page](https://kene
 
 `secret_key` signs sessions and API keys and turns the section on. It needs at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out and invalidates every API key (`cluster.sample.toml`; `Kener` in `validate.py`). It reaches the pod as `KENER_SECRET_KEY` in the sops Secret `kener-secret`.
 
-## 1. Fill `cluster.toml` and deploy
+## Fill `cluster.toml` and deploy
 
 1. Set `[redis] password` (at least 24 letters and digits) if it is not set yet, and `[kener] secret_key`. The validator also needs an ingress mode other than `none` (`validate.py`).
 2. Optional: `smtp_url` and `mail_from`, together (see Mail below).
@@ -32,7 +32,7 @@ Each step names its source. "Docs" is [Kener's OpenID Connect page](https://kene
 
 4. Commit and push. The `wait-for-stores` init container holds Kener until `kener-db-rw:5432` and `redis:6379` accept connections, because Kener exits when its migrations cannot reach the database (template).
 
-## 2. Create the admin account
+## Create the admin account
 
 A fresh instance lets the first person to open `/account/signin` create the admin account (`cluster.sample.toml`). The external gateway refuses `/account`, so only someone on the LAN can be that first person. Do it right after the first deploy.
 
@@ -43,7 +43,7 @@ A fresh instance lets the first person to open `/account/signin` create the admi
 
 The `kener-public` HTTPRoute on `envoy-external` sends `/manage`, `/account` and `/api` to the Envoy Gateway `HTTPRouteFilter` `kener-not-found`, a direct 404 response, and everything else to Kener. The reasons are in the template and commit `e4cb4b4`: the first visitor to a new instance creates the admin account, the sign-in form has no rate limit, and an admin can point a monitor at any address in the network. Status pages live at paths of their own choosing, so the route refuses the three admin prefixes instead of listing the public ones. A NetworkPolicy admits only the `network` namespace on port 3000 for the same reason (template, `networkpolicy.yaml.j2`).
 
-## 3. Sign in with Pocket ID
+## Sign in with Pocket ID
 
 Single sign-on is set up in Kener's admin UI and stored in its database, not in this repo (`CLAUDE.md`).
 
@@ -51,7 +51,7 @@ Single sign-on is set up in Kener's admin UI and stored in its database, not in 
 2. In Kener, on the LAN, open Manage, OpenID Connect (docs). Issuer URL `https://auth.${SECRET_DOMAIN}`; it must serve `.well-known/openid-configuration` over HTTPS (docs). Enter the client ID and secret. Scopes are `openid profile email` by default; add `groups` (`cluster.sample.toml`; docs, "Enable the groups claim").
 3. Under Group, Role Mapping, map `cluster_admins` to Kener's admin role. A user whose groups match no mapping gets the Default Role, `member` by default (docs).
 4. Auto-create users is off by default; with it off, a Pocket ID user needs an existing Kener account (docs).
-5. The pod reaches `auth.${SECRET_DOMAIN}` through the CoreDNS forward of the domain to the UniFi console and the `hosts` entry Pocket ID adds (`[unifi]` and `[pocket_id]` bullets in `CLAUDE.md`).
+5. The pod reaches `auth.${SECRET_DOMAIN}` through the `hosts` entry Pocket ID adds to CoreDNS (`[pocket_id]` bullet in `CLAUDE.md`).
 
 If Pocket ID is down and nobody can sign in, `KENER_FORCE_LOCAL_LOGIN=true` brings the local form back; remove it once the provider is reachable (docs). The HelmRelease does not set it, so this means adding it to `env` in `helmrelease.yaml.j2` and re-rendering.
 
@@ -74,7 +74,7 @@ The namespace enforces `restricted`. The image's `ping` carries the `NET_RAW` fi
 
 ## Mail
 
-`smtp_url` and `mail_from` are set together or not at all. `smtps://` uses TLS from the first byte (port 465 unless given); `smtp://` upgrades with STARTTLS (port 587 unless given). Percent-encode an at sign in the user or password (`%40`). Kener ignores its mail settings without a host, a user and a password, so the validator refuses a URL missing any of them (`cluster.sample.toml`; `validate.py`). The renderer splits the URL into `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` and `SMTP_FROM_EMAIL`, all in `kener-secret` (`kener_smtp` in `validate.py`; template, `secret.sops.yaml.j2`).
+`smtp_url` and `mail_from` are set together or not at all. `smtps://` uses TLS from the first byte (port 465 unless given); `smtp://` upgrades with STARTTLS (port 587 unless given). Percent-encode an at sign in the user or password (`%40`). Kener ignores its mail settings without a host, a user and a password, so the validator refuses a URL missing any of them (`cluster.sample.toml`; `validate.py`). The renderer splits the URL into `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` and `SMTP_PASS`, plus `SMTP_FROM_EMAIL` from `mail_from`, all in `kener-secret` (`kener_smtp` in `validate.py`; template, `secret.sops.yaml.j2`).
 
 ## Backups
 

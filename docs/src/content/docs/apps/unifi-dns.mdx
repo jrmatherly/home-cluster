@@ -16,7 +16,7 @@ Each claim names its source. "Source" is a file or commit in this repo. "Measure
 - A second ExternalDNS, `unifi-dns` in the `network` namespace, from the `external-dns` chart that `cloudflare-dns` also uses, with the UniFi webhook `ghcr.io/home-operations/external-dns-unifi-webhook` as a sidecar (source, `helmrelease.yaml.j2`).
 - It writes local DNS records to the UniFi console at `<router address>`. `cloudflare-dns` keeps handling `envoy-external`.
 - ExternalDNS only changes records it owns, so manual records on the console are left alone (source, commit `cffa029`).
-- The webhook needs UniFi Network 10.3.58 or newer (source, `cluster.sample.toml`). The console ran Network 10.6.106 on 2026-10-06 (measured).
+- The webhook needs UniFi Network 10.3.58 or newer (source, `cluster.sample.toml`). The console's Network version was above that on 2026-10-06 (measured).
 
 ## Create the console API key
 
