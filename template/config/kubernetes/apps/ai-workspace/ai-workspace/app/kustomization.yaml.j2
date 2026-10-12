@@ -5,6 +5,10 @@ kind: Kustomization
 components:
   - ../../../../components/postgres
 resources:
+#% if ai_workspace.browsing_token %#
+  - ./browserless.yaml
+  - ./browserless-networkpolicy.yaml
+#% endif %#
   - ./cluster.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml

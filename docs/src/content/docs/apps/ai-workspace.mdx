@@ -81,3 +81,21 @@ The pod's NetworkPolicy restricts ingress only, so a new vendor needs no egress 
 ## Later: public
 
 `public = true` attaches the route to `envoy-external` as well, so the tunnel reaches it, behind the app's own sign-in. Set `allowed_emails` first if the Pocket ID client is not restricted to a group. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
+
+## Browsing
+
+Attach > Web makes the app load a page in a headless Chromium and read it back. The Chromium is browserless (`ghcr.io/browserless/chromium`, pinned by digest), a plain Deployment and Service named `browserless` in the `ai-workspace` namespace, which the app drives over the Puppeteer websocket.
+
+Set `browsing_token` in `[ai_workspace]` to enable it: letters and digits, at least 32 characters, for example the output of `openssl rand -hex 16`. Only letters and digits, because the token travels in the websocket URL's query string. Then `just configure`, restore, commit and push. The token lands in `ai-workspace-secret` twice: as `BROWSERLESS_TOKEN`, which the browserless pod reads, and inside `PUPPETEER_WSS_ENDPOINT` (`ws://browserless.ai-workspace.svc.cluster.local:3000/chromium?token=<token>`, plain `ws://` because the traffic stays in the cluster). Blank skips the pod and the variable. Reloader restarts both the app and browserless when the token changes.
+
+Any signed-in member can make the pod fetch any URL, so its NetworkPolicy is the SSRF fence. Ingress: only the app's pods, on 3000. Egress: DNS to `kube-system`, and TCP 80 and 443 to any address except the RFC 1918 private ranges, the shared address space (`100.64.0.0/10`), link-local (`169.254.0.0/16`) and the pod, service and node CIDRs. So the LAN, every cluster pod and Service, and link-local addresses (cloud metadata included) are out of reach, and the public internet is reachable on the web ports only. The fence covers this pod only: the app's Browsing settings let a member point it at a different websocket endpoint, and the app pod has no egress policy, so that path is not fenced yet.
+
+The pod runs as uid 999 (the image's `blessuser`) under `restricted`, with every capability dropped and a 1Gi memory-backed `/dev/shm`. The root filesystem stays writable: Chromium's crashpad handler fails to start on a read-only root (measured). It runs at most 4 sessions with 10 queued, and a session may take 60 s, since a page load plus a screenshot takes about 30 s, the default.
+
+Verify:
+
+```sh
+kubectl -n ai-workspace get pods -l app.kubernetes.io/name=browserless
+```
+
+Then in the app, Attach > Web on a public URL returns the page. A LAN address (`<router address>`, say) must fail.

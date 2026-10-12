@@ -1,0 +1,45 @@
+#% if ai_workspace.browsing_token %#
+---
+# Any signed-in member can make browserless fetch any URL, so this is the SSRF
+# fence: only AI Workspace reaches it, and it reaches only DNS and public
+# addresses on 80 and 443, never the LAN, the cluster or link-local addresses.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: browserless
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: browserless
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ai-workspace
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+#% for cidr in ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", kubernetes.pod_cidr, kubernetes.svc_cidr, network.node_cidr] %#
+              - #{ cidr }#
+#% endfor %#
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+#% endif %#
