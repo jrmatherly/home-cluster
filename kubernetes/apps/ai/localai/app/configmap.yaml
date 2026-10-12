@@ -36,8 +36,3 @@ data:
     function:
       grammar:
         disable: true
-  # matherlynet's playground names the old id in its source; drop this once it reads the id
-  # from its configuration.
-  qwen3-4b.yaml: |
-    name: qwen3-4b
-    alias: qwen-3.5-4b

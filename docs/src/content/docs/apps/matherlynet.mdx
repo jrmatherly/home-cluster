@@ -70,7 +70,7 @@ With `playground = true` (template):
 - `config.web.playground_model_url` is `http://localai.ai.svc.cluster.local:8080`, the base URL without `/v1`.
 - `secrets.web.playground_model_key` is LocalAI's API key (`localai.api_key`), sent as a bearer token.
 
-LocalAI serves the model as `qwen-3.5-4b`. The site still names the old id, `qwen3-4b`, in its source, so LocalAI's `localai-models` ConfigMap carries `qwen3-4b` as an alias of `qwen-3.5-4b`, to be dropped once the site reads the id from its configuration (source, `ai/localai/app/configmap.yaml.j2`).
+LocalAI serves the model as `qwen-3.5-4b`, the site's default model id since chart 0.42.1; the chart value `config.web.playground_model` overrides it (source, the chart's values).
 
 The Cloudflare rate limiting rule on `/api/playground` must exist before the URL is set (site docs, section 8). With the URL unset, `/playground` is a browser simulation.
 

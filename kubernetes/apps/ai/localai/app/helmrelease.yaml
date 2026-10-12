@@ -121,9 +121,6 @@ spec:
           - path: /models/qwen-3.5-4b.yaml
             subPath: qwen-3.5-4b.yaml
             readOnly: true
-          - path: /models/qwen3-4b.yaml
-            subPath: qwen3-4b.yaml
-            readOnly: true
       # The model is an image, built from images/qwen3.5-4b. The node keeps it cached,
       # so a restart needs neither a download nor Hugging Face.
       models-qwen:

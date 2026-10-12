@@ -69,7 +69,7 @@ The Job is kept until the next run replaces it (`before-hook-creation`), so its 
 ## First sign-in
 
 1. Open `https://ai.${SECRET_DOMAIN}` and sign in with Pocket ID. An address on `admin_emails` gets the admin role on every request; there is no role to set in the app. Then the setup dialog opens.
-2. Models: add a LocalAI service. The host is already held server-side (source, `src/modules/llms/server/openai/openai.access.ts`, the LocalAI branch reads `LOCALAI_API_HOST` when the client sends no host), so leave it blank and refresh the model list; `qwen-3.5-4b` appears (and `qwen3-4b`, an alias kept for matherlynet). The pod reaches LocalAI because the namespace carries the `localai.ai/client` label, and it sends LocalAI's API key from `LOCALAI_API_KEY` server-side, so leave the key field blank too.
+2. Models: add a LocalAI service. The host is already held server-side (source, `src/modules/llms/server/openai/openai.access.ts`, the LocalAI branch reads `LOCALAI_API_HOST` when the client sends no host), so leave it blank and refresh the model list; `qwen-3.5-4b` appears. The pod reaches LocalAI because the namespace carries the `localai.ai/client` label, and it sends LocalAI's API key from `LOCALAI_API_KEY` server-side, so leave the key field blank too.
 3. Any other vendor is bring-your-own: its key is typed into the browser and stays there, and calls can go browser-direct to the vendor, bypassing the cluster entirely.
 
 ## Later: server-held vendor keys

@@ -15,7 +15,7 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
 
 - LocalAI from the official images, no custom build (source, `helmrelease.yaml.j2`). Three images: `localai/localai:v4.11.0` (the CPU build), the llama-cpp backend `quay.io/go-skynet/local-ai-backends:v4.11.0-gpu-nvidia-cuda-12-llama-cpp` as an image volume at `/backends/llama-cpp`, and the model `ghcr.io/<github account>/models/qwen3.5-4b:q4_k_m-e87f176` as an image volume at `/models/qwen3.5-4b`. The backend image carries its own CUDA 12.8 runtime; only the driver comes from the host.
 - The backend directory must be named `llama-cpp`, because the directory name is the backend name. `cuda12-llama-cpp` fails with "backend not found" (measured in Docker).
-- One model, Qwen3.5-4B Q4_K_M, named `qwen-3.5-4b`, plus the alias `qwen3-4b` while matherlynet's playground hardcodes that id (source, `configmap.yaml.j2`).
+- One model, Qwen3.5-4B Q4_K_M, named `qwen-3.5-4b` (source, `configmap.yaml.j2`).
 - The whole `ai` namespace renders only when a node loads the nvidia kernel module (`nvidia_enabled`).
 - The pod runs as uid 65534 on a read-only root. `/data` and `/tmp` are emptyDirs capped at 1Gi. The NetworkPolicy admits the `ai` namespace and namespaces labelled `localai.ai/client: "true"`, plus the `network` namespace when the WebUI is on, and denies all egress (source, `networkpolicy.yaml.j2`).
 - Every gallery is off (`LOCALAI_GALLERIES`, `LOCALAI_BACKEND_GALLERIES` and both autoload switches), because the image defaults them on and would reach `index.localai.io` and Quay, which the NetworkPolicy drops. The gallery endpoint and runtime settings are always off. The WebUI is off unless its OIDC client is set (source, `helmrelease.yaml.j2`).
