@@ -23,9 +23,14 @@ spec:
               LLAMA_ARG_MODEL: /models/Phi-4-mini-instruct-Q4_K_M.gguf
               LLAMA_ARG_ALIAS: phi-4-mini
               LLAMA_ARG_N_GPU_LAYERS: all
-              # Four slots of 2048 tokens each.
-              LLAMA_ARG_CTX_SIZE: 8192
+              # Four slots of 8192 tokens each, the answer budget AI Workspace asks for.
+              # The KV cache costs 128 KiB per token on this model, so this is 4 GiB
+              # next to the 2.4 GiB model on the 8 GiB card.
+              LLAMA_ARG_CTX_SIZE: 32768
               LLAMA_ARG_N_PARALLEL: 4
+              # Parses tool calls through the model's own chat template; without it
+              # a function call comes back as plain text.
+              LLAMA_ARG_JINJA: true
               # The default when a request sets no max_tokens. It is not a cap.
               LLAMA_ARG_N_PREDICT: 200
               LLAMA_ARG_PORT: 8080

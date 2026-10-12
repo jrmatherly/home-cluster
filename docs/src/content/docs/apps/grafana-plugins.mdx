@@ -75,7 +75,7 @@ The LLM app (`grafana-llm-app`) is installed whenever the cluster has an NVIDIA 
 
 In Grafana 13.2.3 OSS, the app unlocks four generate buttons: a title and a description for a panel, and a title and a description for a dashboard. The panel buttons fit in llama-server's slot.
 
-Each llama-server slot holds 2048 tokens. A longer request gets HTTP 400 with `exceed_context_size_error` (measured: "request (2611 tokens) exceeds the available context size (2048 tokens)"). A prompt of about 1800 tokens is answered in about 1 second (measured). `LLAMA_ARG_N_PREDICT` is 200, which caps the length of each answer. The dashboard description button sends the dashboard, so it fails with that error on a dashboard whose JSON is over about 2000 tokens (measured). The dashboard title button was not measured.
+Each llama-server slot holds 8192 tokens since 2026-10-11 (2048 before). A longer request gets HTTP 400 with `exceed_context_size_error` (measured on the 2048-token slot: "request (2611 tokens) exceeds the available context size (2048 tokens)"). A prompt of about 1800 tokens is answered in about 1 second (measured). `LLAMA_ARG_N_PREDICT` is 200, which caps the length of each answer when the request sets no `max_tokens`. On the 2048-token slot the dashboard description button failed with that error on a dashboard whose JSON was over about 2000 tokens (measured); with 8192 it has room for all but the largest dashboards, not re-measured.
 
 To check the app, open Administration, Plugins and data, Plugins, and find LLM. Its configuration page shows what was provisioned.
 
