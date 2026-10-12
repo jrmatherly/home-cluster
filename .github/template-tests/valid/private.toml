@@ -18,6 +18,9 @@ name = "example.com"
 [dns]
 token = "fake"
 
+[localai]
+api_key = "fakefakefakefakefakefakefakefake"
+
 [[nodes]]
 name = "k8s-0"
 address = "10.10.10.100"

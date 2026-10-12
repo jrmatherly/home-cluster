@@ -326,6 +326,17 @@
       "title": "Kubernetes",
       "type": "object"
     },
+    "LocalAi": {
+      "additionalProperties": false,
+      "properties": {
+        "api_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        }
+      },
+      "title": "LocalAi",
+      "type": "object"
+    },
     "LongSecret": {
       "pattern": "^([^\"\\\\\\s$]{32,})?$",
       "type": "string"
@@ -1136,6 +1147,12 @@
         "browsing_token": "",
         "public": false,
         "env": {}
+      }
+    },
+    "localai": {
+      "$ref": "#/$defs/LocalAi",
+      "default": {
+        "api_key": ""
       }
     },
     "nodes": {

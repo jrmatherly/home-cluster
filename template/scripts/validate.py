@@ -260,6 +260,12 @@ class Redis(Model):
     password: str = Field(default="", pattern=r"^([A-Za-z0-9]{24,})?$")
 
 
+class LocalAi(Model):
+    # Every client sends it as a bearer token; LocalAI closes every route but the health
+    # checks when it is set. Required whenever a node loads the nvidia kernel module.
+    api_key: ApiKey = ""
+
+
 class Observability(Model):
     grafana_password: Secret = ""
     # InfluxDB rejects a password shorter than 8 characters.
@@ -562,6 +568,7 @@ class Media(Model):
 # the probes and Service assume).
 AI_WORKSPACE_OWNED_ENV = (
     "LOCALAI_API_HOST",
+    "LOCALAI_API_KEY",
     "POSTGRES_PRISMA_URL",
     "POSTGRES_URL_NON_POOLING",
     "PORT",
@@ -663,6 +670,7 @@ class Config(Model):
     actual_budget: ActualBudget = ActualBudget()
     media: Media = Media()
     ai_workspace: AiWorkspace = AiWorkspace()
+    localai: LocalAi = LocalAi()
     nodes: list[Node]
 
     @computed_field
@@ -994,6 +1002,11 @@ class Config(Model):
             raise ValueError(
                 "matherlynet.playground requires an NVIDIA node: llama-server only "
                 "runs when a node loads the nvidia kernel module"
+            )
+        if self.nvidia_enabled and not self.localai.api_key:
+            raise ValueError(
+                "localai.api_key is required when a node loads the nvidia kernel module: "
+                "LocalAI runs there and its clients need the key"
             )
 
         cidrs = {

@@ -73,6 +73,7 @@ jobs:
           - network-optimizer-without-observability
           - network-optimizer-oidc-without-pocket-id
           - pegaprox-bad-key
+          - nvidia-without-localai-key
           - pegaprox-metrics-without-observability
           - partial-actual-budget
           - actual-budget-without-pocket-id

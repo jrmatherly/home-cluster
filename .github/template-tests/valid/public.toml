@@ -139,6 +139,9 @@ plex_host = "10.10.10.60"
 plex_token = "fake-plex-token"
 public = true
 
+[localai]
+api_key = "fakefakefakefakefakefakefakefake"
+
 [ai_workspace]
 oidc_client_id = "fake-ai-workspace"
 oidc_client_secret = "fake-ai-workspace-secret"

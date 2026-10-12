@@ -824,6 +824,21 @@ schematic_id = ""
 
 
 # =============================================================================
+#    LocalAI, the LLM server on the GPU node, serving Qwen3.5-4B to AI
+#    Workspace, Grafana's LLM app and matherlynet's playground. It runs when a
+#    node loads the nvidia kernel module, and then needs this key: every route
+#    but the health checks refuses a request without it, and each client
+#    sends it as a bearer token. The key is written to SOPS-encrypted Secrets.
+# =============================================================================
+[localai]
+# At least 32 letters and digits.
+# REQUIRED when a node loads the nvidia kernel module. Example: the output of
+# `openssl rand -hex 32`
+
+# api_key = ""
+
+
+# =============================================================================
 #    AI Workspace, a multi-model chat UI, at https://ai.<domain.name> on the
 #    internal gateway in the ai-workspace namespace, and also on the external
 #    gateway with public = true. It signs users in itself with Pocket ID, its

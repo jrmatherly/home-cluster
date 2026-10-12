@@ -137,6 +137,9 @@ oidc_client_secret = "fake-media-secret"
 recyclarr = true
 public = true
 
+[localai]
+api_key = "fakefakefakefakefakefakefakefake"
+
 [ai_workspace]
 oidc_client_id = "fake-ai-workspace"
 oidc_client_secret = "fake-ai-workspace-secret"

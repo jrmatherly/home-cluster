@@ -619,6 +619,21 @@ def test_matherlynet_playground_requires_nvidia():
         _load_raw(raw)
 
 
+LOCALAI = {"localai.api_key": "a" * 32}
+
+
+def test_nvidia_node_requires_localai_key():
+    raw = config_from("private.toml", **{"localai.api_key": None})
+    with pytest.raises(ConfigError, match=r"localai\.api_key is required"):
+        _load_raw(raw)
+
+
+def test_localai_key_without_nvidia_is_accepted():
+    raw = config_from("private.toml", **LOCALAI)
+    raw["nodes"][1]["kernel_modules"] = []
+    assert _load_raw(raw).localai.api_key == "a" * 32
+
+
 REACTIVE_RESUME = POCKET_ID | {
     "reactive_resume.auth_secret": "fake",
     "reactive_resume.encryption_secret": "x" * 32,
@@ -1091,7 +1106,14 @@ def test_ai_workspace_public_requires_public_pocket_id():
 
 
 @pytest.mark.parametrize(
-    "key", ["LOCALAI_API_HOST", "AUTH_SECRET", "PUPPETEER_WSS_ENDPOINT", "lowercase_key"]
+    "key",
+    [
+        "LOCALAI_API_HOST",
+        "LOCALAI_API_KEY",
+        "AUTH_SECRET",
+        "PUPPETEER_WSS_ENDPOINT",
+        "lowercase_key",
+    ],
 )
 def test_ai_workspace_env_rejects_reserved_and_malformed_keys(key):
     raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.env.{key}": "fake"})
