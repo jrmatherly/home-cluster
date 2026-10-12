@@ -377,7 +377,7 @@ class Matherlynet(Model):
     github_client_secret: Secret = ""
     google_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     google_client_secret: Secret = ""
-    # Lets the site call the in-cluster llama-server.
+    # Lets the site call the in-cluster LocalAI.
     playground: bool = False
 
     @model_validator(mode="after")
@@ -1000,7 +1000,7 @@ class Config(Model):
             )
         if self.matherlynet.playground and not self.nvidia_enabled:
             raise ValueError(
-                "matherlynet.playground requires an NVIDIA node: llama-server only "
+                "matherlynet.playground requires an NVIDIA node: LocalAI only "
                 "runs when a node loads the nvidia kernel module"
             )
         if self.nvidia_enabled and not self.localai.api_key:

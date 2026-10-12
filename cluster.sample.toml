@@ -364,7 +364,7 @@ schematic_id = ""
 # grafana_secret_key = ""
 
 # Grafana plugins. Infinity (JSON, CSV and XML from any URL) is always
-# installed, and so is the LLM app, which uses llama-server, when the cluster
+# installed, and so is the LLM app, which uses LocalAI, when the cluster
 # has an NVIDIA GPU. The GitHub and Sentry data sources below are installed when
 # their fields are set. Setup steps: private/grafana-plugins-setup.md.
 
@@ -528,7 +528,7 @@ schematic_id = ""
 # google_client_id = ""
 # google_client_secret = ""
 
-# Lets the site call llama-server for its playground. Needs a node that loads
+# Lets the site call LocalAI for its playground. Needs a node that loads
 # the nvidia kernel module.
 # OPTIONAL. Default: false
 
@@ -852,7 +852,7 @@ schematic_id = ""
 #    edit their own account details" before admitting anyone: the app links a
 #    Pocket ID sign-in to the account with the same email.
 #
-#    Chats stay in each browser. llama-server is wired in when a node loads
+#    Chats stay in each browser. LocalAI is wired in when a node loads
 #    the nvidia kernel module. Vendor API keys are brought by each user in the
 #    browser, unless the server holds them through [ai_workspace.env] below.
 #    Browsing (Attach > Web) runs a Chromium pod in the namespace that any

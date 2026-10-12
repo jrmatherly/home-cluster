@@ -44,10 +44,11 @@
       minimumGroupSize: 2,
     },
     {
-      description: "llama.cpp tags are <variant>-v<semver>; stay on the CUDA 12 variant",
+      description: "LocalAI's main image and its llama-cpp backend image move together",
       matchDatasources: ["docker"],
-      matchPackageNames: ["ghcr.io/ggml-org/llama.cpp"],
-      versioning: "regex:^(?<compatibility>server-cuda)-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      matchPackageNames: ["localai/localai", "quay.io/go-skynet/local-ai-backends"],
+      groupName: "LocalAI",
+      minimumReleaseAge: "3 days",
     },
     {
       description: "Network Optimizer previews are <semver>-preview<n>; read them as pre-releases, not a variant, so the stable release is offered",
