@@ -264,6 +264,14 @@ class LocalAi(Model):
     # Every client sends it as a bearer token; LocalAI closes every route but the health
     # checks when it is set. Required whenever a node loads the nvidia kernel module.
     api_key: ApiKey = ""
+    # The OIDC client created for the LocalAI WebUI in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "localai", ("oidc_client_id", "oidc_client_secret"))
+        return self
 
 
 class Observability(Model):
@@ -685,6 +693,12 @@ class Config(Model):
     def hubble_enabled(self) -> bool:
         return self.cilium.hubble.oidc_client_id != ""
 
+    # The WebUI is only turned on behind the gateway's Pocket ID login.
+    @computed_field
+    @property
+    def localai_webui_enabled(self) -> bool:
+        return self.localai.oidc_client_id != ""
+
     # Replica counts for control-plane-only workloads key off this rather
     # than len(nodes); a cluster can have many workers but one controller.
     @computed_field
@@ -1008,6 +1022,16 @@ class Config(Model):
                 "localai.api_key is required when a node loads the nvidia kernel module: "
                 "LocalAI runs there and its clients need the key"
             )
+        if self.localai_webui_enabled:
+            if not self.pocket_id_enabled:
+                raise ValueError(
+                    "localai.oidc_client_id requires pocket_id: Pocket ID is the WebUI's only sign-in"
+                )
+            if not self.nvidia_enabled:
+                raise ValueError(
+                    "localai.oidc_client_id requires an NVIDIA node: LocalAI only "
+                    "runs when a node loads the nvidia kernel module"
+                )
 
         cidrs = {
             "network.node_cidr": self.network.node_cidr,

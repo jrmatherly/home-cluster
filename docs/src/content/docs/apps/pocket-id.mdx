@@ -65,7 +65,7 @@ Every app's page refers to this recipe. The app's own page names the callback UR
 2. Name it after the app.
 3. Callback URL: the one the app's page names. One client can hold several; the [media](/apps/media/) client lists seven.
 4. Keep it a confidential client with a secret, not a public client. Turn PKCE on for the clients that send a challenge: Grafana (`use_pkce` in its template), [Actual Budget](/apps/actual-budget/) and PegaProx (their guides). Whether the other clients send one is not recorded in this repo; a client that does not will fail with PKCE required, so turn it off for that one.
-5. Scopes: `openid profile email`, plus `groups` when the app or a SecurityPolicy reads the group. Grafana, Hubble, the media stack's SecurityPolicy, Network Optimizer, PegaProx and Kener do (repo, each app's template or `cluster.sample.toml`); Radar binds the group `oidc:cluster_admins`, and whether its chart requests `groups` by default is not recorded here, so include it.
+5. Scopes: `openid profile email`, plus `groups` when the app or a SecurityPolicy reads the group. Grafana, Hubble, the LocalAI WebUI, the media stack's SecurityPolicy, Network Optimizer, PegaProx and Kener do (repo, each app's template or `cluster.sample.toml`); Radar binds the group `oidc:cluster_admins`, and whether its chart requests `groups` by default is not recorded here, so include it.
 6. Optional: under Allowed user groups, pick `cluster_admins` or a narrower group. Do this whenever the first sign-in becomes the app's owner, as in Actual Budget. A gateway SecurityPolicy that already checks the group needs no restriction.
 7. Save, and copy the client ID and the secret. Pocket ID shows the secret once.
 8. Put both in the app's section of `cluster.toml`, run `just configure`, restore the unchanged sops files, commit and push.
@@ -76,6 +76,7 @@ The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 | --- | --- |
 | Radar | `https://radar.${SECRET_DOMAIN}/auth/callback` |
 | Hubble UI | `https://hubble.${SECRET_DOMAIN}/oauth2/callback` |
+| LocalAI WebUI | `https://localai.${SECRET_DOMAIN}/oauth2/callback` |
 | Media apps | `https://<app>.${SECRET_DOMAIN}/oauth2/callback`, one per app |
 | Grafana | `https://grafana.${SECRET_DOMAIN}/login/generic_oauth` |
 | Reactive Resume | `https://resume.${SECRET_DOMAIN}/api/auth/callback/custom` |

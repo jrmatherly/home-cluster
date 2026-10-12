@@ -57,6 +57,8 @@ jobs:
           - partial-radar
           - hubble-without-pocket-id
           - partial-hubble
+          - localai-webui-without-pocket-id
+          - partial-localai-webui
           - grafana-oidc-without-pocket-id
           - partial-grafana-oidc
           - partial-github-app

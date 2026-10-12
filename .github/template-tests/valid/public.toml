@@ -141,6 +141,8 @@ public = true
 
 [localai]
 api_key = "fakefakefakefakefakefakefakefake"
+oidc_client_id = "fake-localai"
+oidc_client_secret = "fake-localai-secret"
 
 [ai_workspace]
 oidc_client_id = "fake-ai-workspace"

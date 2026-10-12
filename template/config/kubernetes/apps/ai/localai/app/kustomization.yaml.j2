@@ -8,4 +8,9 @@ resources:
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./secret.sops.yaml
+  #% if localai_webui_enabled %#
+  - ./httproute.yaml
+  - ./oidc-secret.sops.yaml
+  - ./securitypolicy.yaml
+  #% endif %#
 #% endif %#

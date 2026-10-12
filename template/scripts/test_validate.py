@@ -114,12 +114,26 @@ def test_controller_count_ignores_workers():
 
 
 def test_nvidia_enabled_follows_kernel_modules():
-    raw = config_from("public.toml", **{"matherlynet.playground": False})
+    raw = config_from(
+        "public.toml",
+        **{
+            "matherlynet.playground": False,
+            "localai.oidc_client_id": None,
+            "localai.oidc_client_secret": None,
+        },
+    )
     assert raw["nodes"][1]["kernel_modules"] == ["nvidia", "nvidia_uvm"]
     assert _load_raw(raw).nvidia_enabled is True
     raw["nodes"][1]["kernel_modules"] = ["nvidia_uvm"]
     assert _load_raw(raw).nvidia_enabled is False
     assert _load_raw(config_from("single-node.toml")).nvidia_enabled is False
+
+
+def test_localai_webui_requires_nvidia():
+    raw = config_from("public.toml", **{"matherlynet.playground": False})
+    raw["nodes"][1]["kernel_modules"] = ["nvidia_uvm"]
+    with pytest.raises(ConfigError, match="localai.oidc_client_id requires an NVIDIA node"):
+        _load_raw(raw)
 
 
 def test_derived_fields_are_not_settable():

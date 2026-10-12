@@ -1,8 +1,9 @@
 #% if nvidia_enabled %#
 ---
 # The key is the credential; this keeps the reach small as well: pods in this
-# namespace, and namespaces that opt in with the label below. The server makes
-# no outbound connection, so egress is denied.
+# namespace, namespaces that opt in with the label below and, with the WebUI on,
+# the gateway in network. The server makes no outbound connection, so egress is
+# denied.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -18,6 +19,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               localai.ai/client: "true"
+        #% if localai_webui_enabled %#
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+        #% endif %#
       ports:
         - protocol: TCP
           port: 8080

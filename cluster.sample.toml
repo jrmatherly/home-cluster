@@ -837,6 +837,22 @@ schematic_id = ""
 
 # api_key = ""
 
+# Client ID of the OIDC client created for the LocalAI WebUI in Pocket ID.
+# Setting BOTH fields turns on the WebUI at https://localai.<domain.name> on
+# the internal gateway, where the gateway signs users in with Pocket ID and
+# admits only members of the Pocket ID group `cluster_admins`. Needs
+# [pocket_id]. The client's callback URL is
+# https://localai.<domain.name>/oauth2/callback.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
 
 # =============================================================================
 #    AI Workspace, a multi-model chat UI, at https://ai.<domain.name> on the

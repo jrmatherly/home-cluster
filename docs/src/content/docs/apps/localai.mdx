@@ -7,7 +7,7 @@ sidebar:
 
 This guide covers `ai/localai`: the API key, the three apps that call it, changing the model, the model settings, and how to check it. The deployment is in Git: the `[localai]` section of `cluster.toml` and `kubernetes/apps/ai/localai/`.
 
-LocalAI runs on `k8s-gpu-1`, the worker on the GPU host that holds the GTX 1080 (8 GiB). It has no route on either gateway. Only pods reach it, at `http://localai.ai.svc.cluster.local:8080`.
+LocalAI runs on `k8s-gpu-1`, the worker on the GPU host that holds the GTX 1080 (8 GiB). Pods reach the API at `http://localai.ai.svc.cluster.local:8080`. The only route is the WebUI at `https://localai.${SECRET_DOMAIN}` on the internal gateway, which exists only when the WebUI's OIDC client is set in `[localai]` (see [The WebUI](#the-webui)).
 
 Each claim names its source. "Source" is a file in this repo. "Measured" means it was run on the cluster on 2026-10-12, the day LocalAI replaced llama-server (commit `4d0ff9d`).
 
@@ -17,8 +17,8 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
 - The backend directory must be named `llama-cpp`, because the directory name is the backend name. `cuda12-llama-cpp` fails with "backend not found" (measured in Docker).
 - One model, Qwen3.5-4B Q4_K_M, named `qwen-3.5-4b`, plus the alias `qwen3-4b` while matherlynet's playground hardcodes that id (source, `configmap.yaml.j2`).
 - The whole `ai` namespace renders only when a node loads the nvidia kernel module (`nvidia_enabled`).
-- The pod runs as uid 65534 on a read-only root. `/data` and `/tmp` are emptyDirs capped at 1Gi. The NetworkPolicy admits the `ai` namespace and namespaces labelled `localai.ai/client: "true"`, and denies all egress (source, `networkpolicy.yaml.j2`).
-- Every gallery is off (`LOCALAI_GALLERIES`, `LOCALAI_BACKEND_GALLERIES` and both autoload switches), because the image defaults them on and would reach `index.localai.io` and Quay, which the NetworkPolicy drops. The WebUI, the gallery endpoint and runtime settings are off too (source, `helmrelease.yaml.j2`).
+- The pod runs as uid 65534 on a read-only root. `/data` and `/tmp` are emptyDirs capped at 1Gi. The NetworkPolicy admits the `ai` namespace and namespaces labelled `localai.ai/client: "true"`, plus the `network` namespace when the WebUI is on, and denies all egress (source, `networkpolicy.yaml.j2`).
+- Every gallery is off (`LOCALAI_GALLERIES`, `LOCALAI_BACKEND_GALLERIES` and both autoload switches), because the image defaults them on and would reach `index.localai.io` and Quay, which the NetworkPolicy drops. The gallery endpoint and runtime settings are always off. The WebUI is off unless its OIDC client is set (source, `helmrelease.yaml.j2`).
 
 ## Generate the key
 
@@ -33,7 +33,7 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
 2. Put it in `cluster.toml` as `api_key` under `[localai]`.
 3. `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push.
 
-The key is a legacy LocalAI API key. It grants full admin to whoever holds it, and it closes every route but `/healthz`, `/readyz` and discovery to everyone else (measured). That is why the admin routes are disabled as well. Treat it like a root credential.
+The key is a legacy LocalAI API key. It grants full admin to whoever holds it, and it closes every route but `/healthz`, `/readyz` and discovery to everyone else (measured). That is why the gallery endpoint and runtime settings are disabled as well. Treat it like a root credential.
 
 ## The three consumers
 
@@ -83,6 +83,20 @@ kubectl -n ai exec deploy/localai -- sh -c 'curl -s -o /dev/null -w "%{http_code
 
 A warm restart takes 45 s from pod start to Ready (measured).
 
+## The WebUI
+
+The WebUI is off by default. Setting `oidc_client_id` and `oidc_client_secret` under `[localai]` turns it on at `https://localai.${SECRET_DOMAIN}` on the internal gateway (source, `validate.py`, `localai_webui_enabled`). It renders the `localai` HTTPRoute on `envoy-internal` and the `localai` SecurityPolicy, puts the client secret in the `localai-oidc` Secret, and the NetworkPolicy then admits the `network` namespace, where the gateway runs (source, `kustomization.yaml.j2`, `networkpolicy.yaml.j2`).
+
+The SecurityPolicy is a copy of Hubble's. The gateway signs users in with Pocket ID and admits only a token whose `groups` claim contains `cluster_admins` (source, `securitypolicy.yaml.j2`). LocalAI needs that sign-in in front of it, because it serves the WebUI shell, `/login` and the static assets to anyone (source, LocalAI v4.11.0, `core/http/auth/public_routes.go`).
+
+1. Create a Pocket ID OIDC client as [the recipe on the Pocket ID page](/apps/pocket-id/#register-another-app-as-an-oidc-client) describes. Callback URL `https://localai.${SECRET_DOMAIN}/oauth2/callback`. Include the `groups` scope and restrict the client to `cluster_admins`.
+2. Put the client ID and secret in `cluster.toml` as `oidc_client_id` and `oidc_client_secret` under `[localai]`.
+3. `just configure`, restore the `*.sops.*` files whose inputs did not change (keep the new `localai-oidc` Secret), commit and push. Flux rolls the LocalAI pod, because `LOCALAI_DISABLE_WEBUI` changes.
+4. Open `https://localai.${SECRET_DOMAIN}` and sign in with Pocket ID.
+5. LocalAI's own `/login` page asks for a key. Paste the API key once. LocalAI checks it and keeps it in a `token` cookie (source, LocalAI v4.11.0, `core/http/routes/auth.go`, `POST /api/auth/token-login`).
+
+The gallery endpoint and runtime settings stay off, so the WebUI cannot install models or change settings.
+
 ## Known limits
 
 - No `/props`, and `/v1/models` lists only `id` and `object` (measured). A client that reads the context size or tool support from the server finds neither. AI Workspace keeps function calling on without that hint, and its context window is set once per user in the model options (source, `CLAUDE.md`).
@@ -92,5 +106,6 @@ A warm restart takes 45 s from pod start to Ready (measured).
 
 ## Sources
 
-- This repo: `template/config/kubernetes/apps/ai/localai/` (HelmRelease, ConfigMap, NetworkPolicy, Secret), the consumer templates under `ai-workspace/`, `observability/` and `matherlynet/`, `images/qwen3.5-4b/Dockerfile`, `.github/workflows/model-images.yaml`, `template/scripts/validate.py` (`LocalAi`, the nvidia check), `cluster.sample.toml` (`[localai]`), and the `[localai]` and `images/<model>/Dockerfile` bullets in `CLAUDE.md`.
+- This repo: `template/config/kubernetes/apps/ai/localai/` (HelmRelease, ConfigMap, NetworkPolicy, Secret, and the WebUI's HTTPRoute, SecurityPolicy and OIDC Secret), `template/config/kubernetes/apps/kube-system/cilium/app/hubble-securitypolicy.yaml.j2` (the policy it copies), the consumer templates under `ai-workspace/`, `observability/` and `matherlynet/`, `images/qwen3.5-4b/Dockerfile`, `.github/workflows/model-images.yaml`, `template/scripts/validate.py` (`LocalAi`, `localai_webui_enabled`, the nvidia and pocket_id checks), `cluster.sample.toml` (`[localai]`), and the `[localai]` and `images/<model>/Dockerfile` bullets in `CLAUDE.md`.
+- LocalAI v4.11.0 source: `core/http/auth/public_routes.go` (the WebUI shell is public) and `core/http/routes/auth.go` (`token-login` sets the `token` cookie).
 - Measurements from the rollout on 2026-10-12, on the cluster and in Docker.

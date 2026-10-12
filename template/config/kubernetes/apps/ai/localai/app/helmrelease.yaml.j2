@@ -28,9 +28,10 @@ spec:
               repository: localai/localai
               tag: v4.11.0@sha256:f1bc435659b9da49180e868fdd0361915171a740cd947bf081b62a896a7ea8d0
             env:
-              # Closes every route but /healthz, /readyz and discovery to a request without
-              # the key; a legacy key grants full admin, which is why the admin routes below
-              # are disabled as well.
+              # Closes every API route but /healthz, /readyz and discovery to a request without
+              # the key; a legacy key grants full admin, which is why the gallery endpoint and
+              # runtime settings below stay disabled. The WebUI shell is public, and its /login
+              # page takes the key and keeps it in a `token` cookie.
               LOCALAI_API_KEY:
                 valueFrom:
                   secretKeyRef:
@@ -46,7 +47,7 @@ spec:
               LOCALAI_DISABLE_HARDWARE_DEFAULTS: "true"
               # Loads the model at start, so /readyz means loaded, not merely listening.
               LOCALAI_LOAD_TO_MEMORY: qwen-3.5-4b
-              LOCALAI_DISABLE_WEBUI: "true"
+              LOCALAI_DISABLE_WEBUI: "#{ 'false' if localai_webui_enabled else 'true' }#"
               LOCALAI_DISABLE_GALLERY_ENDPOINT: "true"
               LOCALAI_DISABLE_RUNTIME_SETTINGS: "true"
             probes:
