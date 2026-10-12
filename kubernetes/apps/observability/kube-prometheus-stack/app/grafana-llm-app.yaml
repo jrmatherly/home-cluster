@@ -20,5 +20,5 @@ data:
           models:
             default: base
             mapping:
-              base: phi-4-mini
-              large: phi-4-mini
+              base: qwen3-4b
+              large: qwen3-4b

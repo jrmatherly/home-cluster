@@ -21,18 +21,16 @@ spec:
               repository: ghcr.io/ggml-org/llama.cpp
               tag: server-cuda-v0.5.0@sha256:52192a23c7b258044463aebba78826cdff39a7393b713edc313324b343a7b836
             env:
-              LLAMA_ARG_MODEL: /models/Phi-4-mini-instruct-Q4_K_M.gguf
-              LLAMA_ARG_ALIAS: phi-4-mini
+              LLAMA_ARG_MODEL: /models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+              LLAMA_ARG_ALIAS: qwen3-4b
               LLAMA_ARG_N_GPU_LAYERS: all
               # Four slots of 8192 tokens each, the answer budget AI Workspace asks for.
-              # The KV cache costs 128 KiB per token on this model, so this is 4 GiB
-              # next to the 2.4 GiB model on the 8 GiB card.
+              # The KV cache costs 144 KiB per token on this model, so this is 4.5 GiB
+              # next to the 2.3 GiB model on the 8 GiB card.
               LLAMA_ARG_CTX_SIZE: 32768
               LLAMA_ARG_N_PARALLEL: 4
-              # Lets llama-server parse tool calls through a chat template that carries
-              # them. phi-4-mini's bundled template does not (measured 2026-10-11: a
-              # request with tools got prose back and the tools never entered the
-              # prompt), so tool calls need a template file or another model.
+              # Parses tool calls through the model's chat template, which carries
+              # them; phi-4-mini's did not, which is why it was replaced.
               LLAMA_ARG_JINJA: true
               # The default when a request sets no max_tokens. It is not a cap.
               LLAMA_ARG_N_PREDICT: 200
@@ -95,11 +93,11 @@ spec:
           http:
             port: *port
     persistence:
-      # The model is an image, built from images/phi-4-mini-instruct. The node keeps
+      # The model is an image, built from images/qwen3-4b-instruct-2507. The node keeps
       # it cached, so a restart needs neither a download nor Hugging Face.
       models:
         type: image
-        image: ghcr.io/jrmatherly/models/phi-4-mini-instruct:q4_k_m-78eb92a@sha256:61b9c43d604f70404311af23afe16928a952c957a0237ef48de4e96719854beb
+        image: ghcr.io/jrmatherly/models/qwen3-4b-instruct-2507:q4_k_m-a06e946@sha256:885abc406e9b0e52c26d5801f0d8bbbb0a70ca6b850962b9c823ec21fe9cfe38
         globalMounts:
           - path: /models
             readOnly: true
