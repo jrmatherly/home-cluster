@@ -13,7 +13,7 @@ Each step names its source. "Source" is a file in the ai-workspace repository, r
 
 ## What the app holds
 
-Chats live in each browser's IndexedDB (source, `CLAUDE.md`, Storage). The pod has a read-only root with emptyDirs at `/tmp` and `/app/.next/cache`. The server state is the CloudNativePG cluster `ai-workspace-db` (two instances, WAL archiving and a daily backup at 05:00 UTC through `components/postgres`): the users, their sessions and linked Pocket ID accounts, and the chat links people choose to share (source, `src/server/prisma/schema.prisma`, models `User`, `Session`, `Account`, `Verification` and `LinkStorage`).
+Chats live in each browser's IndexedDB (source, `CLAUDE.md`, Storage). The pod has a read-only root with emptyDirs at `/tmp` and `/app/.next/cache`. The server state is the CloudNativePG cluster `ai-workspace-db` (two instances, WAL archiving and a daily backup at 05:00 UTC through `components/postgres`): the users, their sessions and linked Pocket ID accounts, and the chat links people choose to share (source, `src/server/prisma/schema.prisma`, models `User`, `Session`, `Account`, `Verification` and `LinkStorage`). A CloudNativePG `Database` object adopts the `app` database and keeps the `vector` extension (pgvector) present in it for the Knowledge Base, because the extension is not trusted and the app role cannot create it.
 
 ## The Pocket ID client
 

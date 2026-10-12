@@ -1,0 +1,14 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: ai-workspace-db-app
+spec:
+  cluster:
+    name: ai-workspace-db
+  name: app
+  owner: app
+  ensure: present
+  extensions:
+    # pgvector is not a trusted extension, so only a superuser (the operator) can create it.
+    - name: vector

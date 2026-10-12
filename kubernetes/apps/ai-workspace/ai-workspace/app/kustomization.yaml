@@ -7,6 +7,7 @@ resources:
   - ./browserless.yaml
   - ./browserless-networkpolicy.yaml
   - ./cluster.yaml
+  - ./database.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
