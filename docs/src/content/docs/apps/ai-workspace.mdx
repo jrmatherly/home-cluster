@@ -1,29 +1,42 @@
 ---
 title: AI Workspace
-description: Take AI Workspace from the templates in Git to a chat UI behind the gateway's Pocket ID sign-in, with llama-server wired in and a database for shared chat links.
+description: Take AI Workspace from the templates in Git to a chat UI with its own Pocket ID sign-in, migrations applied before every rollout, and llama-server wired in.
 sidebar:
   order: 6
 ---
 
 The steps outside the repo that `[ai_workspace]` in `cluster.toml` needs, in order. The deployment itself is in Git: the `[ai_workspace]` section and `kubernetes/apps/ai-workspace/`. The app's own repository is `jrmatherly/ai-workspace`, a copy of big-AGI.
 
-AI Workspace is served at `https://ai.${SECRET_DOMAIN}` on the internal gateway. It has no login of its own, so an Envoy Gateway `SecurityPolicy` on its route signs users in with Pocket ID and admits only the `cluster_admins` group, the Hubble pattern. `public = false` for now; `public = true` (which needs `pocket_id.public = true`) is for later, after the app itself has grown its own authentication and authorization.
+AI Workspace is served at `https://ai.${SECRET_DOMAIN}` on the internal gateway. It signs users in itself with Pocket ID (Better Auth over OpenID Connect), so the route carries no gateway `SecurityPolicy`: the gateway's sign-in would stack a second login, and a lapsed gateway session answers the app's streaming API calls with a 302 they cannot follow (source, `docs/deploy-authentication.md`, Gateway authentication). `public = true` (which needs `pocket_id.public = true`) also attaches the route to `envoy-external`.
 
 Each step names its source. "Source" is a file in the ai-workspace repository, read on 2026-10-11. "Measured" was run against the local production build on 2026-10-11.
 
 ## What the app holds
 
-Nothing on the server. Chats live in each browser's IndexedDB (source, `CLAUDE.md`, Storage). The pod has a read-only root with emptyDirs at `/tmp` and `/app/.next/cache`. The only server state is the CloudNativePG cluster `ai-workspace-db` (two instances, WAL archiving and a daily backup at 05:00 UTC through `components/postgres`), and it holds exactly one table, the chat links people choose to share (source, `src/server/prisma/schema.prisma`, model `LinkStorage`). Without that table the share UI is hidden and nothing else changes (source, `src/modules/backend/backend.router.ts`, `hasDB`).
+Chats live in each browser's IndexedDB (source, `CLAUDE.md`, Storage). The pod has a read-only root with emptyDirs at `/tmp` and `/app/.next/cache`. The server state is the CloudNativePG cluster `ai-workspace-db` (two instances, WAL archiving and a daily backup at 05:00 UTC through `components/postgres`): the users, their sessions and linked Pocket ID accounts, and the chat links people choose to share (source, `src/server/prisma/schema.prisma`, models `User`, `Session`, `Account`, `Verification` and `LinkStorage`).
 
 ## The Pocket ID client
 
-One client, named `AI Workspace`, with the callback URL `https://ai.${SECRET_DOMAIN}/oauth2/callback`.
+A new client, named `AI Workspace`, for the app's own sign-in:
 
-The gateway's SecurityPolicy admits only the `cluster_admins` group, so the client itself needs no group restriction. Copy the client ID and the secret; Pocket ID shows the secret once.
+- Callback URL: `https://ai.${SECRET_DOMAIN}/api/auth/callback/oidc`
+- Logout callback URL: `https://ai.${SECRET_DOMAIN}/signin`, so signing out of the app also ends the Pocket ID session and returns to the sign-in page
+- Confidential client (not public), PKCE allowed
+- Scopes: `openid email profile`
+
+Copy the client ID and the secret; Pocket ID shows the secret once. The gateway-era client with the `/oauth2/callback` URL is unused after this change; delete it once the new sign-in works.
+
+Before admitting anyone else, turn off Pocket ID's "allow users to edit their own account details" in its application settings. The app trusts the email Pocket ID holds and links a sign-in to the account with the same email, so a user who could change their own email to another member's address would sign in as that member (source, `docs/deploy-authentication.md`, Who may sign in).
 
 ## cluster.toml
 
-Section `[ai_workspace]`: `oidc_client_id` and `oidc_client_secret`. Leave `public` at its default and `[ai_workspace.env]` empty: there are no vendor keys yet, and llama-server is wired in on its own when an NVIDIA node exists (`LOCALAI_API_HOST` in the HelmRelease).
+Section `[ai_workspace]`:
+
+- `oidc_client_id` and `oidc_client_secret` from the client above.
+- `auth_secret`: at least 32 characters, from `openssl rand -base64 32`. It signs the sessions; changing it signs everyone out.
+- `allowed_emails` (optional): exact addresses and `@domain` rules. A domain rule matches that domain only, not its subdomains. Empty lets in every Pocket ID user who can use the client.
+- `admin_emails`: exact addresses with the admin role (Ollama model pull and delete). Each must be admitted by `allowed_emails` when that is set; the validator refuses the config otherwise, as the app would at startup.
+- `[ai_workspace.env]` stays for server-held vendor keys; `AUTH_OIDC_NAME` there sets the sign-in button label (default "Pocket ID").
 
 Then `just configure`, restore the sops files that did not change:
 
@@ -36,33 +49,32 @@ Commit the rendered `kubernetes/apps/ai-workspace/` and push. `just kube reconci
 ## Watch it come up
 
 ```sh
-kubectl -n ai-workspace get cluster,pods -w
+kubectl -n ai-workspace get cluster,jobs,pods -w
 ```
 
-The pod sits in `Init:0/1` until `ai-workspace-db-rw` accepts connections, then the startup probe asks `/api/trpc/backend.listCapabilities` (measured: 200 with a JSON body, no input needed; there is no health route). From outside, a request to `https://ai.${SECRET_DOMAIN}/` answers a 302 to `auth.${SECRET_DOMAIN}`, which is the SecurityPolicy doing its job.
+The `ai-workspace-migrate` Job runs first and sits in `Init:0/1` until `ai-workspace-db-rw` accepts connections. Once it completes, the app pod starts, and its startup probe asks `/api/trpc/backend.listCapabilities` (measured: 200 with a JSON body, no input needed; there is no health route). That request also loads the auth configuration, so a bad `AUTH_*` value fails the probe with a message naming the variable in the pod log (source, `src/server/auth/auth.config.ts`). From outside, a page request answers a redirect to `/signin` (source, `docs/deploy-authentication.md`).
 
-## Create the share table
+## Migrations
 
-The image has no Prisma CLI, so the schema is pushed once from a checkout of the app's repository, at the tag the pod runs, through a port-forward (source, `docs/deploy-database.md`; the CLI reads `POSTGRES_URL_NON_POOLING`):
+The schema is applied by `prisma migrate deploy` from the HelmRelease's `migrate` controller, a Helm pre-install and pre-upgrade hook Job on the app image. It runs before every install and upgrade, so new pods start on the schema they expect; nothing is applied by hand. A failed run fails the release and the old pods keep serving. To read one:
 
 ```sh
-kubectl -n ai-workspace port-forward svc/ai-workspace-db-rw 5432:5432 &
-PGPASS=$(kubectl -n ai-workspace get secret ai-workspace-db-app -o jsonpath='{.data.password}' | base64 -d)
-POSTGRES_URL_NON_POOLING="postgresql://app:${PGPASS}@localhost:5432/app" npx prisma db push
-kill %1
+kubectl -n ai-workspace get jobs
+kubectl -n ai-workspace logs job/ai-workspace-migrate --all-containers
+flux -n ai-workspace get helmrelease ai-workspace
 ```
 
-Do this right after the first deploy: the share UI is shown as soon as both `POSTGRES_*` variables are set, and a share attempt before the table exists fails. Repeat it after an image bump whose release notes touch `schema.prisma`.
+The Job is kept until the next run replaces it (`before-hook-creation`), so its logs stay readable. After fixing the cause, `flux -n ai-workspace reconcile helmrelease ai-workspace --force` runs it again.
 
 ## First sign-in
 
-1. Open `https://ai.${SECRET_DOMAIN}`. Pocket ID signs you in, then the app's setup dialog opens.
+1. Open `https://ai.${SECRET_DOMAIN}` and sign in with Pocket ID. An address on `admin_emails` gets the admin role on every request; there is no role to set in the app. Then the setup dialog opens.
 2. Models: add a LocalAI service. The host is already held server-side (source, `src/modules/llms/server/openai/openai.access.ts`, the LocalAI branch reads `LOCALAI_API_HOST` when the client sends no host), so leave it blank and refresh the model list; llama-server's alias appears. The pod reaches llama-server because the namespace carries the `llama-server.ai/client` label.
 3. Any other vendor is bring-your-own: its key is typed into the browser and stays there, and calls can go browser-direct to the vendor, bypassing the cluster entirely.
 
 ## Later: server-held vendor keys
 
-Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `just configure`, restore, commit and push. They land in the `ai-workspace-secret` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `POSTGRES_*`, `PORT`, `NODE_ENV`) are refused by the validator.
+Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `just configure`, restore, commit and push. They land in the `ai-workspace-secret` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `POSTGRES_*`, `PORT`, `NODE_ENV` and the `AUTH_*` variables set from the fields above) are refused by the validator; `AUTH_OIDC_NAME` is allowed.
 
 The pod's NetworkPolicy restricts ingress only, so a new vendor needs no egress change.
 
@@ -72,4 +84,4 @@ The HelmRelease pins `latest` by digest until a CalVer release tag exists. The r
 
 ## Later: public
 
-Set `public = true` only after the app's own authentication work lands. The route then also attaches to `envoy-external`, behind the same Pocket ID policy, so the tunnel reaches it. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
+`public = true` attaches the route to `envoy-external` as well, so the tunnel reaches it, behind the app's own sign-in. Set `allowed_emails` first if the Pocket ID client is not restricted to a group. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
