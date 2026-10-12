@@ -1,0 +1,85 @@
+---
+title: Radar
+description: Register Radar, the Kubernetes UI, with Pocket ID, and understand what its impersonation lets a signed-in user do.
+sidebar:
+  order: 10
+---
+
+Radar is a Kubernetes UI with a timeline. It signs users in with Pocket ID itself and acts as the signed-in user through impersonation. This guide covers the OIDC client, the two `[radar]` fields, the role binding that decides what a user may do, the `radar-db` cluster, and the health check. The deployment itself is in Git: the `[radar]` section of `cluster.toml` and `kubernetes/apps/radar/`. Pocket ID itself is on the [Pocket ID](/apps/pocket-id/) page.
+
+Radar is served at `https://radar.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it (repo, `app/helmrelease.yaml.j2`; decision 2026-10-04, Radar stays LAN-only when Pocket ID goes public).
+
+Each claim names its source. "Repo" is a file in this repository. "Decision" is a choice the operator made, with its date.
+
+## Why Radar logs users in itself
+
+The operator chose Radar's own OIDC mode (`auth.mode: oidc`) on 2026-10-04, twice, the second time after seeing a gateway-login alternative with scoped ServiceAccount permissions, to allow write actions in the UI (decision 2026-10-04). Restart, scale and Flux actions then run under the user's own permissions (commit `b4b2b8f`). The operator accepted what that costs: the ServiceAccount gains cluster-wide Secret read and impersonation, and the login-free port-forward fallback and MCP access are lost (decision 2026-10-04).
+
+Treat the pod as cluster-admin. In OIDC mode the chart lets Radar's ServiceAccount read every Secret and impersonate any user (repo, the `auth` comment in `app/helmrelease.yaml.j2`). Anyone who can run code in the pod or take its token can act as anyone.
+
+## 1. Create the OIDC client in Pocket ID
+
+Follow the recipe in [Pocket ID](/apps/pocket-id/), section 4, with these values:
+
+- Name `Radar`.
+- Callback URL `https://radar.${SECRET_DOMAIN}/auth/callback` (repo, `redirectURL` in `app/helmrelease.yaml.j2`).
+- Confidential client with a secret.
+- Allowed user groups: `cluster_admins` is optional. Without it, anyone in Pocket ID can sign in, but only `cluster_admins` is bound to a role (inferred from the RBAC, not tested).
+
+Copy the client ID and the secret. Pocket ID shows the secret once.
+
+## 2. Fill `[radar]` and deploy
+
+Two fields, set together or not at all (repo, `validate.py`, `Radar`):
+
+- `oidc_client_id`: the client ID. Letters, digits and `._~-` only (repo, `validate.py`). Setting it is what deploys Radar (repo, `validate.py`, `radar_enabled`).
+- `oidc_client_secret`: the secret. It goes into the SOPS-encrypted Secret `radar-oidc` under `client-secret` (repo, `app/secret.sops.yaml.j2`).
+
+`[radar]` needs `[pocket_id]` (repo, `validate.py`), which in turn needs `[postgres.backup]`.
+
+1. Fill both fields in `cluster.toml`.
+2. `just configure`, then restore the sops files whose inputs did not change:
+
+   ```sh
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   ```
+
+3. Commit the rendered `kubernetes/apps/radar/` and push. `just kube reconcile` makes Flux pull now.
+
+The issuer is `https://auth.${SECRET_DOMAIN}` (repo, `app/helmrelease.yaml.j2`). The pod reaches it through the CoreDNS `hosts` entry, which answers that name with the internal gateway ([Pocket ID](/apps/pocket-id/)).
+
+## What a user may do
+
+Radar adds the prefix `oidc:` to every username and group it reads from the token, so a Pocket ID user or group never matches a built-in Kubernetes one (repo, `usernamePrefix` and `groupsPrefix` in `app/helmrelease.yaml.j2`).
+
+`clusterrolebinding.yaml` binds the group `oidc:cluster_admins`, the Pocket ID group `cluster_admins` with that prefix, to the ClusterRole `cluster-admin` (repo, `app/clusterrolebinding.yaml.j2`). That binding is the only one, so:
+
+- A member of `cluster_admins` can do anything in the UI.
+- Anyone else who signs in gets only what Kubernetes grants every authenticated user (inferred from the RBAC, not tested).
+
+To give someone less, add a binding from `oidc:<group>` to a narrower ClusterRole such as `view`, in the same file.
+
+## The timeline database
+
+The timeline is in the CloudNativePG cluster `radar-db` (two instances, PostgreSQL 18, 5Gi of `local-path` each), with a retention of 168 hours (repo, `app/cluster.yaml.j2`, `timeline.retention`). It has no backup and no WAL archiving: it is seven days of disposable history (repo, the comment in `app/cluster.yaml.j2`; decision 2026-10-04). Two instances, because Radar does not start without its database and each instance is pinned to a node.
+
+An init container waits until `radar-db-rw` accepts connections on 5432, because Radar starts in a disconnected mode when the database is unreachable and does not retry (repo, `app/helmrelease.yaml.j2`; commit `3c6c764`). If the UI serves errors after an update, check the database first, then restart the Deployment (repo, `.claude/skills/update-apps/references/apps.md`). Upstream tests PostgreSQL 17, and this repo runs 18 (same source).
+
+Usage reporting is off (`usageReporting.enabled: false`). With `[observability]` set, Radar reads traffic from the cluster Prometheus (repo, `app/helmrelease.yaml.j2`).
+
+## Health check
+
+```sh
+curl -s -o /dev/null -w '%{http_code}' https://radar.${SECRET_DOMAIN}/api/health
+```
+
+Expect `200`. Then sign in once with Pocket ID and check that the page shows cluster data (repo, `.claude/skills/update-apps/references/apps.md`).
+
+## Updates
+
+Radar releases about once a week, and its chart and image share a version (chart `1.16.0` on 2026-10-12). Before updating, read the release notes for changes to `auth`, to the chart's ClusterRole, and to the timeline's database migrations (repo, `.claude/skills/update-apps/references/apps.md`).
+
+## Sources
+
+- This repo: `template/config/kubernetes/apps/radar/`, `template/scripts/validate.py` (`Radar` and the cross-field checks), the `[radar]` block of `cluster.sample.toml`, the `[radar]` bullet in `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`.
+- Commits `b4b2b8f` (Radar, 2026-10-04) and `3c6c764` (the database wait, 2026-10-04).

@@ -1,0 +1,105 @@
+---
+title: Kener
+description: Take Kener from the templates in Git to a public status page with uptime monitoring, its admin pages kept on the LAN, and a Pocket ID sign-in.
+sidebar:
+  order: 13
+---
+
+This guide takes Kener from the templates in Git to a public status page with uptime monitoring. It covers the secret key, the first admin account, the Pocket ID sign-in, the Redis job queue, ping monitors, mail, backups and the health check. The deployment itself is in Git: the `[kener]` and `[redis]` sections of `cluster.toml`, `kubernetes/apps/kener/` and `kubernetes/components/redis/`.
+
+Kener is served at `https://status.${SECRET_DOMAIN}`. The internal gateway serves all of it. The external gateway serves the status page and answers 404 for `/manage`, `/account` and `/api`, so the admin pages and the API work only from the LAN (template, `httproute.yaml.j2`).
+
+Each step names its source. "Docs" is [Kener's OpenID Connect page](https://kener.ing/docs/v4/oidc), read on 2026-10-12. "Template" is a file under `template/config/kubernetes/apps/kener/` or `template/config/kubernetes/components/redis/`. "Commit" is a message in this repo's history.
+
+## What Kener holds
+
+- Monitors, incidents, accounts and the OIDC settings are in the CloudNativePG cluster `kener-db`: two instances on `local-path` volumes, 2Gi each, Postgres 18 (template, `cluster.yaml.j2`). The validator refuses Kener without `[postgres.backup]`, because that data cannot be recreated (`validate.py`).
+- The job queue and the check schedule are in the namespace's own Redis, `redis:6379`, from `components/redis` (template, `kustomization.yaml.j2`).
+
+## The secret key
+
+`secret_key` signs sessions and API keys and turns the section on. It needs at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out and invalidates every API key (`cluster.sample.toml`; `Kener` in `validate.py`). It reaches the pod as `KENER_SECRET_KEY` in the sops Secret `kener-secret`.
+
+## 1. Fill `cluster.toml` and deploy
+
+1. Set `[redis] password` (at least 24 letters and digits) if it is not set yet, and `[kener] secret_key`. The validator also needs an ingress mode other than `none` (`validate.py`).
+2. Optional: `smtp_url` and `mail_from`, together (see Mail below).
+3. `just configure`, then restore the sops files whose inputs did not change:
+
+   ```sh
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   ```
+
+4. Commit and push. The `wait-for-stores` init container holds Kener until `kener-db-rw:5432` and `redis:6379` accept connections, because Kener exits when its migrations cannot reach the database (template).
+
+## 2. Create the admin account
+
+A fresh instance lets the first person to open `/account/signin` create the admin account (`cluster.sample.toml`). The external gateway refuses `/account`, so only someone on the LAN can be that first person. Do it right after the first deploy.
+
+1. On the LAN, open `https://status.${SECRET_DOMAIN}/account/signin`. LAN clients resolve the name to the internal gateway through the records `unifi-dns` writes for `envoy-internal` routes (`[unifi]` bullet in `CLAUDE.md`).
+2. Create the admin with an email address that differs from your Pocket ID email. Kener rejects an OIDC login whose email matches a local account, and never merges the two (docs).
+
+## Why the external gateway answers 404
+
+The `kener-public` HTTPRoute on `envoy-external` sends `/manage`, `/account` and `/api` to the Envoy Gateway `HTTPRouteFilter` `kener-not-found`, a direct 404 response, and everything else to Kener. The reasons are in the template and commit `e4cb4b4`: the first visitor to a new instance creates the admin account, the sign-in form has no rate limit, and an admin can point a monitor at any address in the network. Status pages live at paths of their own choosing, so the route refuses the three admin prefixes instead of listing the public ones. A NetworkPolicy admits only the `network` namespace on port 3000 for the same reason (template, `networkpolicy.yaml.j2`).
+
+## 3. Sign in with Pocket ID
+
+Single sign-on is set up in Kener's admin UI and stored in its database, not in this repo (`CLAUDE.md`).
+
+1. In the Pocket ID admin UI at `https://auth.${SECRET_DOMAIN}`, create an OIDC client named Kener with the callback URL `https://status.${SECRET_DOMAIN}/account/oidc/callback` (`cluster.sample.toml`; docs give the same path). Copy the client ID and secret.
+2. In Kener, on the LAN, open Manage, OpenID Connect (docs). Issuer URL `https://auth.${SECRET_DOMAIN}`; it must serve `.well-known/openid-configuration` over HTTPS (docs). Enter the client ID and secret. Scopes are `openid profile email` by default; add `groups` (`cluster.sample.toml`; docs, "Enable the groups claim").
+3. Under Group, Role Mapping, map `cluster_admins` to Kener's admin role. A user whose groups match no mapping gets the Default Role, `member` by default (docs).
+4. Auto-create users is off by default; with it off, a Pocket ID user needs an existing Kener account (docs).
+5. The pod reaches `auth.${SECRET_DOMAIN}` through the CoreDNS forward of the domain to the UniFi console and the `hosts` entry Pocket ID adds (`[unifi]` and `[pocket_id]` bullets in `CLAUDE.md`).
+
+If Pocket ID is down and nobody can sign in, `KENER_FORCE_LOCAL_LOGIN=true` brings the local form back; remove it once the provider is reachable (docs). The HelmRelease does not set it, so this means adding it to `env` in `helmrelease.yaml.j2` and re-rendering.
+
+## Redis and the restart rule
+
+Kener keeps its check schedule in Redis and writes it only at startup. If Redis ever comes back empty under a running Kener, every check stops while `/healthcheck` still answers ok, and only a Kener restart brings the checks back (template comment; commit `e4cb4b4`, measured in a local run on 2026-10-04). The component keeps an append-only file on a 1Gi `local-path` volume and never evicts a key, so a plain Redis restart loses nothing (template, `statefulset.yaml.j2`; commit `e4cb4b4`). Losing the volume is the case to watch.
+
+```sh
+kubectl -n kener exec redis-0 -- redis-cli dbsize
+kubectl -n kener rollout restart deploy/kener
+```
+
+A `dbsize` of 0 while Kener runs means the schedule is gone; run the restart. The container has `REDISCLI_AUTH` set, so `redis-cli` needs no password argument (template).
+
+The Redis instance belongs to the `kener` namespace only. Its NetworkPolicy admits only pods in that namespace, and the server reads the password from a mounted `redis.conf`, so it never appears in the process arguments (template; `[redis]` bullet in `CLAUDE.md`).
+
+## Ping monitors
+
+The namespace enforces `restricted`. The image's `ping` carries the `NET_RAW` file capability, and a binary that cannot get its capability does not start, which fails every ping monitor; `baseline` does not allow adding `NET_RAW` either (template; commit `e4cb4b4`). The `copy-ping` init container copies `/usr/bin/ping` into an emptyDir, which drops the capability, and the copy is mounted read-only over the original. The copy pings through an ICMP socket, which any group may open: `net.ipv4.ping_group_range` inside the pod is `0 2147483647` (Measured 2026-10-12). No Talos patch sets it; that is the node's default.
+
+## Mail
+
+`smtp_url` and `mail_from` are set together or not at all. `smtps://` uses TLS from the first byte (port 465 unless given); `smtp://` upgrades with STARTTLS (port 587 unless given). Percent-encode an at sign in the user or password (`%40`). Kener ignores its mail settings without a host, a user and a password, so the validator refuses a URL missing any of them (`cluster.sample.toml`; `validate.py`). The renderer splits the URL into `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` and `SMTP_FROM_EMAIL`, all in `kener-secret` (`kener_smtp` in `validate.py`; template, `secret.sops.yaml.j2`).
+
+## Backups
+
+- Postgres: WAL archiving to the `postgres-backup` ObjectStore and a daily base backup at 04:30 UTC, with one taken at once when the ScheduledBackup is created (template, `scheduledbackup.yaml.j2`). They land under `kener-db/` in the backup bucket, and the `postgres-backup` PrometheusRule alerts on failures and stale backups (`CLAUDE.md`).
+- Redis: no backup. A Kener restart writes the check schedule again.
+
+## Health check
+
+`/healthcheck` is what the startup, readiness and liveness probes ask for, and it answers 200 while the database or Redis is down, so a failing dependency does not take the status page out of the Service (template). It therefore proves only that Kener serves HTTP.
+
+```sh
+kubectl -n kener get pods,cluster
+curl -s https://status.${SECRET_DOMAIN}/healthcheck
+curl -s -o /dev/null -w '%{http_code}\n' https://status.${SECRET_DOMAIN}/manage
+kubectl -n kener exec redis-0 -- redis-cli dbsize
+kubectl -n kener get backups
+```
+
+Healthy means: the pods are Ready, `/healthcheck` answers, `/manage` answers 404 from outside the LAN (test from a phone on cellular), `dbsize` is above 0, the newest backup is from today, and in Manage each monitor shows a recent check.
+
+## Updates
+
+The image is pinned as `v4.1.7` with a digest (template). Renovate opens a pull request for each new tag.
+
+## Sources
+
+- Docs: [OpenID Connect](https://kener.ing/docs/v4/oidc), read 2026-10-12 (Manage, OpenID Connect; the callback; scopes; the groups claim; role mapping; auto-create; the email conflict; `KENER_FORCE_LOCAL_LOGIN`).
+- This repo: `template/config/kubernetes/apps/kener/`, `template/config/kubernetes/components/redis/`, the `[kener]` and `[redis]` blocks in `cluster.sample.toml`, `Kener` and `kener_smtp` in `template/scripts/validate.py`, the `[kener]` bullet in `CLAUDE.md`, commit `e4cb4b4`.

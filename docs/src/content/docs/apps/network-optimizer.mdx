@@ -1,0 +1,87 @@
+---
+title: Network Optimizer
+description: Take Network Optimizer from the cluster.toml section to a working UniFi audit and monitor that writes to InfluxDB, with an optional Pocket ID sign-in.
+sidebar:
+  order: 14
+---
+
+This guide takes Network Optimizer from the `[network_optimizer]` section of `cluster.toml` to a working UniFi audit and monitor that writes to InfluxDB, with an optional Pocket ID sign-in. The deployment is in Git: `kubernetes/apps/network-optimizer/` and the `[network_optimizer]` bullet in `CLAUDE.md`. The console itself is on the [gateway](/hosts/gateway/) page.
+
+Network Optimizer is served at `https://optimizer.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it.
+
+Each step names its source. "Template" is `template/config/kubernetes/apps/network-optimizer/`. "Sample" is the `[network_optimizer]` block of `cluster.sample.toml`. "Measured" means it was run on the image or the cluster on the date given. "apps.md" is `.claude/skills/update-apps/references/apps.md`.
+
+## What it holds
+
+Everything the app learns is in its SQLite database and keys on a 5Gi `local-path` volume at `/app/data` (template, `helmrelease.yaml.j2`): the UniFi API key, the InfluxDB settings, the Pocket ID role mapping, the credential key and the ASP.NET Data Protection keys. SQLite allows one writer and the volume is pinned to one node, so the Deployment uses `Recreate`. There is no backup of the volume; [node maintenance](/operations/node-maintenance/) lists the pod on `k8s-worker-1`. The migrations run at startup on that only copy, so read them before a bump (apps.md).
+
+## 1. Fill `cluster.toml`
+
+1. `[network_optimizer]` needs `[observability]`, because the app writes its time series to that InfluxDB (source, `template/scripts/validate.py`).
+2. `app_password` is the password of the built-in `admin` account. At least 8 characters, at least one digit, and no `"`, `\`, `$` or whitespace (source, `validate.py`). The app's identity store refuses a password without a digit.
+3. For Pocket ID, also set `oidc_client_id` and `oidc_client_secret` (both or neither, needs `[pocket_id]`). Section 4 creates the client.
+4. `just configure`, restore the unchanged sops files, commit and push:
+
+   ```sh
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   ```
+
+## 2. Connect the UniFi console
+
+These are settings in the app, not in `cluster.toml` (sample).
+
+1. On the gateway at `<router address>`, create an API key and type it into the app's Settings with the console address. Which console menu creates it was not checked. The key lives only in the app's database.
+2. Set SNMP to v2c on the console. Measured 2026-10-05: with v3 on, the app stores v3, and 2.9.1's v3 path sets no privacy password while the default asks for AES, so every poll throws "PrivacyPassword is required when using privacy" and no device or interface rows are written. The community string must be 20 characters or fewer (source, `SnmpDetectionResult.MaxSupportedCommunityLength`). The app re-reads the console's SNMP settings on its own, so no pod restart is needed.
+
+## 3. Connect InfluxDB
+
+The `[observability]` InfluxDB runs org `home`; its first start created bucket `proxmox` for the Proxmox hosts (source, `observability/influxdb/app/helmrelease.yaml.j2`). Network Optimizer gets buckets of its own (sample):
+
+1. In InfluxDB (`https://influxdb.${SECRET_DOMAIN}`), org `home`, create `network_monitoring` with 90 days retention and `network_monitoring_longterm` with 365 days.
+2. Create an API token that can read and write those two buckets only. `influxdb_token` in `[observability]` is the admin token; do not give it to the app.
+3. In the app's Settings InfluxDB form, enter the URL `http://influxdb.observability.svc.cluster.local:8086`, org `home`, the two buckets and the token. Use the Settings form, not the setup wizard, which wants the admin token and in multi-site mode mints an org-wide token (decided 2026-10-05).
+
+## 4. Sign in with Pocket ID (optional)
+
+1. In Pocket ID (`https://auth.${SECRET_DOMAIN}`), Admin, OIDC Clients, Add. Callback URL `https://optimizer.${SECRET_DOMAIN}/signin-oidc/pocket-id` (sample). Copy the client ID and secret into `cluster.toml` (section 1) and deploy.
+2. The app reads `/app/config/identity.json` at boot (template, `identity-secret.sops.yaml.j2`): provider `pocket-id`, authority `https://auth.${SECRET_DOMAIN}`, scopes `openid profile email groups`, groups from the `groups` claim, a user created on first login, role mapping `Manual`. The client secret is not in that file but in `NETOPT_FED_POCKET_ID_SECRET`, which wins over the file.
+3. Sign in as `admin` and, in the app's Settings, map the Pocket ID group `cluster_admins` to the Admin role. `identity.json` has no field for role mappings, so this is typed once in the UI and stored in the database (sample).
+
+## How the probes work under `restricted`
+
+The namespace enforces `restricted`. The image's `ping` and `traceroute.db` carry the `NET_RAW` file capability, and a binary that cannot get its capability does not start. An init container copies both into an emptyDir, the copies lose the capability, and they are mounted over the originals. The pod sysctl `net.ipv4.ping_group_range = 0 2147483647` lets the copies open an ICMP socket instead (template). Measured in Docker on 2026-10-05: ping, `traceroute -I`, UDP traceroute and .NET `Ping` all work under drop-ALL that way.
+
+A `CiliumNetworkPolicy` admits ICMP Destination Unreachable (type 3) and Time Exceeded (type 11) from outside the cluster, because the NetworkPolicy admits only the `network` namespace and a Kubernetes NetworkPolicy cannot name ICMP (template, `ciliumnetworkpolicy.yaml.j2`). UDP traces then reach the internet. ICMP-mode traces still stop at the node, because Cilium's eBPF masquerade does not translate errors that wrap an ICMP echo (source, the `[network_optimizer]` bullet in `CLAUDE.md`). In Network Tools, pick UDP.
+
+`HOST_IP` stays unset. It is the LAN address that path analysis starts from, and a pod has none (template). The pod's first hop is its node (measured 2026-10-05, a TTL-1 ping answered by `<worker-N address>`), so Upstream Path Discovery may list a node hop. Running the app's agent on the gateway is a later phase, not designed.
+
+The image's entrypoint runs as root to chown the data directory, which `restricted` refuses, so the HelmRelease runs `dotnet NetworkOptimizer.Web.dll` as uid 1654 and sets `ASPNETCORE_URLS` to port 8042 itself. `REVERSE_PROXIED_HOST_NAME` is `optimizer.${SECRET_DOMAIN}` and `TRUSTED_PROXIES` is the pod CIDR (template).
+
+## Performance Tweaks and the image tag
+
+The Performance Tweaks page caps the gateway firmware at `MaxSupportedFirmware` in `src/NetworkOptimizer.Web/Services/PerfTweaksDeploymentService.cs` and shows the firmware red above it (apps.md). The stable release's cap refused the gateway's UniFi OS, so the image ran pre-release tags until 2026-10-10. 2.9.2 carried the same cap as the last preview, so the pin moved to the stable tag that day (apps.md). Renovate moved it to 2.9.3 on 2026-10-12 (source, git history of the template).
+
+After a UniFi OS update on the gateway, compare its version with the constant in the pinned tag. This reads the version through the validator without printing the key:
+
+```sh
+base=$(uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null | jq -r '.unifi.host | sub("/+$";"")')
+key=$(uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null | jq -r '.unifi.api_key')
+curl -fsSk -H "X-API-KEY: $key" "$base/proxy/network/api/s/default/stat/device" | jq '.data[] | select(.type=="udm") | {model, version}'
+```
+
+Measured 2026-10-06: it returned UDMPROSE, UniFi OS 6.0.11.36173, Network 10.6.106.
+
+## Health check
+
+From apps.md:
+
+```sh
+kubectl -n network-optimizer exec deploy/network-optimizer -- curl -s localhost:8042/api/health
+```
+
+It answers `{"status":"healthy",...}`. Then open Performance Tweaks; the gateway firmware shows green. The pod's probes use the same `/api/health` path, with a startup budget of 30 tries 5 s apart (template).
+
+## Sources
+
+- This repo: `template/config/kubernetes/apps/network-optimizer/`, `template/config/kubernetes/apps/observability/influxdb/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`NetworkOptimizer`), the `[network_optimizer]` blocks of `cluster.sample.toml` and `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`.
+- The build record of 2026-10-05 (SNMP v3 finding, ICMP copies, InfluxDB form) and the firmware check of 2026-10-06, kept outside the repo.

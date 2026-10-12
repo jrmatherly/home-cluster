@@ -1,0 +1,87 @@
+---
+title: UniFi DNS
+description: Let a second ExternalDNS write the internal gateway's names to the UniFi console, and let CoreDNS forward the domain there so pods resolve them too.
+sidebar:
+  order: 8
+---
+
+This guide covers `network/unifi-dns`: the console API key, the two fields, the records it writes, the CoreDNS forward that comes with it, and how to check both. The deployment is in Git: the `[unifi]` section of `cluster.toml`, `kubernetes/apps/network/unifi-dns/` and the CoreDNS HelmRelease in `kubernetes/apps/kube-system/coredns/`.
+
+Without it, an app on the internal gateway has a name only the cluster's own DNS knows, so each one needs a manual record on the router before it resolves on the LAN (source, commit `cffa029`). With it, the names appear on the console by themselves.
+
+Each claim names its source. "Source" is a file or commit in this repo. "Measured" names its date.
+
+## What it is
+
+- A second ExternalDNS, `unifi-dns` in the `network` namespace, from the `external-dns` chart that `cloudflare-dns` also uses, with the UniFi webhook `ghcr.io/home-operations/external-dns-unifi-webhook` as a sidecar (source, `helmrelease.yaml.j2`).
+- It writes local DNS records to the UniFi console at `<router address>`. `cloudflare-dns` keeps handling `envoy-external`.
+- ExternalDNS only changes records it owns, so manual records on the console are left alone (source, commit `cffa029`).
+- The webhook needs UniFi Network 10.3.58 or newer (source, `cluster.sample.toml`). The console ran Network 10.6.106 on 2026-10-06 (measured).
+
+## Create the console API key
+
+1. On the console, open Settings, Control Plane, Integrations, and create an API key (source, `cluster.sample.toml`). The menu path is the sample's; the console was not re-checked for it.
+2. Copy the key. It goes in `cluster.toml` only, and `just configure` writes it to the SOPS-encrypted Secret `unifi-dns-secret`.
+
+## Fill the two fields
+
+In `cluster.toml`, section `[unifi]` (source, `validate.py`, `Unifi`):
+
+- `host`: `https://` and a hostname or IP, no path. Here `https://<router address>`. The validator refuses anything else (pattern `^(https://[^/\s]+)?$`).
+- `api_key`: the key from the console.
+
+Set both or neither; the validator refuses one without the other. A non-empty `host` turns the app on (source, `validate.py`, `unifi_dns_enabled`). Then `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push. The pod carries a Reloader annotation for `unifi-dns-secret`, so a new key restarts it (source, `helmrelease.yaml.j2`).
+
+## Which records it writes
+
+From `helmrelease.yaml.j2`:
+
+- Sources `gateway-httproute` and `service`, limited by `--gateway-name=envoy-internal`. So every HTTPRoute attached to the internal gateway gets a record, and a route only on `envoy-external` does not.
+- The `service` source publishes the gateways' own names, which the routes point at.
+- `domainFilters` is `${SECRET_DOMAIN}`, so nothing outside the domain is touched.
+- `policy: sync`: a record is deleted when its route goes away.
+- Ownership is kept in TXT records with the prefix `k8s.%{record_type}-` and the owner id `default`.
+- `triggerLoopOnEvent: true`: a new route is written without waiting for the next interval.
+
+Where the records show up in the console UI was not checked. `dig` against the console, below, is the check.
+
+## The CoreDNS forward
+
+Pods use cluster DNS, which forwards to the node resolvers, and those have no record for a name that exists only on the internal gateway (source, commit `99b035d`). When `unifi.host` is an IPv4 address, CoreDNS also forwards the domain to the console (source, `validate.py`, `unifi_dns_addr`; a hostname in `host` turns the forward off). The rendered values in `kubernetes/apps/kube-system/coredns/app/helmrelease.yaml` are:
+
+```yaml
+- name: forward
+  parameters: ${SECRET_DOMAIN} <router address> /etc/resolv.conf
+  configBlock: |-
+    policy sequential
+```
+
+The console is asked first, and the node resolvers follow it for when it does not answer, so an unreachable console leaves the behaviour as it was (source, the template comment and commit `99b035d`).
+
+The forward is a second `forward` in the main server block, before the catch-all `forward . /etc/resolv.conf`. It is not a server block of its own, because `autopath` resolves a pod's search path inside the main block, and a separate block would never be reached (source, the template comment in `coredns/app/helmrelease.yaml.j2`).
+
+With `[pocket_id]` set, a `hosts` entry also answers `auth.${SECRET_DOMAIN}` with the internal gateway's address, ahead of the forward.
+
+Checked on 2026-10-04 against the 10 hostnames the cluster routed: the console gave the same answer as cluster DNS wherever cluster DNS had one, and answered the four internal-only names (measured, commit `99b035d`).
+
+## Check it
+
+From a machine on the LAN:
+
+```sh
+kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m
+dig +short grafana.${SECRET_DOMAIN}
+dig @<router address> +short grafana.${SECRET_DOMAIN}
+```
+
+The log shows no errors, and both lookups print the internal gateway's address (source, `.claude/skills/update-apps/references/apps.md`, the health table; the `@` form asks the console directly). Grafana is on the internal gateway only, so a public resolver has no answer for it.
+
+## When something goes wrong
+
+- The console is down or rebooting: `unifi-dns` exits because the console is unreachable, and restarts. The 03:00 UniFi auto-update reboots of 2026-10-07 did this (measured). Records already written live on the console, so LAN names keep resolving meanwhile.
+- A broken update of the chart or the webhook leaves the existing records in place, so names keep resolving, but new routes get no record. It cannot be dry-run, because the webhook provider ignores `--dry-run` (source, `apps.md`).
+- Before updating either pin, check the minimum ExternalDNS and UniFi Network versions in the webhook's README (source, `apps.md`).
+
+## Sources
+
+- This repo: `template/config/kubernetes/apps/network/unifi-dns/` (HelmRelease, Secret, OCIRepository), `template/config/kubernetes/apps/kube-system/coredns/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`Unifi`, `unifi_dns_enabled`, `unifi_dns_addr`), `cluster.sample.toml` (`[unifi]`), the `[unifi]` bullet in `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`, and commits `cffa029` and `99b035d`.

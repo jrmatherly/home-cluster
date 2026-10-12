@@ -116,7 +116,8 @@ three ways.
 `[observability]` gates the `observability` namespace. `kube-prometheus-stack` runs Prometheus,
 Alertmanager and Grafana, scrapes every ServiceMonitor, PodMonitor and rule in the cluster, and
 reaches etcd through the control-plane node addresses. `influxdb` is InfluxDB 2, with org `home`
-and bucket `proxmox`, written to by Network Optimizer. Both have routes on the internal gateway.
+and the bucket `proxmox` for the Proxmox hosts; Network Optimizer writes to two buckets of its own,
+created by hand. Both have routes on the internal gateway.
 
 Grafana plugins come in two ways. The bundled data source plugins update through the chart's
 `shadowBundledPlugins: true` and `preinstall_auto_update`; never list them in `preinstall`,

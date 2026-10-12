@@ -1,0 +1,95 @@
+---
+title: Reactive Resume
+description: Take Reactive Resume from the templates in Git to a public resume builder with Pocket ID as its only login and uploads in an S3 bucket.
+sidebar:
+  order: 12
+---
+
+This guide takes Reactive Resume from the templates in Git to a working resume builder with Pocket ID as its only login. It covers the Pocket ID client, the bucket, the two secrets that must never change, the first sign-in, and how to check that it is healthy. The deployment itself is in Git: the `[reactive_resume]` section of `cluster.toml` and `kubernetes/apps/reactive-resume/`.
+
+Reactive Resume v6 is served at `https://resume.${SECRET_DOMAIN}` on the external gateway only. The internet reaches it through the Cloudflare tunnel, and so does the LAN, because `unifi-dns` writes local records only for routes on `envoy-internal` (`[unifi]` bullet in `CLAUDE.md`).
+
+Each step names its source. "Docs" is [the Reactive Resume environment variable reference](https://docs.rxresu.me/self-hosting/environment-variables), read on 2026-10-12. "Template" is a file under `template/config/kubernetes/apps/reactive-resume/`. "Commit" is a message in this repo's history.
+
+## What Reactive Resume holds
+
+- Accounts, resumes and settings are in the CloudNativePG cluster `reactive-resume-db`: two instances on `local-path` volumes, 2Gi each, Postgres 18 (template, `cluster.yaml.j2`).
+- Uploads go to an S3-compatible bucket, so the pod has no volume; `/app/data` and `/tmp` are emptyDirs (template, `helmrelease.yaml.j2`). The bucket can stay private, because the app reads objects with its own keys and serves them itself (docs, `S3_BUCKET`).
+- Saved AI keys are personal, encrypted with `encryption_secret`. There is no shared AI provider and no Redis (decision, 2026-10-04).
+
+## The two secrets that never change
+
+- `auth_secret` signs sessions and encrypts two-factor secrets. Changing it signs everyone out and breaks every two-factor secret (`cluster.sample.toml`; docs: keep it the same for the life of the instance).
+- `encryption_secret` encrypts the AI keys people save. It must be at least 32 characters and differ from `auth_secret`, and the server refuses to start on fewer (`ReactiveResume` in `validate.py`; docs). Changing it makes every saved key unreadable.
+
+Keep a copy of both outside the repo. `auth_secret` is also the field that turns the section on (`reactive_resume_enabled` in `validate.py`).
+
+## 1. Create the bucket and its key
+
+The bucket must exist before the app starts (`cluster.sample.toml`).
+
+1. Create the bucket. Here it is a Cloudflare R2 bucket named `reactive-resume`.
+2. Create an access key pair with read and write access to its objects. For R2, an API token with "Object Read & Write" scoped to the bucket (`cluster.sample.toml`).
+3. Note the S3 endpoint, `https://<account-id>.r2.cloudflarestorage.com` for R2. It holds the Cloudflare account ID and the repo is public, so it goes into the sops Secret, not the HelmRelease (template, `secret.sops.yaml.j2`; commit `271d117`).
+
+## 2. Create the OIDC client in Pocket ID
+
+1. Open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add.
+2. Name `Reactive Resume`. Callback URL `https://resume.${SECRET_DOMAIN}/api/auth/callback/custom` (`cluster.sample.toml`; docs: `APP_URL` followed by `/api/auth/callback/custom`).
+3. Save, and copy the client ID and the client secret. Pocket ID shows the secret once.
+
+Pocket ID itself must be public, so a browser away from home can finish the sign-in: `pocket_id.public = true` attaches its route to `envoy-external` (commit `271d117`).
+
+## 3. Fill `cluster.toml` and deploy
+
+1. In `[reactive_resume]`, set all eight fields: `auth_secret` and `encryption_secret` (each from `openssl rand -hex 32`), `oidc_client_id`, `oidc_client_secret`, `s3_endpoint`, `s3_bucket`, `s3_access_key_id`, `s3_secret_access_key`. The validator refuses a partial set, and refuses the section without `[pocket_id]` (which in turn needs `[postgres.backup]`) or with `ingress.mode = "none"` (`validate.py`).
+2. `just configure`, then restore the sops files whose inputs did not change:
+
+   ```sh
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   ```
+
+3. Commit and push. The Flux Kustomization `reactive-resume` waits for `cloudnative-pg` and `plugin-barman-cloud` (template, `ks.yaml.j2`).
+4. Watch it come up. The `wait-for-database` init container holds the app until `reactive-resume-db-rw:5432` accepts connections, because the app exits when its migrations cannot reach the database (template; commit `f09d664`, two restarts on the first install):
+
+   ```sh
+   kubectl -n reactive-resume get pods -w
+   ```
+
+## 4. First sign-in
+
+1. Open `https://resume.${SECRET_DOMAIN}`. The page offers only the Pocket ID button: `FLAG_DISABLE_EMAIL_AUTH=true` turns off email and password sign-in and sign-up and the password reset (docs).
+2. Sign in with Pocket ID. The first sign-in creates the account (`[reactive_resume]` bullet in `CLAUDE.md`). Whether every later Pocket ID user also gets an account on first sign-in was not checked; to keep the app to some people, restrict the Pocket ID client to a group under Allowed user groups.
+
+## How the pod is wired
+
+- Probes ask for `/`, not `/api/health`. The health check writes an object to the bucket and deletes it inside a fixed 1.5 s limit, and that write has taken from 0.3 s to over 20 s. On 2026-10-05 a slow bucket took the only pod out of the Service for eight minutes while the app and database were healthy (commits `f09d664` and `a0a3ad5`). `/` answers in under 10 ms. There is no liveness probe, because a restart does not fix a database or bucket outage (template).
+- `TRUSTED_PROXIES` is the pod CIDR, so the app takes the visitor's address from `X-Forwarded-For` and its rate limits apply per visitor. Any pod could forge that header, so a NetworkPolicy admits only the `network` namespace on port 3000 (template, `networkpolicy.yaml.j2`; commit `271d117`).
+- The namespace enforces `restricted`; the pod runs as uid 1000 with a read-only root (template).
+- The pod reaches Pocket ID at `auth.${SECRET_DOMAIN}` for discovery through the CoreDNS `hosts` entry that `[pocket_id]` adds (`[pocket_id]` bullet in `CLAUDE.md`).
+- Cloudflare zone rules outside Git can skip checks for the home network, so test the external path from a phone on cellular, not from home.
+
+## Backups
+
+- Postgres: WAL archiving to the `postgres-backup` ObjectStore and a daily base backup at 04:00 UTC, with one taken at once when the ScheduledBackup is created (template, `scheduledbackup.yaml.j2`, `immediate: true`). They land under `reactive-resume-db/` in the backup bucket. The `postgres-backup` PrometheusRule alerts on a failed backup, a backup older than 36 hours, and failing WAL archiving (`CLAUDE.md`).
+- Uploads: nothing in this repo backs up the uploads bucket.
+
+## Health check
+
+```sh
+kubectl -n reactive-resume get pods,cluster
+curl -s -o /dev/null -w '%{http_code}\n' https://resume.${SECRET_DOMAIN}/
+curl -s -o /dev/null -w '%{http_code}\n' https://resume.${SECRET_DOMAIN}/api/health
+kubectl -n reactive-resume get backups
+```
+
+The pod is Ready, the cluster reports two healthy instances, the page answers 200, and the newest backup is from today. `/api/health` checks the bucket round trip (commit `f09d664`), so run it by hand when uploads fail; a single slow answer is the bucket, not the app.
+
+## Updates
+
+Renovate opens a pull request for each new image tag of `ghcr.io/reactive-resume/reactive-resume`. The pin is `v6.0.2` (template).
+
+## Sources
+
+- Docs: [Self-hosting, Environment variables](https://docs.rxresu.me/self-hosting/environment-variables), read 2026-10-12 (`OAUTH_*`, the callback, `FLAG_DISABLE_EMAIL_AUTH`, `AUTH_SECRET`, `ENCRYPTION_SECRET`, `S3_*`).
+- This repo: `template/config/kubernetes/apps/reactive-resume/`, the `[reactive_resume]` block in `cluster.sample.toml`, `ReactiveResume` in `template/scripts/validate.py`, the `[reactive_resume]` bullet in `CLAUDE.md`, commits `271d117`, `f09d664` and `a0a3ad5`.

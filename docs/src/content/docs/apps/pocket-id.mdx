@@ -1,0 +1,134 @@
+---
+title: Pocket ID
+description: Set up Pocket ID, the passkey OpenID Connect provider every other app signs in with, and register an app as its client.
+sidebar:
+  order: 9
+---
+
+Pocket ID is the passkey OpenID Connect provider that every other app in the cluster signs in with. This page covers the first admin and passkey, the `cluster_admins` group, the recipe for registering another app as an OIDC client, the `public` flag, the settings to keep off, backups, and recovery. The deployment itself is in Git: the `[pocket_id]` section of `cluster.toml` and `kubernetes/apps/security/pocket-id/`.
+
+Pocket ID is served at `https://auth.${SECRET_DOMAIN}` on the internal gateway, and also on the external gateway while `public = true`.
+
+Each claim names its source. "Repo" is a file in this repository. "Decision" is a choice the operator made, with its date.
+
+## What Pocket ID holds
+
+Pocket ID's state is in the CloudNativePG cluster `pocket-id-db` in the `security` namespace, passkeys and token signing keys included (repo, `app/cluster.yaml.j2`, `validate.py`). `FILE_BACKEND: database` puts uploads there too, so the pod has no volume and can move to any node (repo, `app/helmrelease.yaml.j2`). Two instances, because each is pinned to a node by its `local-path` volume and a second one keeps logins working when a node is down (repo, the comment in `app/cluster.yaml.j2`).
+
+The pod runs `ghcr.io/pocket-id/pocket-id` (`v2.18.0-distroless` on 2026-10-12) on the app-template chart, as uid 65532 with a read-only root, under the `restricted` pod security level. The Deployment uses `Recreate`, because only one Pocket ID instance may use a database (repo, `app/helmrelease.yaml.j2`). It makes no outbound calls of its own: `ANALYTICS_DISABLED`, `VERSION_CHECK_DISABLED` and `ICON_LIBRARY_URL: disabled`, so a login never depends on the internet. Keep it that way when adding settings.
+
+## The hostname never changes
+
+Passkeys are bound to the hostname `auth.${SECRET_DOMAIN}`, so it must never change (repo, the `APP_URL` comment; decision 2026-10-04, `auth` chosen over `id`). Changing it makes every registered passkey useless, and every app's issuer URL is `https://auth.${SECRET_DOMAIN}`.
+
+Pods cannot resolve names that exist only on the internal gateway, because cluster DNS forwards to resolvers on the internet. A `hosts` entry in CoreDNS answers `auth.${SECRET_DOMAIN}` with the internal gateway's address and lets every other name fall through (repo, `kube-system/coredns/app/helmrelease.yaml.j2`). So an app in the cluster reaches the issuer through the internal gateway, even with the WAN down.
+
+## 1. The encryption key
+
+`encryption_key` in `[pocket_id]` encrypts the token signing keys in the database (repo, `cluster.sample.toml`). Setting it is what deploys Pocket ID (repo, `validate.py`, `pocket_id_enabled`). It needs `[postgres.backup]`, because passkeys and signing keys cannot be recreated (repo, `validate.py`).
+
+- At least 16 characters, with no `"`, `\`, `$` or whitespace (repo, `validate.py`, `PocketId`).
+- Generate it with `openssl rand -base64 32` (repo, `cluster.sample.toml`).
+- It goes into the SOPS-encrypted Secret `pocket-id-secret` as `ENCRYPTION_KEY` (repo, `app/secret.sops.yaml.j2`).
+- To change it later, run `pocket-id encryption-key-rotate` in the pod first. Editing it in `cluster.toml` alone makes the stored keys unreadable (repo, `cluster.sample.toml`).
+
+Keep a copy of the key outside the repo.
+
+## 2. The first admin and passkey
+
+Until an admin exists, anyone on the network can claim the instance (repo, `cluster.sample.toml`). Do this right after the first deploy.
+
+1. Open `https://auth.${SECRET_DOMAIN}/setup` (repo, `cluster.sample.toml`).
+2. Create the admin account and register a passkey for it.
+3. Register a second passkey on another device, so losing one device does not lock you out.
+
+## 3. The `cluster_admins` group
+
+1. In the admin UI, create a user group named `cluster_admins` and add yourself.
+2. Add only people who should administer the cluster.
+
+These read the group from the token's `groups` claim (repo, each file named):
+
+- Radar binds `oidc:cluster_admins` to `cluster-admin` (`radar/radar/app/clusterrolebinding.yaml.j2`). See [Radar](/apps/radar/).
+- The Hubble UI SecurityPolicy admits only `cluster_admins` (`kube-system/cilium/app/hubble-securitypolicy.yaml.j2`).
+- The media SecurityPolicy admits only `cluster_admins` on every media UI route labelled `media.sign-in: pocket-id` (`media/shared/app/securitypolicy.yaml.j2`).
+- Grafana gives `cluster_admins` the Grafana server admin role and refuses everyone else (`observability/kube-prometheus-stack/app/helmrelease.yaml.j2`).
+- [PegaProx](/apps/pegaprox/) and Network Optimizer map the group to their admin role in their own UI.
+
+The name is written into those files, so renaming the group breaks all of them.
+
+## 4. Register another app as an OIDC client
+
+Every app's page refers to this recipe. The app's own page names the callback URL and anything extra.
+
+1. Open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add.
+2. Name it after the app.
+3. Callback URL: the one the app's page names. One client can hold several; the [media](/apps/media/) client lists seven.
+4. Keep it a confidential client with a secret, not a public client. Leave PKCE on; [Actual Budget](/apps/actual-budget/) and PegaProx send a PKCE challenge.
+5. Scopes: `openid profile email`, plus `groups` when the app or a SecurityPolicy reads the group. Grafana, Hubble, Network Optimizer, PegaProx and Kener do (repo, each app's template or `cluster.sample.toml`).
+6. Optional: under Allowed user groups, pick `cluster_admins` or a narrower group. Do this whenever the first sign-in becomes the app's owner, as in Actual Budget. A gateway SecurityPolicy that already checks the group needs no restriction.
+7. Save, and copy the client ID and the secret. Pocket ID shows the secret once.
+8. Put both in the app's section of `cluster.toml`, run `just configure`, restore the unchanged sops files, commit and push.
+
+The callback URLs in use (repo, `cluster.sample.toml` and the templates):
+
+| App | Callback URL |
+| --- | --- |
+| Radar | `https://radar.${SECRET_DOMAIN}/auth/callback` |
+| Hubble UI | `https://hubble.${SECRET_DOMAIN}/oauth2/callback` |
+| Media apps | `https://<app>.${SECRET_DOMAIN}/oauth2/callback`, one per app |
+| Grafana | `https://grafana.${SECRET_DOMAIN}/login/generic_oauth` |
+| Reactive Resume | `https://resume.${SECRET_DOMAIN}/api/auth/callback/custom` |
+| Kener | `https://status.${SECRET_DOMAIN}/account/oidc/callback` |
+| Network Optimizer | `https://optimizer.${SECRET_DOMAIN}/signin-oidc/pocket-id` |
+| Actual Budget | `https://budget.${SECRET_DOMAIN}/openid/callback` |
+| AI Workspace | `https://ai.${SECRET_DOMAIN}/api/auth/callback/oidc`, logout callback `https://ai.${SECRET_DOMAIN}/signin` |
+| PegaProx | `https://pegaprox.${SECRET_DOMAIN}/oidc/callback` |
+
+`ALLOW_INSECURE_CALLBACK_URLS` is `"false"` (repo, `app/helmrelease.yaml.j2`), so use `https` callbacks.
+
+## 5. Settings to keep off
+
+- "Allow users to edit their own account details", in the application settings. [AI Workspace](/apps/ai-workspace/) links a Pocket ID sign-in to the account with the same email, so a user who could change their own email to another member's address would sign in as that member (repo, the `[ai_workspace]` bullet in `CLAUDE.md`). Turn it off before admitting anyone else.
+
+## 6. The `public` flag
+
+`public = true` in `[pocket_id]` also attaches the route to `envoy-external`, so `cloudflare-dns` publishes `auth.${SECRET_DOMAIN}` and the internet reaches the sign-in page and the API through the Cloudflare tunnel (repo, `app/helmrelease.yaml.j2`; commit `271d117`). The route keeps its `envoy-internal` parent, so LAN clients and pods keep the internal path. The hostname does not change, so passkeys keep working (repo, `cluster.sample.toml`).
+
+- It needs `encryption_key` and an `ingress.mode` other than `none` (repo, `validate.py`).
+- `actual_budget.public`, `ai_workspace.public` and `media.public` each require it, because a visitor from the internet must reach the login (repo, `validate.py`).
+- Why it is on: Pocket ID was made public on 2026-10-04 for Reactive Resume, which is on the external gateway (decision 2026-10-04). Radar, Grafana and Hubble stay LAN-only.
+- What it exposes: the whole Pocket ID UI and API, the admin pages and `/setup` included. On a new instance, create the admin before turning it on.
+
+## 7. Backups
+
+`pocket-id-db` archives WAL continuously and takes a daily backup at 03:00 UTC, plus one when the ScheduledBackup is created (repo, `app/cluster.yaml.j2`, `app/scheduledbackup.yaml.j2`). Both go through the barman-cloud plugin to the `postgres-backup` ObjectStore in the bucket from `[postgres.backup]`, under the cluster name `pocket-id-db`, with a 30-day retention policy (repo, `components/postgres/objectstore.yaml.j2`). The `postgres-backup` PrometheusRule alerts when a backup fails, is older than 36 hours, or WAL archiving fails (repo, `CLAUDE.md`).
+
+```sh
+kubectl -n security get backup
+```
+
+Pocket ID migrates its database on start and refuses to start on a database a newer version migrated. A rollback after a migration means restoring `pocket-id-db` from its backup, so read the release notes for a migration and confirm a recent backup before updating (repo, `.claude/skills/update-apps/references/apps.md`). Stay on the `-distroless` image variant.
+
+## 8. Health check
+
+```sh
+curl -s -o /dev/null -w '%{http_code}' https://auth.${SECRET_DOMAIN}/healthz
+```
+
+Expect `204`, then sign in once with a passkey (repo, `.claude/skills/update-apps/references/apps.md`). The pod's liveness and readiness probes use the same path on port 1411 (repo, `app/helmrelease.yaml.j2`).
+
+## If you lose access
+
+- Every passkey lost: create a one-time access token in the pod, sign in with it, then register a new passkey (repo, `.claude/skills/update-apps/references/apps.md`):
+
+  ```sh
+  kubectl -n security exec deploy/pocket-id -- /app/pocket-id one-time-access-token <user>
+  ```
+
+- Lost `encryption_key`: the signing keys in the database cannot be read. This repo documents no recovery.
+
+## Sources
+
+- This repo: `template/config/kubernetes/apps/security/pocket-id/`, `template/config/kubernetes/apps/kube-system/coredns/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`PocketId` and the cross-field checks), the `[pocket_id]` block of `cluster.sample.toml`, the `[pocket_id]` bullet in `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`.
+- Commits `3b4dffb` (Pocket ID, 2026-10-04) and `271d117` (the `public` switch, 2026-10-04).

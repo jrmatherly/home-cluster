@@ -1,0 +1,82 @@
+---
+title: Hubble
+description: Turn on Hubble, its relay and its UI, behind an Envoy Gateway sign-in that admits only the Pocket ID group cluster_admins.
+sidebar:
+  order: 11
+---
+
+This guide turns on Hubble, Cilium's network flow observer, with its relay and its UI, and puts the UI behind a Pocket ID sign-in. The deployment itself is in Git: the `[cilium.hubble]` section of `cluster.toml` and `kubernetes/apps/kube-system/cilium/app/`.
+
+The UI is served at `https://hubble.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it.
+
+Each step names its source. "Template" is a file under `template/config/kubernetes/apps/kube-system/cilium/app/`. "Sample" is the `[cilium.hubble]` block of `cluster.sample.toml`. "Measured" means it was run against this cluster.
+
+## Status on 2026-10-12
+
+| Step                                | Status                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Create the OIDC client in Pocket ID | Done. The section is set and renders (commit `702a035`, 2026-10-04).                           |
+| Fill the two fields and deploy      | Done 2026-10-04. `kubernetes/apps/kube-system/cilium/app/` holds the route, policy and Secret. |
+| `hubble observe` through the agent  | Measured working 2026-10-12.                                                                   |
+| Sign in to the UI                   | Not re-checked for this guide.                                                                 |
+
+## What the section turns on
+
+When both fields are set, `hubble_enabled` is true (`validate.py`) and the Cilium HelmRelease turns on Hubble, `hubble.relay` and `hubble.ui` (template, `helmrelease.yaml.j2`). Three more files render with it: the `hubble-ui` HTTPRoute on `envoy-internal`, the `hubble-oidc` Secret holding the client secret (sops-encrypted), and the `hubble-ui` SecurityPolicy (template, `kustomization.yaml.j2`). The validator refuses the section without `[pocket_id]` (`validate.py`, "Pocket ID is the Hubble UI's only login") and refuses one field without the other.
+
+Turning the section on or off restarts the Cilium agent on every node once (sample; the HelmRelease sets `rollOutCiliumPods: true`).
+
+The bootstrap installs Cilium without the relay and the UI, because the relay finds its peers through cluster DNS and CoreDNS is installed after Cilium. Flux adds both once it takes over (`template/config/bootstrap/helmfile/apps.yaml.j2`).
+
+## Why the certificates use the `cronJob` method
+
+The HelmRelease sets `hubble.tls.auto.method: cronJob`. The chart's default `helm` method keeps the certificates it finds in the cluster, so they would expire after a year; the CronJob renews them (template comment in `helmrelease.yaml.j2`, which says every four months).
+
+## How the sign-in works
+
+Hubble UI has no login of its own, so an Envoy Gateway `SecurityPolicy` on its route does the sign-in (template, `hubble-securitypolicy.yaml.j2`):
+
+- OIDC against `https://auth.${SECRET_DOMAIN}`, with the authorization and token endpoints written out, so the policy does not depend on Pocket ID answering its discovery document when the gateway reconciles. Scopes `openid profile email groups`. Redirect URL `https://hubble.${SECRET_DOMAIN}/oauth2/callback`, logout path `/logout`.
+- The ID token goes into a cookie with the fixed name `hubble-id-token`. A JWT provider in the same policy reads that cookie and verifies the token against Pocket ID's `/.well-known/jwks.json`.
+- Authorization denies by default and allows only a token whose `groups` claim contains `cluster_admins`. A Pocket ID user outside that group signs in and is still refused.
+
+## Create the OIDC client in Pocket ID
+
+1. Open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add.
+2. Name `Hubble`. Callback URL `https://hubble.${SECRET_DOMAIN}/oauth2/callback` (template, `redirectURL`).
+3. Make sure the `groups` scope is available to it, because the policy's group check reads the `groups` claim.
+4. Save. Copy the client ID and the client secret; Pocket ID shows the secret once.
+
+## Fill `cluster.toml` and deploy
+
+1. In `cluster.toml`, section `[cilium.hubble]`, set `oidc_client_id` and `oidc_client_secret`. The client ID may hold letters, digits and `._~-` (`validate.py`).
+2. `just configure`, then restore the sops files whose plaintext did not change, keeping `kubernetes/apps/kube-system/cilium/app/hubble-secret.sops.yaml` when the secret is new:
+
+    ```sh
+    git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+    ```
+
+3. Commit the rendered `kubernetes/apps/kube-system/cilium/app/` and push. `just kube reconcile` makes Flux pull now.
+4. Watch the Cilium agents roll and the relay and UI start:
+
+    ```sh
+    kubectl -n kube-system get pods -o wide | grep -E 'cilium|hubble'
+    ```
+
+## Check it
+
+1. Open `https://hubble.${SECRET_DOMAIN}`. The browser goes to Pocket ID, then back to the UI. Pick a namespace; its flows appear.
+2. Sign in as a Pocket ID user outside `cluster_admins`. The gateway refuses them.
+3. From the command line, through the agent on one node. Find the Cilium agent pod on that node (label `k8s-app=cilium`, Measured 2026-10-12):
+
+    ```sh
+    kubectl -n kube-system get pods -l k8s-app=cilium --field-selector spec.nodeName=<node>
+    kubectl -n kube-system exec <cilium pod on the node> -c cilium-agent -- hubble observe -n <namespace> --last 20
+    ```
+
+    Measured working on 2026-10-12.
+
+## Sources
+
+- This repo: the `[cilium.hubble]` bullet in `CLAUDE.md`, `cluster.sample.toml`, `template/scripts/validate.py` (`Hubble`, `hubble_enabled`), `template/config/kubernetes/apps/kube-system/cilium/` (`ks.yaml.j2`, `app/helmrelease.yaml.j2`, `app/hubble-httproute.yaml.j2`, `app/hubble-secret.sops.yaml.j2`, `app/hubble-securitypolicy.yaml.j2`, `app/kustomization.yaml.j2`), `template/config/bootstrap/helmfile/apps.yaml.j2`, commits `a96c14f` and `702a035`.
+- Cilium docs, `docs.cilium.io/en/stable/observability/hubble/` (linked from the sample, not re-read for this guide).
