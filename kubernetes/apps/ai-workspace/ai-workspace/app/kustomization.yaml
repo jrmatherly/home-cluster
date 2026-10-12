@@ -4,6 +4,8 @@ kind: Kustomization
 components:
   - ../../../../components/postgres
 resources:
+  - ./browserless.yaml
+  - ./browserless-networkpolicy.yaml
   - ./cluster.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml

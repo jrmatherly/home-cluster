@@ -1,0 +1,85 @@
+---
+# Headless Chromium that AI Workspace's Browsing drives over PUPPETEER_WSS_ENDPOINT.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browserless
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: browserless
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: browserless
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's blessuser, given by number because restricted cannot check a name.
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: browserless
+          image: ghcr.io/browserless/chromium:v2.57.0@sha256:6bac628b3d8293f8fb251d3a6b63030dfc5a1cb0c7e5c39abe5efd8f4b25360b
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-workspace-secret
+                  key: BROWSERLESS_TOKEN
+            - name: CONCURRENT
+              value: "4"
+            - name: QUEUED
+              value: "10"
+            # A page load plus a screenshot can take about 30 s, the default limit.
+            - name: TIMEOUT
+              value: "60000"
+          ports:
+            - name: http
+              containerPort: 3000
+          # tcpSocket, because every HTTP route needs the token.
+          readinessProbe: &probe
+            tcpSocket:
+              port: http
+          livenessProbe: *probe
+          # The root stays writable: Chromium's crashpad handler fails to start
+          # on a read-only root (measured).
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+              # Downloads and profiles land on the writable root.
+              ephemeral-storage: 2Gi
+          volumeMounts:
+            - name: dev-shm
+              mountPath: /dev/shm
+      volumes:
+        - name: dev-shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browserless
+spec:
+  selector:
+    app.kubernetes.io/name: browserless
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
