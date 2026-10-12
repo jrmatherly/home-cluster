@@ -37,13 +37,14 @@ fi
 # all-hex tokens of any length.
 # Each rule is a name, a regex, and a filter that drops matches which only
 # look like a token: image digests and checksums (all hex), table rules (all
-# dashes), and git's SSH user in a remote URL.
+# dashes), and git's SSH user in a remote URL. A run with an underscore is a
+# Prometheus metric name, not a token; keys do not carry underscores.
 names=(rfc1918-address mac-address email-address long-token)
 regexes=(
     '\b(10\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]{1,3}\.[0-9]{1,3}\b'
     '\b([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b'
     '[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}'
-    '[A-Za-z0-9_-]{40,}'
+    '[A-Za-z0-9-]{40,}'
 )
 excludes=('^$' '^$' '^git@' '^([0-9a-fA-F]+|[-_]+)$')
 

@@ -1,0 +1,143 @@
+---
+title: Restart bursts and a degraded ZFS pool
+description: Tell a restart burst's cause apart, read the event from Prometheus after the pods are gone, and recover a host whose NVMe controller hung under the control plane.
+sidebar:
+  order: 3
+---
+
+A dozen pods with a restart count at the same minute is one event, not a dozen bugs. This guide
+tells the known causes apart, shows how to read the event from Prometheus when the pods are
+already gone, and walks the host-side recovery of the case found on 2026-10-12: an NVMe controller
+hang on the non-GPU host's rpool that froze cp-1's disk and with it the whole API for four minutes.
+Written from that incident; every number below was measured that day.
+
+## Pick the pattern first
+
+| What you see                                                                                           | Cause                                                                                                                                         | Where it is written up                                                      |
+| --- | --- | --- |
+| Restarts at 03:3x local, confined to the nodes on the GPU host                                         | The UniFi auto-update window rebooted the closet switch and split the hosts                                                                   | [Node and host maintenance](/operations/node-maintenance/), "Unplanned"     |
+| Restarts on every node at once after a reboot of all three hosts                                       | Quorum lost; Talos keeps the old containers so every pod comes back with +1                                                                   | [Node and host maintenance](/operations/node-maintenance/), "Reboot all three hosts" |
+| Restarts within one or two minutes on the leader-electing controllers only, any hour, no node NotReady | The API hung: an etcd leader stalled on its disk, or a control plane VM froze                                                                 | This page                                                                   |
+| Counts still there after the daily cleanup                                                             | `kube-system/restart-reset` runs at 10:00 UTC and only clears restarts older than an hour; the burst came later, or the pod was not Ready     | `kubectl -n kube-system get jobs`, then `logs job/<name>`                   |
+
+The leader-electing set is the fingerprint of an API outage: the three Flux controllers,
+cert-manager, cilium-operator, envoy-gateway, cloudnative-pg, plugin-barman-cloud, external-dns
+(both instances). pocket-id and pegaprox join the list because their liveness probes fail while
+their database or the API is away. None of them is at fault.
+
+## Read the event from Prometheus
+
+The pods you deleted are gone, but kube-state-metrics kept their series. The queries run from the
+ai-workspace pod, which has `node` and no egress policy; Grafana's container has no shell and
+LocalAI's pod has no egress.
+
+```sh
+kubectl -n ai-workspace exec deploy/ai-workspace -c app -- sh -c 'node -e "
+const P=\"http://kube-prometheus-stack-prometheus.observability.svc:9090/api/v1/\";
+(async()=>{const j=await (await fetch(P+\"query?query=\"+encodeURIComponent(process.argv[1]))).json();
+for(const s of j.data.result)console.log(JSON.stringify(s.metric),s.value[1])})()" \
+"sum by (namespace,pod,container) (increase(kube_pod_container_status_restarts_total[24h])) > 0"'
+```
+
+Then, with `query_range` (`start`, `end`, `step=60`) over the hour that query points at:
+
+| Question                          | Query                                                                        | What 2026-10-12 showed                                                                 |
+| --- | --- | --- |
+| When did the burst happen         | `sum(kube_pod_container_status_restarts_total)`                              | 3 to 18 between 13:21 and 13:27 UTC                                                    |
+| Did a node freeze                 | `up{job="node-exporter"}` (look for missing samples)                         | No gaps on any node                                                                    |
+| Did etcd lose its leader          | `increase(etcd_server_leader_changes_seen_total[1m])` per instance           | cp-2 and cp-3 saw two changes at 13:21; cp-1 saw none, so cp-1 was the stuck leader   |
+| Did a control plane's disk stall  | `rate(node_disk_writes_completed_total{instance=~"<cp-1 address>.*"}[1m])`   | cp-1's disk fell from 40 writes/s to under 1 from 13:20:30 to 13:24:30                |
+| Did etcd stop committing          | `rate(etcd_disk_wal_fsync_duration_seconds_count[1m])` per instance          | cp-1 at 0 for the same four minutes                                                    |
+| Was it memory                     | `node_memory_MemAvailable_bytes` for that node                               | 2 GiB free throughout; exit 137 on the apiserver was the kubelet's SIGKILL after grace |
+
+The static pods tell the same story without Prometheus:
+
+```sh
+kubectl -n kube-system get pods -l tier=control-plane -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[0].lastState.terminated.reason}{" "}{.status.containerStatuses[0].lastState.terminated.finishedAt}{"\n"}{end}'
+```
+
+A controller-manager on another control plane that logs "Error retrieving lease lock ... 127.0.0.1:7445 ... context deadline exceeded" before the stalled node's pods die confirms the API was already gone cluster-wide.
+
+## The host side of a disk stall
+
+cp-1 is a VM on the non-GPU host with its disk on `local-zfs`, so rpool. On that host:
+
+```sh
+zpool status -v rpool
+journalctl -k --since "<date> <hour before>" | grep -iE 'nvme|zfs|zio'
+```
+
+What the incident looked like, in the kernel log: `nvme nvme0: I/O ... timeout, aborting` on
+write after write from 09:20:57 local, hung-task traces in `zil_commit` and `txg_sync`, then at
+09:24:36 `Device not ready; aborting reset, CSTS=0x1`, `not ready 65535ms after FLR; giving up`,
+`Disabling device after reset failure: -25`, zio errors, and rpool marking one mirror member
+(a Samsung 980 PRO 2TB at PCI 02:00.0) REMOVED. journald was killed by its watchdog in the same
+second, so the host, not only the VM, was frozen. The mirror partner stayed ONLINE with zero
+errors and `errors: No known data errors`, so nothing was lost.
+
+Read the drives before deciding anything:
+
+```sh
+apt install -y nvme-cli
+nvme list
+smartctl -a /dev/nvme1 | grep -E 'Serial|Firmware|Temperature:|Critical Warning|Media and Data|Error Information|Unsafe'
+smartctl -a /dev/nvme0 | grep -E 'Serial|Firmware|Temperature:|Critical Warning|Media and Data|Error Information|Unsafe'
+```
+
+A disabled controller answers "Resource temporarily unavailable" and is absent from `nvme list`;
+its `/dev/disk/by-id` symlinks stay, which proves nothing. Both drives here run firmware
+5B2QGXA7, the current 980 PRO release, so this was not the old firmware bricking bug.
+
+## Recovery, in order
+
+1. Try to recover the controller in software. This failed on 2026-10-12 (`lspci` listed nothing at 02:00.0 and the rescan logged `Identify namespace failed (-5)`), but it costs nothing:
+
+    ```sh
+    echo 1 > /sys/bus/pci/devices/0000:02:00.0/remove
+    echo 1 > /sys/bus/pci/rescan
+    ls -l /dev/nvme0n1 && zpool online rpool <device id>-part3
+    ```
+
+2. Otherwise the controller needs power removed. A warm reboot keeps the slot powered and the drive stays hung. Take the host down with the "Reboot the non-GPU host" runbook on [Node and host maintenance](/operations/node-maintenance/): `stop-node` for worker-1 and worker-2, `kubectl drain ... --disable-eviction` plus `talosctl shutdown` for worker-3 (the switchover recipe refuses once both instances of a database sit on drained nodes), `stop-node` for cp-1, then on the host `poweroff`, pull the PSU plug for 30 seconds, power on.
+
+3. On the host after boot. ZFS re-imports the returned member on its own and resilvers the delta (10.5 GB in 8 s on the day), leaving CKSUM counts for the writes that were in flight:
+
+    ```sh
+    lspci | grep -i -E 'samsung|non-volatile'
+    nvme list
+    smartctl -a /dev/nvme0 | grep -E 'Firmware|Temperature:|Media and Data|Unsafe'
+    zpool status rpool
+    zpool clear rpool
+    zpool scrub rpool
+    qm list
+    ```
+
+    `zpool status` again until it reads "scrub repaired 0B ... with 0 errors" (33 s for 60 GB). If `nvme list` shows one drive after a cold start, the drive is dead: `zpool replace rpool <device id>-part3 <new device id>-part3`.
+
+4. Bring the nodes back, control plane first, then `health`:
+
+    ```sh
+    just talos resume k8s-cp-1
+    just talos resume k8s-worker-1
+    just talos resume k8s-worker-2
+    just talos resume k8s-worker-3
+    just talos health
+    ```
+
+## Cleanup after the host returns
+
+- `health` reported one Flux Kustomization not Ready, `network/envoy-gateway`, with "Certificate ... dry-run failed": cert-manager's webhook was down with the host when Flux last tried. `flux reconcile kustomization envoy-gateway -n network` cleared it.
+- The six CloudNativePG clusters came back healthy on their own once their volumes returned; four of them had both instances on the host.
+- Restart counts after the reboot: the host's nodes' pods came back at 0, because the shutdown was clean. What remained was pocket-id at 9 (it crash-looped on worker-4 while its database was down; `kubectl -n security rollout restart deploy/pocket-id` replaced it) and the controller-manager and scheduler on cp-2 and cp-3 at 1, which only the next Kubernetes upgrade clears.
+
+## Prevention
+
+- A 980 PRO on current firmware that hangs with "Device not ready" after a reset matches the drive's deepest power-saving state (APST) misbehaving with the slot. One hang is thin evidence; on a second, set `nvme_core.default_ps_max_latency_us=0` on the host's kernel command line (`/etc/kernel/cmdline`, then `proxmox-boot-tool refresh`).
+- Nothing in the cluster can see rpool. node-exporter on the three Proxmox hosts with its ZFS collector, scraped by Prometheus, plus a rule on `node_zfs_zpool_state`, turns the next degraded pool into an Alertmanager page. Not built yet.
+- `restart-reset` runs once a day. Hourly would clear a daytime burst within two hours; its guard already skips restarts under an hour old. Not changed yet.
+
+## Sources
+
+- The incident record of 2026-10-12: Prometheus reads from the cluster, and the kernel log, drive reads and pool status captured on the host.
+- `kubernetes/apps/kube-system/restart-reset/` for the daily cleanup and its guards; `talos/mod.just` for `drain`, `stop-node`, `resume` and `health`.
+- [Node and host maintenance](/operations/node-maintenance/) for the reboot runbooks this page leans on.

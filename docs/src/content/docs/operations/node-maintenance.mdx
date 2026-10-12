@@ -238,7 +238,8 @@ that the daily Postgres backups run from the primaries, which the drain moved of
 
 ### Unplanned: a host dropped, lost power, or rebooted on its own
 
-Nothing was drained, so the order is diagnosis, then cleanup.
+Nothing was drained, so the order is diagnosis, then cleanup. A burst of restarts with no node
+down is a different event; [Restart bursts and a degraded ZFS pool](/operations/restart-burst-triage/) tells the causes apart.
 
 1. `just talos health`. Nodes come back on their own; wait for all Ready before judging anything.
 2. Every pod on the affected nodes has a restart count one higher, because Talos keeps the old
