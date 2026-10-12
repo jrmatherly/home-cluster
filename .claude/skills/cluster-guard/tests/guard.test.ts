@@ -47,7 +47,7 @@ test("node maintenance is refused inside the UniFi window", async ($, on) => {
     [
       "just talos drain k8s-cp-2",
       "just talos apply",
-      "talosctl -n 192.168.22.22 reboot",
+      "talosctl -n 192.0.2.22 reboot",
       "topf upgrade",
       "kubectl drain k8s-cp-2 --ignore-daemonsets",
     ],
@@ -56,8 +56,21 @@ test("node maintenance is refused inside the UniFi window", async ($, on) => {
 });
 test("node maintenance runs outside the window", async ($, on) => {
   world(on);
-  await allowed($, ["just talos drain k8s-cp-2", "talosctl -n 192.168.22.22 reboot"]);
+  await allowed($, ["just talos drain k8s-cp-2", "talosctl -n 192.0.2.22 reboot"]);
 });
+for (const [h, m, open] of [
+  [2, 44, true],
+  [2, 45, false],
+  [3, 30, false],
+  [3, 31, true],
+] as const) {
+  test(`the window edge at ${h}:${String(m).padStart(2, "0")} is ${open ? "open" : "closed"}`, async ($, on) => {
+    world(on, "", at(h, m));
+    const result = await bash($, "just talos drain k8s-cp-2");
+    if (open) expect(result.deny).toBeUndefined();
+    else expect(String(result.deny)).toMatch(/02:45 to 03:30/);
+  });
+}
 test("a secrets file is readable only through the listed parsers, per command segment", async ($, on) => {
   world(on);
   await denied(

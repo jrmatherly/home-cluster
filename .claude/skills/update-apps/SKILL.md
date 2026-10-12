@@ -77,10 +77,13 @@ order, and the next app starts only when the current one is healthy.
 - **One chart is outside Flux.** `prometheus-operator-crds` is installed only at bootstrap. See
   `references/apps.md` before touching its version.
 - **Pre-releases are ignored on purpose.** The inventory only offers tags shaped like `1.2.3` or `v1.2.3`. A pin
-  with a variant prefix or suffix, such as `server-cuda-v0.5.0` or `2.9.1-alpine`, is only compared with tags of
-  that same variant.
-- **The inventory sees only OCI chart pins.** A chart pinned through a `helmrepository.yaml.j2` is absent from
-  the table, not marked `?`. Check it by hand against the repository's `index.yaml`.
+  with a variant suffix, such as `2.9.1-alpine` or `v4.11.0-gpu-nvidia-cuda-12-llama-cpp`, is only compared with
+  tags of that same variant.
+- **The inventory sees only OCI chart pins.** A chart pinned through a `helmrepository.yaml.j2` (`csi-driver-nfs`)
+  is absent from the table, not marked `?`, and `scripts/compare-chart.sh` fails on it because it reads
+  `ocirepository.yaml`. Check it by hand against the repository's `index.yaml`.
+- **Images it skips.** The docs image (`:latest`, Renovate moves its digest) and the model images under
+  `ghcr.io/jrmatherly/models/` (hand-bumped, see `references/apps.md`).
 
 ## Resources
 

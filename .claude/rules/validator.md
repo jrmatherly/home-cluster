@@ -15,7 +15,7 @@ paths:
 3. Run `just template schema` to regenerate `cluster.schema.json`. Don't edit that file by hand, because the tests fail when it drifts from the model.
 4. Add fixtures. A config that must be accepted goes in `.github/template-tests/valid/`. A config that must be rejected goes in `.github/template-tests/invalid/`. Add the fixture name to the `matrix.fixture` list of the matching job in `.github/workflows/template-e2e.yaml` (`validate-valid` or `validate-invalid`).
 
-Then run `uv run --locked pytest template/scripts/test_validate.py -q`. The Stop hook also runs it when `template/scripts/` changed, and it renders every valid fixture.
+Then run `uv run --locked pytest template/scripts/test_validate.py -q`. The Stop hook also runs it whenever anything under `template/`, the sample, the schema or the fixtures changed, and it renders every valid fixture.
 
 ## Keeping cluster.toml and cluster.sample.toml in step
 

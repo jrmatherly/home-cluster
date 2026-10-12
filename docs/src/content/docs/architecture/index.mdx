@@ -24,8 +24,8 @@ etcd quorum.
 | The media host   | The Plex box, serves the NFS media export           | `k8s-cp-3` (control plane), `k8s-worker-4` (worker, 16 GB), Plex in an LXC                       |
 
 Every control plane VM has 4 cores and 5 GB. The control-plane nodes keep their `NoSchedule`
-taint and run only the control plane; the template removes the taint only for a cluster with no
-workers. Each VM is a `[[nodes]]` entry in `cluster.toml`, and `talos/topf.yaml` gives it the
+taint and run only the control plane and CoreDNS; the template removes the taint only for a
+cluster with no workers. Each VM is a `[[nodes]]` entry in `cluster.toml`, and `talos/topf.yaml` gives it the
 role `control-plane` or `worker` from its `controller` flag. The GPU worker gets its NVIDIA
 extensions from the schematic in its entry.
 
@@ -101,8 +101,8 @@ on the internal gateway. Passkeys are bound to that hostname, so it must not cha
 created by hand in Pocket ID and its ID and secret go in `cluster.toml`. Apps sign in one of
 three ways.
 
-- Their own OIDC: Grafana, Radar, Reactive Resume, Actual Budget and Network Optimizer take the
-  client from `cluster.toml`. Kener and PegaProx are set up in their own UI and keep the client
+- Their own OIDC: Grafana, Radar, Reactive Resume, Actual Budget, Network Optimizer and AI
+  Workspace take the client from `cluster.toml`. Kener and PegaProx are set up in their own UI and keep the client
   in their database. Radar binds the Pocket ID group `cluster_admins` to `cluster-admin`.
 - An Envoy Gateway `SecurityPolicy` on the route, for apps with no login of their own: Hubble UI
   and the media stack (one shared policy selects every route labelled `media.sign-in: pocket-id`).
@@ -138,6 +138,7 @@ section or field that renders it; "always" means it renders for every config.
 | --- | --- | --- | --- | --- |
 | `actual-budget`     | `actual-budget`          | `[actual_budget]`                                      | internal, external with `public`                            | Budgeting app, SQLite on a `local-path` volume                         |
 | `ai`                | `localai`                | `nvidia_enabled`                                       | none                                                        | LocalAI on the GPU behind an API key; the llama-cpp backend and the model are image volumes |
+| `ai-workspace`      | `ai-workspace`           | `[ai_workspace]`                                       | internal, external with `public`                            | Multi-model chat UI with its own Pocket ID login, plus a browserless pod for Browsing |
 | `cert-manager`      | `cert-manager`           | always                                                 | none                                                        | Wildcard certificate for `${SECRET_DOMAIN}`                            |
 | `cnpg-system`       | `cloudnative-pg`         | always                                                 | none                                                        | CloudNativePG operator and the `postgres-backup` alert rules           |
 | `cnpg-system`       | `plugin-barman-cloud`    | always                                                 | none                                                        | Object-store backups for every Postgres cluster                        |

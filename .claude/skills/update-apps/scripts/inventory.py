@@ -24,9 +24,10 @@ ROOT = Path(
 )
 TEMPLATES = ROOT / "template/config"
 # An optional variant prefix, then 1.2.3 or v1.2.3, then an optional variant
-# suffix. The prefix covers image tags such as server-cuda-v0.5.0, and the
-# suffix covers ones such as 2.9.1-alpine.
-STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)\.(\d+)(-[a-z][a-z0-9.]*)?$")
+# suffix. The suffix covers tags such as 2.9.1-alpine and
+# v4.11.0-gpu-nvidia-cuda-12-llama-cpp; a pre-release such as 1.4.0-rc1 reads
+# as a suffix too, which is what keeps it from being offered.
+STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)\.(\d+)(-[a-z][a-z0-9.-]*)?$")
 PLAIN = ("", "v")
 # Docker Hub serves its registry API from a different host than its image names.
 REGISTRY_HOSTS = {"docker.io": "registry-1.docker.io"}
@@ -45,9 +46,20 @@ def pins() -> list[tuple[str, str, str, str, Path]]:
                 found.append((path.parts[-3], "chart", url[1], tag[1], rel))
         elif path.name == "helmrelease.yaml.j2":
             # A tag may carry a digest (1.2.3@sha256:...); the table shows the tag alone.
-            for repo, tag in re.findall(r"repository: (\S+)\n\s+tag: ([^\s@]+)", text):
+            for repo, tag in re.findall(r'repository: (\S+)\n\s+tag: "?([^\s@"]+)', text):
                 found.append((path.parts[-3], "image", repo, tag, rel))
-        elif "helmfile" in path.parts:
+        if "helmfile" not in path.parts:
+            # Single-line pins: image volumes under persistence, plain Deployments, CronJobs,
+            # the Redis component and the Postgres ImageCatalog. Skipped: a `latest` tag (the
+            # docs image; Renovate moves its digest) and the model images, whose tags are a
+            # quantization plus a revision and are bumped by hand (apps.md, localai).
+            app = path.parts[-3] if path.parts[-2] == "app" else path.parts[-2]
+            for repo, tag in re.findall(
+                r'\n\s+image: "?([^\s"@:]+(?:/[^\s"@:]+)+):([^\s@"]+)', text
+            ):
+                if tag != "latest" and not repo.startswith("ghcr.io/jrmatherly/models/"):
+                    found.append((app, "image", repo, tag, rel))
+        if "helmfile" in path.parts:
             # A "# renovate:" comment may sit between the chart and its version.
             for name, repo, version in re.findall(
                 r"name: (\S+)\n(?:.*\n){0,3}?\s+chart: oci://(\S+)\n(?:\s*#.*\n)*\s+version: (\S+)",
@@ -67,6 +79,9 @@ def get(url: str, token: str | None = None) -> tuple[dict, str]:
 
 def tags(repository: str) -> list[str]:
     host, _, name = repository.partition("/")
+    if "." not in host and ":" not in host:
+        # A Docker Hub short name such as localai/localai: the first segment is a user.
+        host, name = "docker.io", repository
     host = REGISTRY_HOSTS.get(host, host)
     url = f"https://{host}/v2/{name}/tags/list?n=1000"
     token = None
@@ -94,8 +109,8 @@ def parse(tag: str) -> tuple[tuple[str, str], tuple[int, ...]] | None:
 
     >>> parse("v1.21.2")
     (('v', ''), (1, 21, 2))
-    >>> parse("server-cuda-v0.5.0")
-    (('server-cuda-v', ''), (0, 5, 0))
+    >>> parse("v4.11.0-gpu-nvidia-cuda-12-llama-cpp")
+    (('v', '-gpu-nvidia-cuda-12-llama-cpp'), (4, 11, 0))
     >>> parse("2.9.1-alpine")
     (('', '-alpine'), (2, 9, 1))
     >>> parse("latest"), parse("3.7"), parse("1.2.3-4")
@@ -128,7 +143,7 @@ def newest(found: list, prefix: str, suffix: str) -> str:
     '1.2.0'
     >>> newest([(parse("v1.3.0"), "v1.3.0")], "", "")
     'v1.3.0'
-    >>> newest(found, "server-cuda-v", "")
+    >>> newest(found, "cuda-v", "")
     '?'
     """
     same_style = [(number, tag) for (style, number), tag in found if style == (prefix, suffix)]

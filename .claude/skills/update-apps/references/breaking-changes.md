@@ -76,7 +76,7 @@ removed field or version take effect.
 
 - Kubernetes: `kubectl version -o json | jq -r '.serverVersion.gitVersion'`. Compare with the chart's
   `kubeVersion` in `helm show chart <url> --version <new>` and with the release notes.
-- Talos specifics for Cilium, CoreDNS and Spegel are in `apps.md`.
+- Talos specifics for Cilium are in `apps.md`.
 
 ## 6. Decide
 

@@ -356,7 +356,7 @@ Each VM has a fixed MAC and address. The last octet of both is the number in the
 
 Revised 2026-10-10: one control plane per host, each at 5 GB (measured use 2.0 to 2.2 GB). cp-2 moved to the GPU host and cp-3 to the media host by rebuilding the VM there with the same ID, MAC and address; [node maintenance](/operations/node-maintenance/) section 8 is the procedure. The `mkvm` calls below are the 2026-10-03 originals.
 
-The control-plane nodes keep their `NoSchedule` taint and run only the control plane and CoreDNS. The template removes the taint only for a cluster with no workers. Every other workload runs on the four workers.
+The control-plane nodes keep their `NoSchedule` taint and run only the control plane and CoreDNS. The template removes the taint only for a cluster with no workers. Every other workload runs on the workers.
 
 The non-GPU host's VMs use 26 of its 28 threads and 106 GB of its 128 GB. The GPU host's VMs use 10 virtual cores on 8 threads and 48 GB of its 64 GB. The rest is for the host and the ZFS cache. `cat /sys/module/zfs/parameters/zfs_arc_max` on a host prints the cache limit in bytes. The GPU worker's memory is reserved in full when it starts, because passthrough pins it.
 

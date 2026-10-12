@@ -79,7 +79,7 @@ Actual's bank-sync providers (SimpleFIN, GoCardless, Pluggy.ai, Akahu, Enable Ba
 
 ## Sure: what was removed and what is left
 
-Git and the cluster: commit `feat: remove Sure` deleted the templates, the validator section, the fixtures, the Renovate rule and the rendered `kubernetes/apps/sure/`. When that commit is pushed, Flux prunes the `sure` Kustomization, which uninstalls the Helm release and deletes the CloudNativePG cluster, the Redis StatefulSet and their volumes. The namespace carries `kustomize.toolkit.fluxcd.io/prune: disabled`, so it stays until deleted by hand, and so does the Redis volume `data-redis-0`, because deleting a StatefulSet never deletes the claims it created. Deleting the namespace removes both:
+Git and the cluster: commit `feat: remove Sure` deleted the templates, the validator section, the fixtures, the Renovate rule and the rendered `kubernetes/apps/sure/`. When that commit was pushed (2026-10-07), Flux pruned the `sure` Kustomization, which uninstalled the Helm release and deletes the CloudNativePG cluster, the Redis StatefulSet and their volumes. The namespace carries `kustomize.toolkit.fluxcd.io/prune: disabled`, so it stays until deleted by hand, and so does the Redis volume `data-redis-0`, because deleting a StatefulSet never deletes the claims it created. Deleting the namespace removes both:
 
 ```sh
 kubectl -n sure get all,cluster,pvc        # wait until only the namespace is left

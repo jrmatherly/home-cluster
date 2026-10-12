@@ -23,8 +23,9 @@ addresses, because this repository is public.
 - **Observability:** kube-prometheus-stack with Grafana and Alertmanager, InfluxDB for the
   Proxmox and network time series, Hubble.
 - **Apps:** a media stack (Sonarr, Radarr, Prowlarr, SABnzbd, Recyclarr, Bazarr, Tautulli, Seerr,
-  Maintainerr), Actual Budget, Kener, Network Optimizer, PegaProx, Radar, Reactive Resume, a
-  LocalAI on the GPU node, the public site, and this documentation.
+  Maintainerr), Actual Budget, Kener, Network Optimizer, PegaProx, Radar, Reactive Resume, AI
+  Workspace (with a browserless pod), LocalAI on the GPU node, the public site, and this
+  documentation.
 
 Each app lives under `kubernetes/apps/<namespace>/<app>/`, rendered from its `.j2` source under
 `template/config/`. `cluster.sample.toml` documents every setting, and a section in `cluster.toml`
@@ -46,12 +47,14 @@ switches one over before a node is drained.
 - [mise](https://mise.jdx.dev/) installs every pinned tool and points `KUBECONFIG`, `TALOSCONFIG`
   and the sops keys at files inside the repository. Run `mise trust` and `mise install` once.
 - [lefthook](https://github.com/evilmartians/lefthook) runs the pre-commit checks: oxfmt on
-  JSON, YAML, Markdown and TOML, `just --fmt`, `mise fmt`, zizmor, Ruff, shellcheck,
-  markdownlint, and a scrub of the documentation pages for private values.
+  JSON, YAML, Markdown and TOML, `just --fmt`, `mise fmt`, `mise lock`, zizmor, Ruff, shellcheck,
+  markdownlint, a scrub of the documentation pages for private values, and the cluster-guard
+  tests when its files are staged.
 - [Renovate](https://www.mend.io/renovate) keeps charts, images, tools and actions current, and
   pins the documentation image to its digest after every build.
-- GitHub Actions build the documentation image and the model images for LocalAI,
-  and run the template's fixture tests.
+- GitHub Actions build the documentation image and the model images for LocalAI. The
+  template's fixture tests run locally through a Stop hook; the upstream CI jobs skip on this
+  fork.
 
 ## Layout
 
@@ -64,7 +67,7 @@ talos/                rendered Talos machine configuration (topf)
 bootstrap/            rendered helmfile for the first install
 docs/                 the documentation site (Nimbus on Astro) and its Dockerfile
 images/               recipes for the model images LocalAI mounts
-.github/              workflows, Renovate fixtures and the template's test fixtures
+.github/              workflows, label and release-note config, and the template's test fixtures
 ```
 
 ## Private files

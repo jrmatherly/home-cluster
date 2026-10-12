@@ -147,8 +147,8 @@ Control plane first on the way back so etcd is at three members before the worke
 Quorum holds (cp-2 and cp-3 stay up), so the API keeps answering throughout. Before 2026-10-10 this
 host also ran cp-2 and every reboot lost quorum; “One control plane per host” below records the move.
 
-Postgres on this host, measured 2026-10-10: four of the five clusters (matherlynet, pocket-id,
-radar, reactive-resume) have both instances on worker-2 and worker-3, so they are down for the
+Postgres on this host, measured 2026-10-10: four of the six clusters (matherlynet, pocket-id,
+radar, reactive-resume; ai-workspace-db came later and is not placed here yet) have both instances on worker-2 and worker-3, so they are down for the
 reboot whatever you do, and `just talos drain` on those two nodes would only move primaries between
 two nodes that are both about to stop (the second drain then fails with "No replica on another
 node"). Only kener keeps serving, from gpu-1. The data is safe: the instances restart on their
@@ -374,7 +374,7 @@ name, cores, memory in MB, disk in GB, and the last MAC octet.
    install disk and reboots into maintenance mode (topf's reset is graceful by default). Confirm:
 
    ```sh
-   talosctl -n <k8s-cp-1 address> etcd members    # two members, no k8s-cp-3
+   talosctl -n <cp-1 address> etcd members    # two members, no k8s-cp-3
    kubectl delete node k8s-cp-3                   # the stale Node object, so the new one registers clean
    ```
 
@@ -388,7 +388,7 @@ name, cores, memory in MB, disk in GB, and the last MAC octet.
    qm start 123
    ```
 
-   From the workstation, `talosctl get disks -n <k8s-cp-3 address> --insecure` lists `/dev/sda`
+   From the workstation, `talosctl get disks -n <cp-3 address> --insecure` lists `/dev/sda`
    once it is in maintenance mode (about a minute).
 
 4. Join. From the repo root, `just talos apply-node k8s-cp-3` installs Talos and the control plane
@@ -396,7 +396,7 @@ name, cores, memory in MB, disk in GB, and the last MAC octet.
 
    ```sh
    kubectl get nodes                              # k8s-cp-3 Ready, about three minutes
-   talosctl -n <k8s-cp-1 address> etcd members    # three members again
+   talosctl -n <cp-1 address> etcd members    # three members again
    just talos status k8s-cp-3
    just talos health
    cilium bgp peers                               # eight established sessions
@@ -408,8 +408,8 @@ name, cores, memory in MB, disk in GB, and the last MAC octet.
 
 ### Move cp-2 from the non-GPU host to the GPU host
 
-The same five steps with VM 122, `k8s-cp-2`, `<k8s-cp-2 address>`, cp-2's MAC octet, old host the
-non-GPU host, new host the GPU host. The `etcd members` checks run against `<k8s-cp-1 address>` as
+The same five steps with VM 122, `k8s-cp-2`, `<cp-2 address>`, cp-2's MAC octet, old host the
+non-GPU host, new host the GPU host. The `etcd members` checks run against `<cp-1 address>` as
 above. The GPU host has no backup job (`pvesh get /cluster/backup` is empty there), so step 5 has
 nothing to add to; a control plane is rebuilt from this section in 15 minutes anyway.
 
@@ -426,8 +426,8 @@ Postgres clusters having both instances on worker-2 and worker-3, not about quor
 
 | Symptom                                                             | Do                                                                                                                                                                                              |
 | --- | --- |
-| `reset-node` cannot reach the node, so etcd still lists it          | `talosctl -n <k8s-cp-1 address> etcd remove-member k8s-cp-3`, then carry on; wipe the old VM by destroying it.                                                                                  |
+| `reset-node` cannot reach the node, so etcd still lists it          | `talosctl -n <cp-1 address> etcd remove-member k8s-cp-3`, then carry on; wipe the old VM by destroying it.                                                                                  |
 | `apply-node` fails with a certificate or endpoint error             | The VM booted the ISO but is not in maintenance mode yet, or the old VM is still running on the same MAC. `qm status` on both hosts; `talosctl get disks --insecure` from the workstation.      |
-| The new node is Ready but etcd shows two members                    | Give it two minutes; the control plane joins etcd after the kubelet registers. `talosctl -n <k8s-cp-3 address> service etcd` shows the state.                                                   |
-| `health` fails on the Talos step with a members-consistency message | One stale member. `talosctl -n <k8s-cp-1 address> etcd members` on each control plane address; remove the one that is not a running node.                                                       |
+| The new node is Ready but etcd shows two members                    | Give it two minutes; the control plane joins etcd after the kubelet registers. `talosctl -n <cp-3 address> service etcd` shows the state.                                                   |
+| `health` fails on the Talos step with a members-consistency message | One stale member. `talosctl -n <cp-1 address> etcd members` on each control plane address; remove the one that is not a running node.                                                       |
 | Memory pressure on the media host after cp-3 lands                  | `free -m` on the host; `arc_summary \| head` for the ZFS cache. Lower the ARC cap in `/etc/modprobe.d/zfs.conf` before shrinking any VM.                                                        |

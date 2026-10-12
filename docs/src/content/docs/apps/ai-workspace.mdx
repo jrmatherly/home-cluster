@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-The steps outside the repo that `[ai_workspace]` in `cluster.toml` needs, in order. The deployment itself is in Git: the `[ai_workspace]` section and `kubernetes/apps/ai-workspace/`. The app's own repository is `jrmatherly/ai-workspace`, a copy of big-AGI.
+The steps outside the repo that `[ai_workspace]` in `cluster.toml` needs, in order. The deployment itself is in Git: the `[ai_workspace]` section and `kubernetes/apps/ai-workspace/`. The app's own repository is `<github account>/ai-workspace`, a copy of big-AGI.
 
 AI Workspace is served at `https://ai.${SECRET_DOMAIN}` on the internal gateway. It signs users in itself with Pocket ID (Better Auth over OpenID Connect), so the route carries no gateway `SecurityPolicy`: the gateway's sign-in would stack a second login, and a lapsed gateway session answers the app's streaming API calls with a 302 they cannot follow (source, `docs/deploy-authentication.md`, Gateway authentication). `public = true` (which needs `pocket_id.public = true`) also attaches the route to `envoy-external`.
 
@@ -52,7 +52,7 @@ Commit the rendered `kubernetes/apps/ai-workspace/` and push. `just kube reconci
 kubectl -n ai-workspace get cluster,jobs,pods -w
 ```
 
-The `ai-workspace-migrate` Job runs first and sits in `Init:0/1` until `ai-workspace-db-rw` accepts connections. Once it completes, the app pod starts, and its startup probe asks `/api/trpc/backend.listCapabilities` (measured: 200 with a JSON body, no input needed; there is no health route). That request also loads the auth configuration, so a bad `AUTH_*` value fails the probe with a message naming the variable in the pod log (source, `src/server/auth/auth.config.ts`). From outside, a page request answers a redirect to `/signin` (source, `docs/deploy-authentication.md`).
+The `ai-workspace-migrate` Job runs first and sits in `Init:0/2` until `ai-workspace-db-rw` accepts connections, then `Init:1/2` until the `vector` extension exists in the database. Once it completes, the app pod starts, and its startup probe asks `/api/trpc/backend.listCapabilities` (measured: 200 with a JSON body, no input needed; there is no health route). That request also loads the auth configuration, so a bad `AUTH_*` value fails the probe with a message naming the variable in the pod log (source, `src/server/auth/auth.config.ts`). From outside, a page request answers a redirect to `/signin` (source, `docs/deploy-authentication.md`).
 
 ## Migrations
 
@@ -74,7 +74,7 @@ The Job is kept until the next run replaces it (`before-hook-creation`), so its 
 
 ## Later: server-held vendor keys
 
-Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `just configure`, restore, commit and push. They land in the `ai-workspace-secret` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `POSTGRES_*`, `PORT`, `NODE_ENV` and the `AUTH_*` variables set from the fields above) are refused by the validator; `AUTH_OIDC_NAME` is allowed.
+Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `just configure`, restore, commit and push. They land in the `ai-workspace-secret` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `LOCALAI_API_KEY`, `POSTGRES_*`, `PORT`, `NODE_ENV`, `BROWSERLESS_TOKEN`, `PUPPETEER_WSS_ENDPOINT` and the `AUTH_*` variables set from the fields above; the list is `AI_WORKSPACE_OWNED_ENV` in the validator) are refused by the validator; `AUTH_OIDC_NAME` is allowed.
 
 The pod's NetworkPolicy restricts ingress only, so a new vendor needs no egress change.
 

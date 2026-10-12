@@ -911,9 +911,10 @@ schematic_id = ""
 # Extra server-side environment variables, one key per variable, such as
 # vendor API keys. They are written to a SOPS-encrypted Secret, and the
 # browser then sees those vendors as held by the server. Names are upper case;
-# LOCALAI_API_HOST, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, PORT,
-# NODE_ENV and the AUTH_* variables set from the fields above belong to the
-# templates and are refused; AUTH_OIDC_NAME, the sign-in button label, is
+# LOCALAI_API_HOST, LOCALAI_API_KEY, POSTGRES_PRISMA_URL,
+# POSTGRES_URL_NON_POOLING, PORT, NODE_ENV, BROWSERLESS_TOKEN,
+# PUPPETEER_WSS_ENDPOINT and the AUTH_* variables set from the fields above
+# belong to the templates and are refused; AUTH_OIDC_NAME, the sign-in button label, is
 # allowed. Needs the client fields above, and stays the last table in the
 # section, because TOML closes [ai_workspace] at this header.
 # OPTIONAL.
