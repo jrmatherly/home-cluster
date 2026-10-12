@@ -24,7 +24,7 @@ addresses, because this repository is public.
   Proxmox and network time series, Hubble.
 - **Apps:** a media stack (Sonarr, Radarr, Prowlarr, SABnzbd, Recyclarr, Bazarr, Tautulli, Seerr,
   Maintainerr), Actual Budget, Kener, Network Optimizer, PegaProx, Radar, Reactive Resume, a
-  llama.cpp server on the GPU node, the public site, and this documentation.
+  LocalAI on the GPU node, the public site, and this documentation.
 
 Each app lives under `kubernetes/apps/<namespace>/<app>/`, rendered from its `.j2` source under
 `template/config/`. `cluster.sample.toml` documents every setting, and a section in `cluster.toml`
@@ -50,7 +50,7 @@ switches one over before a node is drained.
   markdownlint, and a scrub of the documentation pages for private values.
 - [Renovate](https://www.mend.io/renovate) keeps charts, images, tools and actions current, and
   pins the documentation image to its digest after every build.
-- GitHub Actions build the documentation image and the model images for the llama.cpp server,
+- GitHub Actions build the documentation image and the model images for the LocalAI,
   and run the template's fixture tests.
 
 ## Layout
@@ -63,7 +63,7 @@ kubernetes/           rendered Flux tree, reconciled from main
 talos/                rendered Talos machine configuration (topf)
 bootstrap/            rendered helmfile for the first install
 docs/                 the documentation site (Nimbus on Astro) and its Dockerfile
-images/               recipes for the model images the llama.cpp server mounts
+images/               recipes for the model images the LocalAI mounts
 .github/              workflows, Renovate fixtures and the template's test fixtures
 ```
 

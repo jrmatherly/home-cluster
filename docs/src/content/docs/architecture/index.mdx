@@ -30,7 +30,7 @@ role `control-plane` or `worker` from its `controller` flag. The GPU worker gets
 extensions from the schematic in its entry.
 
 What is pinned to a node and cannot move: the media stack (a `nodeSelector` on `k8s-worker-4`),
-anything on a `local-path` volume, and llama-server, which needs the GPU only `k8s-gpu-1` has.
+anything on a `local-path` volume, and LocalAI, which needs the GPU only `k8s-gpu-1` has.
 Pinned pods sit Pending while their node is down and schedule by themselves when it is back.
 
 ## How a change reaches the cluster
@@ -123,7 +123,7 @@ Grafana plugins come in two ways. The bundled data source plugins update through
 because the updater unloads a plugin before it fails to replace it in the read-only directory
 (this took the Prometheus and InfluxDB data sources down on 2026-10-06). Other plugins go in the
 chart's `plugins` list. Infinity is always on. The GitHub data source (a GitHub App), the Sentry
-data source (an internal integration) and the LLM app (pointed at llama-server when
+data source (an internal integration) and the LLM app (pointed at LocalAI when
 `nvidia_enabled`) are each gated by their own fields. See the Grafana plugins page.
 
 The optional `discord_webhook` gives Alertmanager a Discord receiver. Without it every alert goes
@@ -137,7 +137,7 @@ section or field that renders it; "always" means it renders for every config.
 | Namespace           | App                      | Gate                                                   | Gateway                                                     | Purpose                                                                |
 | --- | --- | --- | --- | --- |
 | `actual-budget`     | `actual-budget`          | `[actual_budget]`                                      | internal, external with `public`                            | Budgeting app, SQLite on a `local-path` volume                         |
-| `ai`                | `llama-server`           | `nvidia_enabled`                                       | none                                                        | LLM server on the GPU, model mounted as an image volume                |
+| `ai`                | `localai`                | `nvidia_enabled`                                       | none                                                        | LocalAI on the GPU behind an API key; the llama-cpp backend and the model are image volumes |
 | `cert-manager`      | `cert-manager`           | always                                                 | none                                                        | Wildcard certificate for `${SECRET_DOMAIN}`                            |
 | `cnpg-system`       | `cloudnative-pg`         | always                                                 | none                                                        | CloudNativePG operator and the `postgres-backup` alert rules           |
 | `cnpg-system`       | `plugin-barman-cloud`    | always                                                 | none                                                        | Object-store backups for every Postgres cluster                        |

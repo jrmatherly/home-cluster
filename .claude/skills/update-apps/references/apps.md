@@ -34,8 +34,8 @@ The chart column is what the template pins. The releases column is where the not
 | pocket-id                 | security          | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | pocket-id (image)         | security          | `ghcr.io/pocket-id/pocket-id`                                          | <https://github.com/pocket-id/pocket-id/releases>                 |
 | radar                     | radar             | `ghcr.io/skyhook-io/charts/radar`                                      | <https://github.com/skyhook-io/radar/releases>                    |
-| llama-server              | ai                | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| llama-server (image)      | ai                | `ghcr.io/ggml-org/llama.cpp`                                           | <https://github.com/ggml-org/llama.cpp/releases>                  |
+| localai                   | ai                | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| localai (images)          | ai                | `localai/localai` and `quay.io/go-skynet/local-ai-backends`            | <https://github.com/mudler/LocalAI/releases>                      |
 | pegaprox                  | pegaprox          | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | pegaprox (image)          | pegaprox          | `ghcr.io/pegaprox/pegaprox`                                            | <https://github.com/PegaProx/project-pegaprox/releases>           |
 | matherlynet               | matherlynet       | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                    | <https://github.com/jrmatherly/matherlynet/commits/main>          |
@@ -144,14 +144,13 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   the chart's `appVersion` is the site commit it was built from, and the chart carries the web image digest, so a
   chart bump moves the image too. The expected rendered diff is two lines, the `web_image` digest and
   `SENTRY_RELEASE`; anything more is a chart change to read. Its database (`matherlynet-db`) is outside the chart.
-- **llama-server** renders only on a cluster with an NVIDIA node, and holds the whole GPU. The GPU is a GTX 1080
-  (Pascal), so the image must stay on a CUDA 12 build: check `CUDA_VERSION` in the new image's config before
-  updating the tag. The image is pinned as `tag@sha256:digest`, so update both. The model is a second image,
-  mounted as a volume and pinned by digest. Neither the inventory nor Renovate tracks it. To change the model,
-  edit the pins in `images/phi-4-mini-instruct/Dockerfile` and push: the Model Images workflow builds the new tag
-  and prints its digest in the run summary. Then update the reference and `LLAMA_ARG_MODEL` in the HelmRelease. The
-  `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full security context. After an update, time
-  one request: the pod restarts, and the startup probe's warm-up request is what keeps the first caller fast.
+- **localai** renders only on a cluster with an NVIDIA node, and holds the whole GPU. Its main image and backend
+  image move together (Renovate group "LocalAI"); the backend tag must keep the `-gpu-nvidia-cuda-12-llama-cpp`
+  suffix, because the GPU is a GTX 1080 (Pascal). The model image is hand-bumped: edit the pins in
+  `images/qwen3.5-4b/Dockerfile` and push, the Model Images workflow builds the new tag and prints its digest in
+  the run summary, then update the image volume reference and `parameters.model` in the `localai-models`
+  ConfigMap. The `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full
+  security context. After an update, `/readyz` answers 200 only once the model is preloaded.
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
@@ -246,6 +245,6 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | matherlynet                  | `kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment`, then `curl -s https://<domain>/`                     | rollout complete, and the page has `pageswap`                    |
 | network-optimizer            | `kubectl -n network-optimizer exec deploy/network-optimizer -- curl -s localhost:8042/api/health`, then open Performance Tweaks | `{"status":"healthy",...}`, and the gateway firmware shows green |
 | actual-budget                | `curl -s https://budget.<domain>/health` and `kubectl -n actual-budget get pods`                                                | `{"status":"UP"}`, and the pod Running                           |
-| llama-server                 | `kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health`                                                     | `{"status":"ok"}`                                                |
+| localai                      | `kubectl -n ai exec deploy/localai -- curl -fsS localhost:8080/readyz`                                                          | `200` once the model is loaded                                   |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                                 | `200`                                                            |
 | reloader, spegel             | the common checks                                                                                                               | pods Running                                                     |

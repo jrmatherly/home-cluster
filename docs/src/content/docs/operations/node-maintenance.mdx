@@ -14,7 +14,7 @@ and took the whole cluster down for three minutes.
 | Host             | Address                  | Guests                                                                                 | What a reboot costs                                                                                                                                            |
 | --- | --- | --- | --- |
 | The non-GPU host | `<non-GPU host address>` | VM 121 `k8s-cp-1`, VM 132 `k8s-worker-1`, VM 133 `k8s-worker-2`, VM 134 `k8s-worker-3` | Everything on the three workers' local volumes waits, and four of the five Postgres clusters are down (both instances on worker-2 and worker-3). Quorum holds. |
-| The GPU host     | `<GPU host address>`     | VM 122 `k8s-cp-2`, VM 131 `k8s-gpu-1`                                                  | llama-server (GPU, pinned) and whatever replica sits on gpu-1 wait. Quorum holds.                                                                              |
+| The GPU host     | `<GPU host address>`     | VM 122 `k8s-cp-2`, VM 131 `k8s-gpu-1`                                                  | LocalAI (GPU, pinned) and whatever replica sits on gpu-1 wait. Quorum holds.                                                                              |
 | The media host   | `<media host address>`   | VM 123 `k8s-cp-3`, VM 135 `k8s-worker-4`, LXC 200 Plex                                 | The media stack (pinned by nodeSelector) and Plex wait. Quorum holds.                                                                                          |
 
 One control plane per host since 2026-10-10 (the move is recorded at the end of this page), so no single host reboot loses etcd quorum.
@@ -24,7 +24,7 @@ What is pinned to a node and cannot move: anything with a `kubernetes.io/hostnam
 (the media stack on worker-4), anything on a `local-path` volume, which is a directory on one node
 (Prometheus and Network Optimizer on worker-1; Grafana, InfluxDB, PegaProx and Actual Budget on
 worker-3; Alertmanager on gpu-1; Kener, the Redis volumes and every Postgres instance wherever
-they landed), and llama-server, which needs the GPU only gpu-1 has. `just talos status <node>`
+they landed), and LocalAI, which needs the GPU only gpu-1 has. `just talos status <node>`
 lists all three kinds before you touch anything. Pinned pods sit Pending while the node is down
 and schedule by themselves when it is back. That is expected, not a failure.
 
@@ -121,7 +121,7 @@ snapraid status | tail -3
 
 ### Reboot the GPU host (cp-2 and gpu-1)
 
-Quorum holds (cp-1 and cp-3 stay up). llama-server needs gpu-1's GPU and waits (`status` lists it
+Quorum holds (cp-1 and cp-3 stay up). LocalAI needs gpu-1's GPU and waits (`status` lists it
 as pinned by `gpu`), so Grafana's LLM panels and the matherlynet playground fail while it is down.
 Alertmanager's volume is on gpu-1 too.
 
@@ -137,7 +137,7 @@ On the GPU host: `qm status 131; qm status 122` both stopped, then `reboot`. Aft
 ```sh
 just talos resume k8s-cp-2             # waits for etcd on this node
 just talos resume k8s-gpu-1
-kubectl -n ai exec deploy/llama-server -- curl -fsS localhost:8080/health   # {"status":"ok"}
+kubectl -n ai exec deploy/localai -- curl -fsS localhost:8080/readyz   # 200 once the model is loaded
 ```
 
 Control plane first on the way back so etcd is at three members before the worker's pods start.
