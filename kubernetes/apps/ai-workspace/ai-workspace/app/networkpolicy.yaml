@@ -1,5 +1,6 @@
 ---
-# The gateway sign-in is the only login, so only the gateway may reach the pod.
+# The gateway is the only intended path, and the app's sign-in rate limit keys
+# on the client address the gateway forwards, so only the gateway may reach it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

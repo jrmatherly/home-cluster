@@ -9,6 +9,5 @@ resources:
   - ./httproute.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
-  - ./oidc-secret.sops.yaml
   - ./scheduledbackup.yaml
-  - ./securitypolicy.yaml
+  - ./secret.sops.yaml

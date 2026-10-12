@@ -8,13 +8,16 @@ spec:
     kind: OCIRepository
     name: ai-workspace
   interval: 1h
+  # Helm waits for the migrate hook, which on a first install also waits for
+  # the database, longer than helm-controller's default 5m.
+  timeout: 15m
   values:
     controllers:
       ai-workspace:
         annotations:
           reloader.stakater.com/auto: "true"
         initContainers:
-          wait-for-database:
+          wait-for-database: &waitForDatabase
             image:
               repository: docker.io/library/busybox
               tag: "1.38"
@@ -25,9 +28,9 @@ spec:
               capabilities: { drop: ["ALL"] }
         containers:
           app:
-            image:
+            image: &image
               repository: ghcr.io/jrmatherly/ai-workspace
-              tag: latest@sha256:d14b0dd7d60789954e220789255625344c3baeb270ef027c0c2aed777d1a0e17
+              tag: v2026.10.11.1@sha256:897d789288dced8d3b354005402a82be47e9f0035359555c4cf72eda383eb21b
             env:
               POSTGRES_PRISMA_URL: &databaseUrl
                 valueFrom:
@@ -35,7 +38,13 @@ spec:
                     name: ai-workspace-db-app
                     key: uri
               POSTGRES_URL_NON_POOLING: *databaseUrl
+              AUTH_URL: https://ai.${SECRET_DOMAIN}
+              AUTH_OIDC_ISSUER: https://auth.${SECRET_DOMAIN}
+              AUTH_OIDC_CLIENT_ID: "e29b812d-597f-4401-a4b5-3e2794839a81"
               LOCALAI_API_HOST: http://llama-server.ai.svc.cluster.local:8080
+            envFrom:
+              - secretRef:
+                  name: ai-workspace-secret
             probes:
               # The app has no health route, so the probes ask for a cheap JSON
               # endpoint that needs no input.
@@ -65,6 +74,32 @@ spec:
                 memory: 256Mi
               limits:
                 memory: 1Gi
+      # One hook Job, never a step per replica: concurrent migrate runs time out
+      # on Prisma's advisory lock (P1002). A failed run fails the release and
+      # the old pods keep serving.
+      migrate:
+        type: job
+        annotations:
+          helm.sh/hook: pre-install,pre-upgrade
+          helm.sh/hook-delete-policy: before-hook-creation
+        job:
+          backoffLimit: 0
+          activeDeadlineSeconds: 840
+        initContainers:
+          wait-for-database: *waitForDatabase
+        containers:
+          app:
+            image: *image
+            command: ["/app/node_modules/.bin/prisma", "migrate", "deploy"]
+            env:
+              POSTGRES_URL_NON_POOLING: *databaseUrl
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -73,6 +108,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
     service:
       app:
+        controller: ai-workspace
         ports:
           http:
             port: *port
