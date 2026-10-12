@@ -49,7 +49,8 @@ spec:
                     | select(.metadata.labels["cnpg.io/instanceRole"] != "primary")
                     | select(any(.status.containerStatuses[]?; .restartCount > 0))
                     | select(all(.status.containerStatuses[]?; .ready))
-                    | select(([.status.containerStatuses[]?.lastState.terminated.finishedAt // empty | fromdate] | max // 0) < $now - 3600)
+                    # A restart with no finishedAt reads as now, so the pod is left alone.
+                    | select(([.status.containerStatuses[]?.lastState.terminated.finishedAt // empty | fromdate] | max // $now) < $now - 3600)
                     | "\(.metadata.namespace) \(.metadata.name)"
                   ' | while read -r ns pod; do
                     if kubectl create --raw "/api/v1/namespaces/$ns/pods/$pod/eviction" -f - >/dev/null <<EOF

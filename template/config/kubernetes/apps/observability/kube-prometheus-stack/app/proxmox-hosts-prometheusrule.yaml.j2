@@ -19,8 +19,8 @@ spec:
             summary: ZFS pool {{ $labels.zpool }} on {{ $labels.instance }} is {{ $labels.state }}
             description: >-
               ZFS pool {{ $labels.zpool }} on Proxmox host {{ $labels.instance }} is
-              {{ $labels.state }}. On 2026-10-12 a REMOVED mirror member froze a control
-              plane's disk, so replace or reattach the device before the pool loses another.
+              {{ $labels.state }}. Reattach or replace the device; the runbook is the
+              "Restart bursts and a degraded ZFS pool" page.
         - alert: ProxmoxHostExporterDown
           expr: |
             up{job="proxmox-hosts"} == 0

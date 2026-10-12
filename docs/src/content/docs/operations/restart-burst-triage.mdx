@@ -133,7 +133,7 @@ its `/dev/disk/by-id` symlinks stay, which proves nothing. Both drives here run 
 ## Prevention
 
 - A 980 PRO on current firmware that hangs with "Device not ready" after a reset matches the drive's deepest power-saving state (APST) misbehaving with the slot. One hang is thin evidence; on a second, set `nvme_core.default_ps_max_latency_us=0` on the host's kernel command line (`/etc/kernel/cmdline`, then `proxmox-boot-tool refresh`).
-- Nothing in the cluster could see rpool. `proxmox_hosts` under `[observability]` now scrapes node-exporter on the three Proxmox hosts and pages on `node_zfs_zpool_state` when a pool is not online. Built 2026-10-12; it waits on `prometheus-node-exporter` being installed on each host. The steps are in [Grafana plugins](/apps/grafana-plugins/), under "Proxmox hosts and ZFS".
+- Nothing in the cluster could see rpool. `proxmox_hosts` under `[observability]` now scrapes node-exporter on the three Proxmox hosts and alerts on `node_zfs_zpool_state` when a pool is not online (a page needs `discord_webhook`). Built 2026-10-12; it waits on `prometheus-node-exporter` being installed on each host. The steps are in [Grafana plugins](/apps/grafana-plugins/), under "Proxmox hosts and ZFS".
 - `restart-reset` runs hourly since 2026-10-12, so a burst at any hour clears within two hours. Its guard skips restarts under an hour old, and `concurrencyPolicy: Forbid` keeps runs from overlapping.
 
 ## Sources

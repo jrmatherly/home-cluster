@@ -149,7 +149,7 @@ To check it:
 
 ## Proxmox hosts and ZFS
 
-The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and pages Alertmanager when a ZFS pool there is not online. Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs the three required `[observability]` fields (source, `template/scripts/validate.py`).
+The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and raises an alert when a ZFS pool there is not online (a page needs `discord_webhook`). Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs the three required `[observability]` fields (source, `template/scripts/validate.py`).
 
 As of 2026-10-12 the templates are built, and the host install below is not done yet.
 
@@ -172,7 +172,7 @@ The zfs collector of node-exporter exposes `node_zfs_zpool_state` as a 1 or 0 ga
     curl -s localhost:9100/metrics | grep node_zfs_zpool_state
     ```
 
-3. If the Proxmox firewall is on, allow TCP 9100 at the datacenter or node level from the Talos node addresses (`<cp-1 address>` to `<worker-N address>`). Cilium masquerades pod traffic that leaves the cluster, so the scrape arrives from the node's address, not the pod CIDR.
+3. If the Proxmox firewall is on, allow TCP 9100 at the datacenter or node level from every Talos node address, because any node may host Prometheus. Cilium masquerades pod traffic that leaves the cluster, so the scrape arrives from the node's address, not the pod CIDR.
 4. In `cluster.toml`, under `[observability]`, set the hosts' addresses, then render, commit and push as in "Render, commit and push".
 
     ```toml

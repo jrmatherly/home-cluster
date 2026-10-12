@@ -37,16 +37,17 @@ fi
 # all-hex tokens of any length.
 # Each rule is a name, a regex, and a filter that drops matches which only
 # look like a token: image digests and checksums (all hex), table rules (all
-# dashes), and git's SSH user in a remote URL. A run with an underscore is a
-# Prometheus metric name, not a token; keys do not carry underscores.
+# dashes), git's SSH user in a remote URL, and lowercase words joined by
+# underscores, which are Prometheus metric names; a key with underscores also
+# carries uppercase or dashes, so it is still caught.
 names=(rfc1918-address mac-address email-address long-token)
 regexes=(
     '\b(10\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]{1,3}\.[0-9]{1,3}\b'
     '\b([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b'
     '[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}'
-    '[A-Za-z0-9-]{40,}'
+    '[A-Za-z0-9_-]{40,}'
 )
-excludes=('^$' '^$' '^git@' '^([0-9a-fA-F]+|[-_]+)$')
+excludes=('^$' '^$' '^git@' '^([0-9a-fA-F]+|[-_]+|[a-z0-9]+(_[a-z0-9]+)+)$')
 
 # Reads grep's file:line:match lines, drops matches the filter excludes, and
 # prints each file:line once with the rule name.
