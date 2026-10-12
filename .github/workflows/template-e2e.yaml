@@ -87,6 +87,8 @@ jobs:
           - ai-workspace-public-without-client
           - ai-workspace-public-without-public-pocket-id
           - ai-workspace-env-reserved-key
+          - ai-workspace-admin-not-allowed
+          - ai-workspace-short-auth-secret
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

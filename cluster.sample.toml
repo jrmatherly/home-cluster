@@ -826,12 +826,16 @@ schematic_id = ""
 # =============================================================================
 #    AI Workspace, a multi-model chat UI, at https://ai.<domain.name> on the
 #    internal gateway in the ai-workspace namespace, and also on the external
-#    gateway with public = true. It has no login of its own, so a Pocket ID
-#    sign-in on the gateway is the only login. Needs [pocket_id] and
-#    [postgres.backup], which backs up its database of shared chat links.
-#    Create the OIDC client in the Pocket ID admin UI first, with the callback
-#    URL https://ai.<domain.name>/oauth2/callback, then set BOTH client fields
-#    below to enable; leaving them blank skips it.
+#    gateway with public = true. It signs users in itself with Pocket ID, its
+#    only login. Needs [pocket_id] and [postgres.backup], which backs up its
+#    database of accounts, sessions and shared chat links. Create the OIDC
+#    client in the Pocket ID admin UI first: a confidential client with the
+#    callback URL https://ai.<domain.name>/api/auth/callback/oidc, the logout
+#    callback URL https://ai.<domain.name>/signin and the scopes openid, email
+#    and profile. Then set the two client fields and auth_secret below to
+#    enable; leaving them blank skips it. Turn off Pocket ID's "allow users to
+#    edit their own account details" before admitting anyone: the app links a
+#    Pocket ID sign-in to the account with the same email.
 #
 #    Chats stay in each browser. llama-server is wired in when a node loads
 #    the nvidia kernel module. Vendor API keys are brought by each user in the
@@ -839,7 +843,8 @@ schematic_id = ""
 # =============================================================================
 [ai_workspace]
 
-# Client ID of the OIDC client created for AI Workspace in Pocket ID.
+# Client ID of the OIDC client created for AI Workspace's sign-in in Pocket
+# ID.
 # OPTIONAL.
 
 # oidc_client_id = ""
@@ -849,6 +854,27 @@ schematic_id = ""
 # OPTIONAL.
 
 # oidc_client_secret = ""
+
+# Signs the app's sessions, at least 32 characters. Changing it signs
+# everyone out. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 32`
+
+# auth_secret = ""
+
+# Who may sign in: exact addresses and @domain rules. A domain rule matches
+# that domain only, not its subdomains. Empty lets in every Pocket ID user
+# who can use the client. Both lists are written to a SOPS-encrypted Secret,
+# so the addresses stay out of the public repo. Needs the client fields above.
+# OPTIONAL. Default: []. Example: ["me@example.com", "@family.example.com"]
+
+# allowed_emails = []
+
+# Who is an admin: exact addresses, each admitted by allowed_emails when that
+# is set. An admin can pull and delete Ollama models; the app reads roles
+# from this list on every request. Needs the client fields above.
+# OPTIONAL. Default: []. Example: ["me@example.com"]
+
+# admin_emails = []
 
 # Also serves AI Workspace on the external gateway, so the internet reaches
 # it. Needs the client fields above and pocket_id.public = true, because a
@@ -860,10 +886,11 @@ schematic_id = ""
 # Extra server-side environment variables, one key per variable, such as
 # vendor API keys. They are written to a SOPS-encrypted Secret, and the
 # browser then sees those vendors as held by the server. Names are upper case;
-# LOCALAI_API_HOST, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, PORT and
-# NODE_ENV belong to the templates and are refused. Needs the client fields
-# above, and stays the last table in the section, because TOML closes
-# [ai_workspace] at this header.
+# LOCALAI_API_HOST, POSTGRES_PRISMA_URL, POSTGRES_URL_NON_POOLING, PORT,
+# NODE_ENV and the AUTH_* variables set from the fields above belong to the
+# templates and are refused; AUTH_OIDC_NAME, the sign-in button label, is
+# allowed. Needs the client fields above, and stays the last table in the
+# section, because TOML closes [ai_workspace] at this header.
 # OPTIONAL.
 [ai_workspace.env]
 

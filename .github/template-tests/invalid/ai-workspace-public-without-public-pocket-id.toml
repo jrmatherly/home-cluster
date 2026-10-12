@@ -32,6 +32,7 @@ encryption_key = "fakefakefakefake"
 [ai_workspace]
 oidc_client_id = "fake"
 oidc_client_secret = "fake"
+auth_secret = "fakefakefakefakefakefakefakefake"
 public = true
 
 [[nodes]]

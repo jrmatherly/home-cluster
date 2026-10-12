@@ -1000,6 +1000,7 @@ def test_media_public_requires_public_pocket_id():
 AI_WORKSPACE = POCKET_ID | {
     "ai_workspace.oidc_client_id": "fake",
     "ai_workspace.oidc_client_secret": "fake",
+    "ai_workspace.auth_secret": "x" * 32,
 }
 
 
@@ -1008,11 +1009,56 @@ def test_ai_workspace_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **AI_WORKSPACE)).ai_workspace_enabled is True
 
 
-def test_partial_ai_workspace_names_missing_field():
-    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.oidc_client_secret": None})
+@pytest.mark.parametrize("field", ["oidc_client_secret", "auth_secret"])
+def test_partial_ai_workspace_names_missing_field(field):
+    raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.{field}": None})
     with pytest.raises(
-        ConfigError, match=r"ai_workspace is partially configured.*\(missing: oidc_client_secret\)"
+        ConfigError,
+        match=rf"ai_workspace is partially configured.*\(missing: {field}\)",
     ):
+        _load_raw(raw)
+
+
+def test_ai_workspace_auth_secret_needs_32_characters():
+    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.auth_secret": "x" * 31})
+    with pytest.raises(ConfigError, match=r"ai_workspace\.auth_secret"):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize(
+    ("allowed", "admin", "admitted"),
+    [
+        ([], "me@family.example", True),
+        (["@family.example"], "me@family.example", True),
+        (["Me@Family.example"], "me@family.example", True),
+        (["me@example.com", "@family.example"], "you@example.com", False),
+        (["@example.com"], "me@sub.example.com", False),
+    ],
+)
+def test_ai_workspace_admin_admission(allowed, admin, admitted):
+    raw = config_from(
+        "private.toml",
+        **AI_WORKSPACE
+        | {"ai_workspace.allowed_emails": allowed, "ai_workspace.admin_emails": [admin]},
+    )
+    if admitted:
+        assert _load_raw(raw).ai_workspace.admin_emails == [admin]
+    else:
+        with pytest.raises(ConfigError, match=rf"admin_emails: {admin!r} is not admitted"):
+            _load_raw(raw)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("allowed_emails", ["family.example"]),
+        ("allowed_emails", ["a@b.example,c@d.example"]),
+        ("admin_emails", ["@example.com"]),
+    ],
+)
+def test_ai_workspace_malformed_email_is_rejected(field, value):
+    raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.{field}": value})
+    with pytest.raises(ConfigError, match=rf"ai_workspace\.{field}"):
         _load_raw(raw)
 
 
@@ -1023,7 +1069,13 @@ def test_ai_workspace_requires_pocket_id():
 
 
 @pytest.mark.parametrize(
-    ("field", "value"), [("public", True), ("env", {"ANTHROPIC_API_KEY": "fake"})]
+    ("field", "value"),
+    [
+        ("allowed_emails", ["@example.com"]),
+        ("admin_emails", ["me@example.com"]),
+        ("public", True),
+        ("env", {"ANTHROPIC_API_KEY": "fake"}),
+    ],
 )
 def test_ai_workspace_options_require_client(field, value):
     raw = config_from("private.toml", **POCKET_ID | {f"ai_workspace.{field}": value})
@@ -1037,11 +1089,16 @@ def test_ai_workspace_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
-@pytest.mark.parametrize("key", ["LOCALAI_API_HOST", "lowercase_key"])
+@pytest.mark.parametrize("key", ["LOCALAI_API_HOST", "AUTH_SECRET", "lowercase_key"])
 def test_ai_workspace_env_rejects_reserved_and_malformed_keys(key):
     raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.env.{key}": "fake"})
     with pytest.raises(ConfigError):
         _load_raw(raw)
+
+
+def test_ai_workspace_env_accepts_button_label():
+    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.env.AUTH_OIDC_NAME": "Home"})
+    assert _load_raw(raw).ai_workspace.env == {"AUTH_OIDC_NAME": "Home"}
 
 
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))

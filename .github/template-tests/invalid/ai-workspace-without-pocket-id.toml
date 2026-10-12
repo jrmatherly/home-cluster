@@ -29,6 +29,7 @@ secret_access_key = "fake"
 [ai_workspace]
 oidc_client_id = "fake"
 oidc_client_secret = "fake"
+auth_secret = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

@@ -36,6 +36,26 @@
           "$ref": "#/$defs/Secret",
           "default": ""
         },
+        "auth_secret": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "allowed_emails": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EmailRule"
+          },
+          "title": "Allowed Emails",
+          "type": "array"
+        },
+        "admin_emails": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EmailAddress"
+          },
+          "title": "Admin Emails",
+          "type": "array"
+        },
         "public": {
           "default": false,
           "title": "Public",
@@ -180,6 +200,14 @@
       "title": "Domain",
       "type": "object"
     },
+    "EmailAddress": {
+      "pattern": "^[^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+$",
+      "type": "string"
+    },
+    "EmailRule": {
+      "pattern": "^([^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+|@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+)$",
+      "type": "string"
+    },
     "Fqdn": {
       "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$",
       "type": "string"
@@ -294,6 +322,10 @@
       "title": "Kubernetes",
       "type": "object"
     },
+    "LongSecret": {
+      "pattern": "^([^\"\\\\\\s$]{32,})?$",
+      "type": "string"
+    },
     "Matherlynet": {
       "additionalProperties": false,
       "properties": {
@@ -303,7 +335,7 @@
         },
         "admin_email": {
           "default": "",
-          "pattern": "^([^@\\s\"\\\\$]+@[^@\\s\"\\\\$]+\\.[^@\\s\"\\\\$]+)?$",
+          "pattern": "^([^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+)?$",
           "title": "Admin Email",
           "type": "string"
         },
@@ -616,7 +648,7 @@
           "default": ""
         },
         "grafana_secret_key": {
-          "$ref": "#/$defs/Secret_________s___32_______",
+          "$ref": "#/$defs/LongSecret",
           "default": ""
         },
         "github_app_id": {
@@ -760,10 +792,8 @@
           "default": ""
         },
         "encryption_secret": {
-          "default": "",
-          "pattern": "^([^\"\\\\\\s$]{32,})?$",
-          "title": "Encryption Secret",
-          "type": "string"
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
         },
         "oidc_client_id": {
           "default": "",
@@ -844,10 +874,6 @@
     },
     "Secret": {
       "pattern": "^[^\"\\\\\\s$]*$",
-      "type": "string"
-    },
-    "Secret_________s___32_______": {
-      "pattern": "^([^\"\\\\\\s$]{32,})?$",
       "type": "string"
     },
     "Secret_________s___8_______": {
@@ -1100,6 +1126,9 @@
       "default": {
         "oidc_client_id": "",
         "oidc_client_secret": "",
+        "auth_secret": "",
+        "allowed_emails": [],
+        "admin_emails": [],
         "public": false,
         "env": {}
       }

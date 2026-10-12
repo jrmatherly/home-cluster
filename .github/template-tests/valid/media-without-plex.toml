@@ -140,6 +140,7 @@ public = true
 [ai_workspace]
 oidc_client_id = "fake-ai-workspace"
 oidc_client_secret = "fake-ai-workspace-secret"
+auth_secret = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

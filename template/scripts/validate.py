@@ -68,6 +68,14 @@ type Fqdn = Annotated[str, Field(pattern=FQDN_PATTERN)]
 # backslash would change the value. Flux substitutes ${...} in the rendered
 # manifest, so a dollar sign is out too.
 type Secret = Annotated[str, Field(pattern=r'^[^"\\\s$]*$')]
+# A Secret of at least 32 characters, for keys the app refuses when shorter.
+type LongSecret = Annotated[str, Field(pattern=r'^([^"\\\s$]{32,})?$')]
+# An address or an @domain rule, with the same forbidden characters as Secret
+# plus the comma that joins them into one env var.
+_SAFE = r'[^\s"\\$,@]+'
+EMAIL = rf"{_SAFE}@{_SAFE}\.{_SAFE}"
+type EmailAddress = Annotated[str, Field(pattern=f"^{EMAIL}$")]
+type EmailRule = Annotated[str, Field(pattern=rf"^({EMAIL}|@{_SAFE}\.{_SAFE})$")]
 # The arrs and SABnzbd generate 32 hex characters; a hand-made key is at least that long.
 type ApiKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{32,})?$")]
 
@@ -84,6 +92,14 @@ def _all_or_none(model: Model, label: str, names: tuple[str, ...]) -> None:
             f"{label} is partially configured: set {', '.join(names[:-1])} and "
             f"{names[-1]} together (missing: {', '.join(unset)})"
         )
+
+
+def _admitted(address: str, rules: list[str]) -> bool:
+    """AI Workspace's allowlist match: case-insensitive, and an @domain rule
+    matches that domain only, not its subdomains. An empty list admits everyone."""
+    lowered = address.lower()
+    allowed = {rule.lower() for rule in rules}
+    return not allowed or lowered in allowed or "@" + lowered.partition("@")[2] in allowed
 
 
 class Network(Model):
@@ -258,7 +274,7 @@ class Observability(Model):
     grafana_oidc_client_secret: Secret = ""
     # Encrypts Grafana's stored data source secrets, all provisioned here and re-encoded
     # at start. The advisor flags the built-in default. Never change it without reprovisioning.
-    grafana_secret_key: Secret = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    grafana_secret_key: LongSecret = ""
     # A GitHub App for Grafana's GitHub data source. The private key is the PEM file
     # GitHub downloads, kept to base64 lines so Grafana's $VAR expansion leaves it alone.
     github_app_id: str = Field(default="", pattern=r"^[0-9]*$")
@@ -344,7 +360,7 @@ class Radar(Model):
 class Matherlynet(Model):
     # Signs the site's sessions.
     better_auth_secret: Secret = ""
-    admin_email: str = Field(default="", pattern=r'^([^@\s"\\$]+@[^@\s"\\$]+\.[^@\s"\\$]+)?$')
+    admin_email: str = Field(default="", pattern=f"^({EMAIL})?$")
     # Where the site sends mail. Unset, it sends none. A bare host name makes the
     # site's mail library throw on every request, so require the URL form.
     smtp_url: str = Field(default="", pattern=r'^(smtps?://[^"\\\s$]+)?$')
@@ -383,7 +399,7 @@ class ReactiveResume(Model):
     # Signs sessions and encrypts two-factor secrets; changing it signs everyone out.
     auth_secret: Secret = ""
     # Encrypts users' saved AI keys. The server refuses to start on fewer than 32 characters.
-    encryption_secret: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
+    encryption_secret: LongSecret = ""
     # The OIDC client created for Reactive Resume in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     oidc_client_secret: Secret = ""
@@ -550,13 +566,25 @@ AI_WORKSPACE_OWNED_ENV = (
     "POSTGRES_URL_NON_POOLING",
     "PORT",
     "NODE_ENV",
+    "AUTH_SECRET",
+    "AUTH_URL",
+    "AUTH_OIDC_ISSUER",
+    "AUTH_OIDC_CLIENT_ID",
+    "AUTH_OIDC_CLIENT_SECRET",
+    "AUTH_ALLOWED_EMAILS",
+    "AUTH_ADMIN_EMAILS",
 )
 
 
 class AiWorkspace(Model):
-    # The OIDC client created in the Pocket ID admin UI for the gateway sign-in.
+    # The OIDC client created in the Pocket ID admin UI for the app's own sign-in.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     oidc_client_secret: Secret = ""
+    auth_secret: LongSecret = ""
+    # Who may sign in: exact addresses and @domain rules. Empty means every Pocket ID user.
+    allowed_emails: list[EmailRule] = []
+    # Who is an admin: exact addresses, each admitted by allowed_emails when that is set.
+    admin_emails: list[EmailAddress] = []
     # Also attaches the route to the external gateway, so the internet reaches it.
     public: bool = False
     # Extra server env vars, such as vendor API keys, written to the app's Secret.
@@ -564,7 +592,12 @@ class AiWorkspace(Model):
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "ai_workspace", ("oidc_client_id", "oidc_client_secret"))
+        _all_or_none(self, "ai_workspace", ("oidc_client_id", "oidc_client_secret", "auth_secret"))
+        for address in self.admin_emails:
+            if not _admitted(address, self.allowed_emails):
+                raise ValueError(
+                    f"ai_workspace.admin_emails: {address!r} is not admitted by allowed_emails"
+                )
         for key in self.env:
             if key in AI_WORKSPACE_OWNED_ENV:
                 raise ValueError(
@@ -912,10 +945,8 @@ class Config(Model):
                 "ai_workspace requires postgres.backup: its database is backed up there"
             )
         if self.ai_workspace_enabled and not self.pocket_id_enabled:
-            raise ValueError(
-                "ai_workspace requires pocket_id: the gateway sign-in is the only login"
-            )
-        for name in ("public", "env"):
+            raise ValueError("ai_workspace requires pocket_id: Pocket ID is its only login")
+        for name in ("allowed_emails", "admin_emails", "public", "env"):
             if getattr(self.ai_workspace, name) and not self.ai_workspace_enabled:
                 raise ValueError(
                     f"ai_workspace.{name} requires oidc_client_id: AI Workspace only runs "
