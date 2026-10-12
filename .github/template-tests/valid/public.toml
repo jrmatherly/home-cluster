@@ -145,6 +145,7 @@ oidc_client_secret = "fake-ai-workspace-secret"
 auth_secret = "fakefakefakefakefakefakefakefake"
 allowed_emails = ["owner@example.com", "@family.example.com"]
 admin_emails = ["admin@family.example.com"]
+browsing_token = "fakefakefakefakefakefakefakefake"
 public = true
 
 [ai_workspace.env]

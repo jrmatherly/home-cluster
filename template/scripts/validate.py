@@ -573,6 +573,8 @@ AI_WORKSPACE_OWNED_ENV = (
     "AUTH_OIDC_CLIENT_SECRET",
     "AUTH_ALLOWED_EMAILS",
     "AUTH_ADMIN_EMAILS",
+    "PUPPETEER_WSS_ENDPOINT",
+    "BROWSERLESS_TOKEN",
 )
 
 
@@ -585,6 +587,8 @@ class AiWorkspace(Model):
     allowed_emails: list[EmailRule] = []
     # Who is an admin: exact addresses, each admitted by allowed_emails when that is set.
     admin_emails: list[EmailAddress] = []
+    # The browserless websocket token; setting it runs the Browsing pod.
+    browsing_token: ApiKey = ""
     # Also attaches the route to the external gateway, so the internet reaches it.
     public: bool = False
     # Extra server env vars, such as vendor API keys, written to the app's Secret.
@@ -946,7 +950,7 @@ class Config(Model):
             )
         if self.ai_workspace_enabled and not self.pocket_id_enabled:
             raise ValueError("ai_workspace requires pocket_id: Pocket ID is its only login")
-        for name in ("allowed_emails", "admin_emails", "public", "env"):
+        for name in ("allowed_emails", "admin_emails", "browsing_token", "public", "env"):
             if getattr(self.ai_workspace, name) and not self.ai_workspace_enabled:
                 raise ValueError(
                     f"ai_workspace.{name} requires oidc_client_id: AI Workspace only runs "

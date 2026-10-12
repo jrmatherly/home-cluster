@@ -1073,6 +1073,7 @@ def test_ai_workspace_requires_pocket_id():
     [
         ("allowed_emails", ["@example.com"]),
         ("admin_emails", ["me@example.com"]),
+        ("browsing_token", "a" * 32),
         ("public", True),
         ("env", {"ANTHROPIC_API_KEY": "fake"}),
     ],
@@ -1089,10 +1090,19 @@ def test_ai_workspace_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
-@pytest.mark.parametrize("key", ["LOCALAI_API_HOST", "AUTH_SECRET", "lowercase_key"])
+@pytest.mark.parametrize(
+    "key", ["LOCALAI_API_HOST", "AUTH_SECRET", "PUPPETEER_WSS_ENDPOINT", "lowercase_key"]
+)
 def test_ai_workspace_env_rejects_reserved_and_malformed_keys(key):
     raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.env.{key}": "fake"})
     with pytest.raises(ConfigError):
+        _load_raw(raw)
+
+
+@pytest.mark.parametrize("token", ["a" * 31, "a" * 31 + "-"])
+def test_ai_workspace_browsing_token_rejects_short_or_unsafe(token):
+    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.browsing_token": token})
+    with pytest.raises(ConfigError, match=r"ai_workspace\.browsing_token"):
         _load_raw(raw)
 
 

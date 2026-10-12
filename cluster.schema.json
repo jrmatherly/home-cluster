@@ -56,6 +56,10 @@
           "title": "Admin Emails",
           "type": "array"
         },
+        "browsing_token": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
         "public": {
           "default": false,
           "title": "Public",
@@ -1129,6 +1133,7 @@
         "auth_secret": "",
         "allowed_emails": [],
         "admin_emails": [],
+        "browsing_token": "",
         "public": false,
         "env": {}
       }

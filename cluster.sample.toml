@@ -840,6 +840,8 @@ schematic_id = ""
 #    Chats stay in each browser. llama-server is wired in when a node loads
 #    the nvidia kernel module. Vendor API keys are brought by each user in the
 #    browser, unless the server holds them through [ai_workspace.env] below.
+#    Browsing (Attach > Web) runs a Chromium pod in the namespace that any
+#    signed-in member can point at any public URL.
 # =============================================================================
 [ai_workspace]
 
@@ -875,6 +877,14 @@ schematic_id = ""
 # OPTIONAL. Default: []. Example: ["me@example.com"]
 
 # admin_emails = []
+
+# Token that browserless, the Chromium pod behind Browsing, requires on its
+# websocket. Letters and digits only, at least 32 characters, because it goes
+# in a URL query string. Setting it runs the pod; blank skips it. It is
+# written to the app's SOPS-encrypted Secret. Needs the client fields above.
+# OPTIONAL. Example: the output of `openssl rand -hex 16`
+
+# browsing_token = ""
 
 # Also serves AI Workspace on the external gateway, so the internet reaches
 # it. Needs the client fields above and pocket_id.public = true, because a
