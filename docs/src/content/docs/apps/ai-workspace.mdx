@@ -78,10 +78,6 @@ Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `j
 
 The pod's NetworkPolicy restricts ingress only, so a new vendor needs no egress change.
 
-## Later: the image pin
-
-The HelmRelease pins `latest` by digest until a CalVer release tag exists. The release workflow's tag filter was `v2.*`, which never matched a `v2026.*` tag; the fix (`v20*`) is on the app's main. Once a release tag is pushed and built, change the tag in `template/config/kubernetes/apps/ai-workspace/ai-workspace/app/helmrelease.yaml.j2` to that version and let Renovate follow semver from there.
-
 ## Later: public
 
 `public = true` attaches the route to `envoy-external` as well, so the tunnel reaches it, behind the app's own sign-in. Set `allowed_emails` first if the Pocket ID client is not restricted to a group. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
