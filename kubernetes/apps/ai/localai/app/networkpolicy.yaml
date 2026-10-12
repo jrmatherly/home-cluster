@@ -18,6 +18,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               localai.ai/client: "true"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
       ports:
         - protocol: TCP
           port: 8080

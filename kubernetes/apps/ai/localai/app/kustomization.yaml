@@ -7,3 +7,6 @@ resources:
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./secret.sops.yaml
+  - ./httproute.yaml
+  - ./oidc-secret.sops.yaml
+  - ./securitypolicy.yaml

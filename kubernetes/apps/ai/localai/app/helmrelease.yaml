@@ -46,7 +46,7 @@ spec:
               LOCALAI_DISABLE_HARDWARE_DEFAULTS: "true"
               # Loads the model at start, so /readyz means loaded, not merely listening.
               LOCALAI_LOAD_TO_MEMORY: qwen-3.5-4b
-              LOCALAI_DISABLE_WEBUI: "true"
+              LOCALAI_DISABLE_WEBUI: "false"
               LOCALAI_DISABLE_GALLERY_ENDPOINT: "true"
               LOCALAI_DISABLE_RUNTIME_SETTINGS: "true"
             probes:

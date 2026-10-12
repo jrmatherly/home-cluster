@@ -1,0 +1,47 @@
+---
+# LocalAI serves the WebUI shell to anyone, so the gateway signs users in with Pocket ID.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: localai
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: localai
+  oidc:
+    # Set explicitly so the policy does not depend on Pocket ID answering its
+    # discovery document when the gateway reconciles.
+    provider:
+      issuer: https://auth.${SECRET_DOMAIN}
+      authorizationEndpoint: https://auth.${SECRET_DOMAIN}/authorize
+      tokenEndpoint: https://auth.${SECRET_DOMAIN}/api/oidc/token
+    clientID: "39026994-3d39-4630-8ad8-bd20549900aa"
+    clientSecret:
+      name: localai-oidc
+    logoutPath: /logout
+    scopes: ["openid", "profile", "email", "groups"]
+    # A fixed name, so the JWT provider below can read the ID token.
+    cookieNames:
+      idToken: localai-id-token
+  # Claim checks need a verified token from a JWT provider in the same policy.
+  jwt:
+    providers:
+      - name: pocket-id
+        issuer: https://auth.${SECRET_DOMAIN}
+        remoteJWKS:
+          uri: https://auth.${SECRET_DOMAIN}/.well-known/jwks.json
+        extractFrom:
+          cookies: ["localai-id-token"]
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: cluster-admins
+        action: Allow
+        principal:
+          jwt:
+            provider: pocket-id
+            claims:
+              - name: groups
+                valueType: StringArray
+                values: ["cluster_admins"]
