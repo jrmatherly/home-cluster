@@ -28,8 +28,10 @@ spec:
               # next to the 2.4 GiB model on the 8 GiB card.
               LLAMA_ARG_CTX_SIZE: 32768
               LLAMA_ARG_N_PARALLEL: 4
-              # Parses tool calls through the model's own chat template; without it
-              # a function call comes back as plain text.
+              # Lets llama-server parse tool calls through a chat template that carries
+              # them. phi-4-mini's bundled template does not (measured 2026-10-11: a
+              # request with tools got prose back and the tools never entered the
+              # prompt), so tool calls need a template file or another model.
               LLAMA_ARG_JINJA: true
               # The default when a request sets no max_tokens. It is not a cap.
               LLAMA_ARG_N_PREDICT: 200
