@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nginx
-          image: ghcr.io/jrmatherly/home-cluster/docs:latest@sha256:affb0512b56dd820f3fcf861755aea2ffb4dd5fedae4208e180f1a8845ae2ce0
+          image: ghcr.io/jrmatherly/home-cluster/docs:latest@sha256:2c5fefc9a98b25f6f8d22e521e48c8785e866ea80d552c0d1a543398b0eeb7ca
           ports:
             - name: http
               containerPort: 8080
