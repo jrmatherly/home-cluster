@@ -90,6 +90,22 @@ spec:
           activeDeadlineSeconds: 840
         initContainers:
           wait-for-database: *waitForDatabase
+          # The operator creates the vector extension from the Database object,
+          # and nothing orders that before this hook on a fresh install. The
+          # app role cannot create it, so the Job waits for it instead.
+          wait-for-vector:
+            dependsOn: [wait-for-database]
+            image: *image
+            command:
+              - sh
+              - -c
+              - >-
+                until echo "DO 'BEGIN IF NOT EXISTS (SELECT FROM pg_extension WHERE extname = ''vector'')
+                THEN RAISE EXCEPTION ''vector extension missing''; END IF; END';"
+                | /app/node_modules/.bin/prisma db execute --stdin; do sleep 5; done
+            env:
+              POSTGRES_URL_NON_POOLING: *databaseUrl
+            securityContext: *securityContext
         containers:
           app:
             image: *image
