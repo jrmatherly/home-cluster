@@ -1,5 +1,6 @@
 # Negative fixture: Reactive Resume set without its S3 bucket and keys.
 # Expected to be rejected by the Reactive Resume all-or-nothing check.
+# expect: reactive_resume: reactive_resume is partially configured: set auth_secret, encryption_secret, oidc_client_id, oidc_client_secret, s3_endpoint, s3_bucket, s3_access_key_id and s3_secret_access_key together (missing: s3_endpoint, s3_bucket, s3_access_key_id, s3_secret_access_key)
 [network]
 node_cidr = "10.10.10.0/24"
 

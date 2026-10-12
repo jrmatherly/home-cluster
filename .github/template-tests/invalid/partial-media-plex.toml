@@ -1,5 +1,6 @@
 # Negative fixture: media.plex_host without media.plex_token.
 # Expected to be rejected by the all-or-none check on the Plex pair.
+# expect: media: media is partially configured: set plex_host and plex_token together (missing: plex_token)
 [network]
 node_cidr = "10.10.10.0/24"
 

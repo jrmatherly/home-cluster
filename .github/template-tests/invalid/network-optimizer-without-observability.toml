@@ -1,5 +1,6 @@
 # Negative fixture: Network Optimizer enabled without [observability].
 # Expected to be rejected: its time series go to the InfluxDB there.
+# expect: network_optimizer requires observability: Network Optimizer writes its time series to the InfluxDB there
 [network]
 node_cidr = "10.10.10.0/24"
 

@@ -1,5 +1,6 @@
 # Negative fixture: the Grafana OIDC client set without Pocket ID.
 # Expected to be rejected by the grafana_oidc_client_id requires pocket_id check.
+# expect: observability.grafana_oidc_client_id requires pocket_id: Pocket ID is the OIDC provider Grafana signs in with
 [network]
 node_cidr = "10.10.10.0/24"
 

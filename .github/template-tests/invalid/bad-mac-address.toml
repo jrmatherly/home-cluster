@@ -1,5 +1,6 @@
 # Negative fixture: malformed MAC address (uppercase + missing colons).
 # Expected to be rejected by the #Node.mac_addr regex constraint.
+# expect: nodes.0.mac_addr: String should match pattern '^([0-9a-f]{2}:){5}[0-9a-f]{2}$'
 [network]
 node_cidr = "10.10.10.0/24"
 

@@ -1,5 +1,6 @@
 # Negative fixture: an AI Workspace env var the templates set themselves.
 # Expected to be rejected by the ai_workspace.env reserved-key check.
+# expect: ai_workspace: ai_workspace.env.LOCALAI_API_HOST belongs to the templates and cannot be overridden
 [network]
 node_cidr = "10.10.10.0/24"
 

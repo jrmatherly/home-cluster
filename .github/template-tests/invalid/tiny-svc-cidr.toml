@@ -1,6 +1,7 @@
 # Negative fixture: svc_cidr too small to contain the derived CoreDNS
 # address (10th IP).
 # Expected to be rejected by _coredns_addr_in_svc_cidr.
+# expect: kubernetes: coredns_addr 10.43.0.10 is not inside svc_cidr 10.43.0.0/29
 [network]
 node_cidr = "10.10.10.0/24"
 

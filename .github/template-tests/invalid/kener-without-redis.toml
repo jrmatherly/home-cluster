@@ -1,5 +1,6 @@
 # Negative fixture: kener set without [redis].
 # Expected to be rejected by the kener requires redis.password check.
+# expect: kener requires redis.password: Kener's job queue lives in Redis
 [network]
 node_cidr = "10.10.10.0/24"
 

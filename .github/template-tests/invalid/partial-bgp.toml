@@ -1,6 +1,7 @@
 # Negative fixture: two of the three BGP fields set; previously this
 # silently left BGP disabled.
 # Expected to be rejected by the Bgp all-or-nothing check.
+# expect: cilium.bgp: bgp is partially configured: set router_addr, router_asn and node_asn together (missing: node_asn)
 [network]
 node_cidr = "10.10.10.0/24"
 

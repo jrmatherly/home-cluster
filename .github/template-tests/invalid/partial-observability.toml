@@ -1,5 +1,6 @@
 # Negative fixture: one of the three observability secrets set.
 # Expected to be rejected by the Observability all-or-nothing check.
+# expect: observability: observability is partially configured: set grafana_password, influxdb_password and influxdb_token together (missing: influxdb_password, influxdb_token)
 [network]
 node_cidr = "10.10.10.0/24"
 

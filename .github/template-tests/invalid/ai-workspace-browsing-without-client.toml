@@ -1,5 +1,6 @@
 # Negative fixture: AI Workspace browsing token without the OIDC client.
 # Expected to be rejected by the ai_workspace.browsing_token requires oidc_client_id check.
+# expect: ai_workspace.browsing_token requires oidc_client_id: AI Workspace only runs when the client is set
 [network]
 node_cidr = "10.10.10.0/24"
 

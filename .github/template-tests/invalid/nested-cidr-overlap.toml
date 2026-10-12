@@ -1,6 +1,7 @@
 # Negative fixture: node_cidr is nested inside the default pod_cidr
 # (10.42.0.0/16) without being string-equal to it.
 # Expected to be rejected by _cidr_overlap_check.
+# expect: network.node_cidr 10.42.128.0/17 overlaps kubernetes.pod_cidr 10.42.0.0/16
 [network]
 node_cidr = "10.42.128.0/17"
 

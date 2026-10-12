@@ -1,5 +1,6 @@
 # Negative fixture: media.node names a controller.
 # Expected to be rejected by the media.node check.
+# expect: media.node k8s-0 must name a [[nodes]] entry with controller = false
 [network]
 node_cidr = "10.10.10.0/24"
 

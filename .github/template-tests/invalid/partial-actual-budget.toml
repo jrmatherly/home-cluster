@@ -1,5 +1,6 @@
 # Negative fixture: the Actual Budget OIDC client ID set without its secret.
 # Expected to be rejected by the Actual Budget all-or-nothing check.
+# expect: actual_budget: actual_budget is partially configured: set oidc_client_id and oidc_client_secret together (missing: oidc_client_secret)
 [network]
 node_cidr = "10.10.10.0/24"
 

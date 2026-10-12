@@ -1,5 +1,6 @@
 # Negative fixture: the AI Workspace OIDC client set without Pocket ID.
 # Expected to be rejected by the ai_workspace requires pocket_id check.
+# expect: ai_workspace requires pocket_id: Pocket ID is its only login
 [network]
 node_cidr = "10.10.10.0/24"
 

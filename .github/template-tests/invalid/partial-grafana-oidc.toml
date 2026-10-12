@@ -1,5 +1,6 @@
 # Negative fixture: the Grafana OIDC client ID set without its secret.
 # Expected to be rejected by the observability all-or-nothing check.
+# expect: observability: observability is partially configured: set grafana_oidc_client_id and grafana_oidc_client_secret together (missing: grafana_oidc_client_secret)
 [network]
 node_cidr = "10.10.10.0/24"
 

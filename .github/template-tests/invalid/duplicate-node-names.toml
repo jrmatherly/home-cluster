@@ -1,5 +1,6 @@
 # Negative fixture: two nodes with the same name.
 # Expected to be rejected by `_node_name_check` (list.UniqueItems).
+# expect: duplicate node name 'k8s-0' on nodes[0] and nodes[1]
 [network]
 node_cidr = "10.10.10.0/24"
 

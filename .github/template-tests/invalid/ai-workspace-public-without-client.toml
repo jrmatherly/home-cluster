@@ -1,5 +1,6 @@
 # Negative fixture: AI Workspace made public while Pocket ID is not.
 # Expected to be rejected by the ai_workspace.public requires pocket_id.public check.
+# expect: ai_workspace.public requires oidc_client_id: AI Workspace only runs when the client is set
 [network]
 node_cidr = "10.10.10.0/24"
 

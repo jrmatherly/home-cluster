@@ -1,5 +1,6 @@
 # Negative fixture: the Actual Budget OIDC client set without Pocket ID.
 # Expected to be rejected by the actual_budget requires pocket_id check.
+# expect: actual_budget requires pocket_id: Pocket ID is Actual Budget's only login
 [network]
 node_cidr = "10.10.10.0/24"
 

@@ -1,5 +1,6 @@
 # Negative fixture: Pocket ID made public without enabling Pocket ID.
 # Expected to be rejected by the pocket_id.public requires encryption_key check.
+# expect: pocket_id.public requires pocket_id.encryption_key: Pocket ID only runs when the key is set
 [network]
 node_cidr = "10.10.10.0/24"
 

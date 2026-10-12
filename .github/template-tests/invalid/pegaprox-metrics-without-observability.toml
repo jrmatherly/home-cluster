@@ -1,5 +1,6 @@
 # Negative fixture: PegaProx metrics enabled without [observability].
 # Expected to be rejected: its Prometheus scrapes the metrics endpoint.
+# expect: pegaprox.metrics_token requires observability: it is scraped by its Prometheus
 [network]
 node_cidr = "10.10.10.0/24"
 

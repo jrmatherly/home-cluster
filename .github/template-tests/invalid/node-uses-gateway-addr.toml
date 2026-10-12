@@ -1,6 +1,7 @@
 # Negative fixture: a node claims the default gateway address (defaults to
 # the first IP in node_cidr).
 # Expected to be rejected by _addr_uniqueness_check.
+# expect: address 10.10.10.1 is used by both network.default_gateway and nodes[0].address
 [network]
 node_cidr = "10.10.10.0/24"
 

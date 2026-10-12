@@ -1,5 +1,6 @@
 # Negative fixture: a node reuses the internal gateway VIP.
 # Expected to be rejected by _addr_uniqueness_check.
+# expect: address 10.10.10.252 is used by both gateways.internal and nodes[0].address
 [network]
 node_cidr = "10.10.10.0/24"
 

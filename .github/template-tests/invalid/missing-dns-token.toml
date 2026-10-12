@@ -1,5 +1,6 @@
 # Negative fixture: dns.provider "cloudflare" (the default) without a token.
 # Expected to be rejected by the Dns validator.
+# expect: dns: token is required when dns.provider is 'cloudflare'
 [network]
 node_cidr = "10.10.10.0/24"
 

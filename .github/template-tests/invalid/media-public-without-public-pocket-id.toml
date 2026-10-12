@@ -1,5 +1,6 @@
 # Negative fixture: the media stack made public while Pocket ID is not.
 # Expected to be rejected by the media.public requires pocket_id.public check.
+# expect: media.public requires pocket_id.public: a visitor from the internet must reach the Pocket ID login
 [network]
 node_cidr = "10.10.10.0/24"
 

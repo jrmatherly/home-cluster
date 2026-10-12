@@ -1,5 +1,6 @@
 # Negative fixture: a PegaProx db_key that is neither 44 urlsafe base64 characters
 # nor 64 hex characters. Expected to be rejected by the db_key pattern.
+# expect: pegaprox.db_key: String should match pattern '^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$'
 [network]
 node_cidr = "10.10.10.0/24"
 

@@ -1,5 +1,6 @@
 # Negative fixture: a node without schematic_id and no [talos] default.
 # Expected to be rejected by the schematic resolution in Config.
+# expect: nodes[0].schematic_id is required: set it on the node or set a cluster-wide default in [talos]
 [network]
 node_cidr = "10.10.10.0/24"
 

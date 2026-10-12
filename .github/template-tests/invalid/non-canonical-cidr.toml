@@ -1,6 +1,7 @@
 # Negative fixture: node_cidr written with host bits set instead of the
 # network address.
 # Expected to be rejected by _cidr_canonical_check.
+# expect: network.node_cidr: '10.10.10.5/24' has host bits set; did you mean 10.10.10.0/24?
 [network]
 node_cidr = "10.10.10.5/24"
 

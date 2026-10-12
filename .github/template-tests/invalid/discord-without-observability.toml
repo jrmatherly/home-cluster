@@ -1,5 +1,6 @@
 # Negative fixture: the Discord webhook set without the observability secrets.
 # Expected to be rejected by the discord_webhook requires check.
+# expect: observability: discord_webhook requires grafana_password, influxdb_password and influxdb_token: Alertmanager only runs with the rest of the stack
 [network]
 node_cidr = "10.10.10.0/24"
 

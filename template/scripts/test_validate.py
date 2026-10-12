@@ -5,6 +5,7 @@ Run from the repo root:
 """
 
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -41,9 +42,17 @@ def test_valid_fixture_accepted(fixture: Path):
     load(str(fixture))
 
 
+def expected_error(fixture: Path) -> str:
+    """The `# expect:` line every invalid fixture carries: the message its check raises."""
+    for line in fixture.read_text().splitlines():
+        if line.startswith("# expect: "):
+            return line.removeprefix("# expect: ")
+    raise AssertionError(f"{fixture.name} has no '# expect: <message>' line")
+
+
 @pytest.mark.parametrize("fixture", INVALID, ids=lambda p: p.stem)
 def test_invalid_fixture_rejected(fixture: Path):
-    with pytest.raises(ConfigError):
+    with pytest.raises(ConfigError, match=re.escape(expected_error(fixture))):
         load(str(fixture))
 
 

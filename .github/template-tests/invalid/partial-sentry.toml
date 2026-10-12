@@ -1,5 +1,6 @@
 # Negative fixture: the Sentry organization set without its token.
 # Expected to be rejected by the observability all-or-nothing check.
+# expect: observability: observability is partially configured: set sentry_org and sentry_token together (missing: sentry_token)
 [network]
 node_cidr = "10.10.10.0/24"
 

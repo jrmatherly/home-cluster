@@ -1,5 +1,6 @@
 # Negative fixture: Pocket ID enabled without an object store for Postgres backups.
 # Expected to be rejected by the pocket_id requires postgres.backup check.
+# expect: pocket_id requires postgres.backup: its database holds passkeys and signing keys, which cannot be recreated
 [network]
 node_cidr = "10.10.10.0/24"
 

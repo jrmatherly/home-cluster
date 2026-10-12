@@ -1,5 +1,6 @@
 # Negative fixture: matherlynet set without [postgres.backup].
 # Expected to be rejected by the matherlynet requires postgres.backup check.
+# expect: matherlynet requires postgres.backup: its database holds accounts, which cannot be recreated
 [network]
 node_cidr = "10.10.10.0/24"
 

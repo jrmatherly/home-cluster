@@ -1,3 +1,5 @@
+# Negative fixture: an NVIDIA node without [localai].
+# expect: localai.api_key is required when a node loads the nvidia kernel module: LocalAI runs there and its clients need the key
 [network]
 node_cidr = "10.10.10.0/24"
 

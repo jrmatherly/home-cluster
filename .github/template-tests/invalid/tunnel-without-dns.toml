@@ -1,5 +1,6 @@
 # Negative fixture: cloudflare-tunnel ingress with dns.provider "none".
 # Expected to be rejected by the Config cross-check.
+# expect: ingress.mode 'cloudflare-tunnel' requires dns.provider 'cloudflare'
 [network]
 node_cidr = "10.10.10.0/24"
 

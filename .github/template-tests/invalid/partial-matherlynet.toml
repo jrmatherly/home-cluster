@@ -1,5 +1,6 @@
 # Negative fixture: the matherlynet auth secret set without the admin email.
 # Expected to be rejected by the matherlynet all-or-nothing check.
+# expect: matherlynet: matherlynet is partially configured: set better_auth_secret and admin_email together (missing: admin_email)
 [network]
 node_cidr = "10.10.10.0/24"
 

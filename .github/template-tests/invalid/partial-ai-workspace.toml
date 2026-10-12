@@ -1,5 +1,6 @@
 # Negative fixture: the AI Workspace OIDC client ID set without its secret.
 # Expected to be rejected by the AI Workspace all-or-nothing check.
+# expect: ai_workspace: ai_workspace is partially configured: set oidc_client_id, oidc_client_secret and auth_secret together (missing: oidc_client_secret, auth_secret)
 [network]
 node_cidr = "10.10.10.0/24"
 

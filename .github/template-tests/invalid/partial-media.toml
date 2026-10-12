@@ -1,5 +1,6 @@
 # Negative fixture: three of the five media API keys set.
 # Expected to be rejected by the media all-or-nothing check.
+# expect: media: media is partially configured: set sonarr_api_key, radarr_api_key, prowlarr_api_key, sabnzbd_api_key and sabnzbd_nzb_key together (missing: sabnzbd_api_key, sabnzbd_nzb_key)
 [network]
 node_cidr = "10.10.10.0/24"
 

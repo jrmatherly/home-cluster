@@ -1,5 +1,6 @@
 # Negative fixture: the media stack set without Pocket ID.
 # Expected to be rejected by the media requires pocket_id check.
+# expect: media requires pocket_id: the gateway sign-in is the only login
 [network]
 node_cidr = "10.10.10.0/24"
 

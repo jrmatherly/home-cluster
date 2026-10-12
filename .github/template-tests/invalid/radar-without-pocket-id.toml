@@ -1,5 +1,6 @@
 # Negative fixture: the Radar OIDC client set without Pocket ID.
 # Expected to be rejected by the radar requires pocket_id check.
+# expect: radar requires pocket_id: Pocket ID is Radar's only login
 [network]
 node_cidr = "10.10.10.0/24"
 

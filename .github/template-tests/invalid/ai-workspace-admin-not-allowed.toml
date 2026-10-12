@@ -1,5 +1,6 @@
 # Negative fixture: an AI Workspace admin that allowed_emails does not admit.
 # Expected to be rejected by the ai_workspace.admin_emails check.
+# expect: ai_workspace: ai_workspace.admin_emails: 'admin@example.com' is not admitted by allowed_emails
 [network]
 node_cidr = "10.10.10.0/24"
 

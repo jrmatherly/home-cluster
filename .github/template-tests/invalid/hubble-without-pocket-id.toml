@@ -1,5 +1,6 @@
 # Negative fixture: the Hubble OIDC client set without Pocket ID.
 # Expected to be rejected by the cilium.hubble requires pocket_id check.
+# expect: cilium.hubble requires pocket_id: Pocket ID is the Hubble UI's only login
 [network]
 node_cidr = "10.10.10.0/24"
 

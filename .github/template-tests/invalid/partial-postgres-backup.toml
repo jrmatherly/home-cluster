@@ -1,6 +1,7 @@
 # Negative fixture: two of the four Postgres backup fields set, so the
 # credentials are missing.
 # Expected to be rejected by the PostgresBackup all-or-nothing check.
+# expect: postgres.backup: backup is partially configured: set endpoint, bucket, access_key_id and secret_access_key together (missing: access_key_id, secret_access_key)
 [network]
 node_cidr = "10.10.10.0/24"
 

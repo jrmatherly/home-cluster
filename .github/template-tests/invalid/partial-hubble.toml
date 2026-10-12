@@ -1,5 +1,6 @@
 # Negative fixture: the Hubble OIDC client secret set without its ID.
 # Expected to be rejected by the cilium.hubble all-or-nothing check.
+# expect: cilium.hubble: cilium.hubble is partially configured: set oidc_client_id and oidc_client_secret together (missing: oidc_client_id)
 [network]
 node_cidr = "10.10.10.0/24"
 

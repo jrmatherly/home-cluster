@@ -1,5 +1,6 @@
 # Negative fixture: Actual Budget made public while Pocket ID is not.
 # Expected to be rejected by the actual_budget.public requires pocket_id.public check.
+# expect: actual_budget.public requires pocket_id.public: a visitor from the internet must reach the Pocket ID login
 [network]
 node_cidr = "10.10.10.0/24"
 

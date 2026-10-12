@@ -1,5 +1,6 @@
 # Negative fixture: network.node_cidr overlaps the default kubernetes.pod_cidr (10.42.0.0/16).
 # Expected to be rejected by `_cidrs_check` (list.UniqueItems).
+# expect: network.node_cidr 10.42.0.0/16 overlaps kubernetes.pod_cidr 10.42.0.0/16
 [network]
 node_cidr = "10.42.0.0/16"
 

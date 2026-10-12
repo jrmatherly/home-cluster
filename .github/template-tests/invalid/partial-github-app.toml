@@ -1,5 +1,6 @@
 # Negative fixture: the GitHub App ID set without its installation ID and key.
 # Expected to be rejected by the observability all-or-nothing check.
+# expect: observability: observability is partially configured: set github_app_id, github_app_installation_id and github_app_private_key together (missing: github_app_installation_id, github_app_private_key)
 [network]
 node_cidr = "10.10.10.0/24"
 

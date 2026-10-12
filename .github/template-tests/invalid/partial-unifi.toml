@@ -1,5 +1,6 @@
 # Negative fixture: the UniFi console address set without an API key.
 # Expected to be rejected by the Unifi all-or-nothing check.
+# expect: unifi: unifi is partially configured: set host and api_key together (missing: api_key)
 [network]
 node_cidr = "10.10.10.0/24"
 

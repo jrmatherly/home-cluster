@@ -1,5 +1,6 @@
 # Negative fixture: the kener SMTP URL set without the sender address.
 # Expected to be rejected by the kener all-or-nothing check.
+# expect: kener: kener is partially configured: set smtp_url and mail_from together (missing: mail_from)
 [network]
 node_cidr = "10.10.10.0/24"
 

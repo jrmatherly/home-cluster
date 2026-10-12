@@ -1,6 +1,7 @@
 # Negative fixture: ssh:// URL to a host without bundled SSH host keys
 # (github.com/gitlab.com/codeberg.org) and no repository.known_hosts set.
 # Expected to be rejected by the conditional known_hosts constraint.
+# expect: repository: known_hosts is required for ssh:// URLs to 'git.example.com' (host keys are only bundled for github.com, gitlab.com, codeberg.org)
 [network]
 node_cidr = "10.10.10.0/24"
 
