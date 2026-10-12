@@ -1,0 +1,149 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: localai
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: localai
+  interval: 1h
+  # Covers a cold pull of about 4.7 GB across the three images, plus the wait for the
+  # previous pod to release the one GPU.
+  timeout: 15m
+  values:
+    controllers:
+      localai:
+        strategy: Recreate
+        annotations:
+          # The model YAML is a subPath mount, which never updates in place; Reloader
+          # restarts the pod when the ConfigMap or the Secret changes.
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              # The CPU build. The llama-cpp backend image below carries its own CUDA 12.8
+              # runtime libraries, loader and libc; only the driver comes from the host.
+              repository: localai/localai
+              tag: v4.11.0@sha256:f1bc435659b9da49180e868fdd0361915171a740cd947bf081b62a896a7ea8d0
+            env:
+              # Closes every route but /healthz, /readyz and discovery to a request without
+              # the key; a legacy key grants full admin, which is why the admin routes below
+              # are disabled as well.
+              LOCALAI_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: localai-secret
+                    key: LOCALAI_API_KEY
+              # The image defaults every gallery on and would reach index.localai.io and
+              # Quay on the first start, which the NetworkPolicy drops; keep all four off.
+              LOCALAI_GALLERIES: "[]"
+              LOCALAI_BACKEND_GALLERIES: "[]"
+              LOCALAI_AUTOLOAD_GALLERIES: "false"
+              LOCALAI_AUTOLOAD_BACKEND_GALLERIES: "false"
+              # The ConfigMap sets context and slots; the auto-tuner would pick its own.
+              LOCALAI_DISABLE_HARDWARE_DEFAULTS: "true"
+              # Loads the model at start, so /readyz means loaded, not merely listening.
+              LOCALAI_LOAD_TO_MEMORY: qwen-3.5-4b
+              LOCALAI_DISABLE_WEBUI: "true"
+              LOCALAI_DISABLE_GALLERY_ENDPOINT: "true"
+              LOCALAI_DISABLE_RUNTIME_SETTINGS: "true"
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /readyz
+                    port: &port 8080
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  # Ten minutes for the preload and, on Pascal, the first-load compile of
+                  # the GPU kernels. Image pulls happen before the container starts and
+                  # count against the HelmRelease timeout instead.
+                  failureThreshold: 120
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: *port
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 500m
+                memory: 4Gi
+              limits:
+                memory: 8Gi
+                nvidia.com/gpu: 1
+    defaultPodOptions:
+      runtimeClassName: nvidia
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      backends:
+        type: emptyDir
+        globalMounts:
+          - path: /backends
+      # The llama-cpp backend, one of LocalAI's own backend images. The directory name
+      # is the backend name, so it must be llama-cpp.
+      backends-llama-cpp:
+        type: image
+        image: quay.io/go-skynet/local-ai-backends:v4.11.0-gpu-nvidia-cuda-12-llama-cpp@sha256:5e54c2dfc490f50ede562f94f44ed5c4c57707b1900f3bf36793624425fb3cdc
+        globalMounts:
+          - path: /backends/llama-cpp
+            readOnly: true
+      models:
+        type: emptyDir
+        globalMounts:
+          - path: /models
+      models-config:
+        type: configMap
+        name: localai-models
+        globalMounts:
+          - path: /models/qwen-3.5-4b.yaml
+            subPath: qwen-3.5-4b.yaml
+            readOnly: true
+          - path: /models/qwen3-4b.yaml
+            subPath: qwen3-4b.yaml
+            readOnly: true
+      # The model is an image, built from images/qwen3.5-4b. The node keeps it cached,
+      # so a restart needs neither a download nor Hugging Face.
+      models-qwen:
+        type: image
+        image: ghcr.io/jrmatherly/models/qwen3.5-4b:q4_k_m-e87f176@sha256:8307f2eae1b4fb40f428a226eb7c6b58b4ed4db8d0dc96101cff9b85b45484f5
+        globalMounts:
+          - path: /models/qwen3.5-4b
+            readOnly: true
+      configuration:
+        type: emptyDir
+        globalMounts:
+          - path: /configuration
+      # A client holding the key can upload files here; the limits keep a misbehaving
+      # client from filling the node.
+      data:
+        type: emptyDir
+        sizeLimit: 1Gi
+        globalMounts:
+          - path: /data
+      tmp:
+        type: emptyDir
+        sizeLimit: 1Gi
+        globalMounts:
+          - path: /tmp

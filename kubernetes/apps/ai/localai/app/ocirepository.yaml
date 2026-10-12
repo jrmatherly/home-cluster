@@ -1,9 +1,8 @@
-#% if nvidia_enabled %#
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
-  name: llama-server
+  name: localai
 spec:
   interval: 15m
   layerSelector:
@@ -12,4 +11,3 @@ spec:
   ref:
     tag: 5.3.0
   url: oci://ghcr.io/bjw-s-labs/helm/app-template
-#% endif %#

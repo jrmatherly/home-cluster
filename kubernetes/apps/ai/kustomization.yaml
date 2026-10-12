@@ -8,4 +8,4 @@ components:
 
 resources:
   - ./namespace.yaml
-  - ./llama-server/ks.yaml
+  - ./localai/ks.yaml

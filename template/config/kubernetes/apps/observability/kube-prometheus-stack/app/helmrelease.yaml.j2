@@ -149,6 +149,12 @@ spec:
           secretKeyRef:
             name: grafana-secret
             key: INFLUXDB_TOKEN
+        #% if nvidia_enabled %#
+        LOCALAI_API_KEY:
+          secretKeyRef:
+            name: grafana-secret
+            key: LOCALAI_API_KEY
+        #% endif %#
         #% if observability.grafana_oidc_client_id %#
         GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
           secretKeyRef:

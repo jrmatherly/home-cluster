@@ -26,7 +26,7 @@ spec:
         app_url: https://${SECRET_DOMAIN}
         github_client_id: "Ov23liFvUQasJxSSmNmM"
         # The base URL, without /v1.
-        playground_model_url: http://llama-server.ai.svc.cluster.local:8080
+        playground_model_url: http://localai.ai.svc.cluster.local:8080
   # The chart cannot set a securityContext, resources or annotations, and the
   # namespace enforces the restricted pod security level. runAsUser is set
   # because the image's user is a name (node), which the kubelet cannot verify

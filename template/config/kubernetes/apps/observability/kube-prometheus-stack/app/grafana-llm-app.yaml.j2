@@ -12,15 +12,17 @@ data:
     apps:
       - type: grafana-llm-app
         jsonData:
-          # The OpenAI client against llama-server, which has no API key.
+          # The OpenAI client against LocalAI; the key comes from Grafana's environment.
           provider: custom
           openAI:
-            url: http://llama-server.ai.svc.cluster.local:8080
+            url: http://localai.ai.svc.cluster.local:8080
             apiPath: /v1
-          # Both abstract models go to the one model llama-server serves, named by its LLAMA_ARG_ALIAS.
+          # Both abstract models go to the one model LocalAI serves, named in its ConfigMap.
           models:
             default: base
             mapping:
-              base: qwen3-4b
-              large: qwen3-4b
+              base: qwen-3.5-4b
+              large: qwen-3.5-4b
+        secureJsonData:
+          openAIKey: $LOCALAI_API_KEY
 #% endif %#

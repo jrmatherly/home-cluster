@@ -137,6 +137,10 @@ spec:
           secretKeyRef:
             name: grafana-secret
             key: INFLUXDB_TOKEN
+        LOCALAI_API_KEY:
+          secretKeyRef:
+            name: grafana-secret
+            key: LOCALAI_API_KEY
         GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
           secretKeyRef:
             name: grafana-secret

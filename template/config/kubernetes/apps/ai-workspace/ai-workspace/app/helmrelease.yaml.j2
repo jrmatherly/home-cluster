@@ -43,7 +43,7 @@ spec:
               AUTH_OIDC_ISSUER: https://auth.${SECRET_DOMAIN}
               AUTH_OIDC_CLIENT_ID: "#{ ai_workspace.oidc_client_id }#"
 #% if nvidia_enabled %#
-              LOCALAI_API_HOST: http://llama-server.ai.svc.cluster.local:8080
+              LOCALAI_API_HOST: http://localai.ai.svc.cluster.local:8080
 #% endif %#
             envFrom:
               - secretRef:
