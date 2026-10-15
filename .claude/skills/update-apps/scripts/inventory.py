@@ -27,7 +27,9 @@ TEMPLATES = ROOT / "template/config"
 # suffix. The suffix covers tags such as 2.9.1-alpine and
 # v4.11.0-gpu-nvidia-cuda-12-llama-cpp; a pre-release such as 1.4.0-rc1 reads
 # as a suffix too, which is what keeps it from being offered.
-STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)\.(\d+)(-[a-z][a-z0-9.-]*)?$")
+# The patch number is optional, because some images publish only 1.38 (busybox) or
+# 18.6-standard-trixie (CloudNativePG); a missing patch reads as 0.
+STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)(?:\.(\d+))?(-[a-z][a-z0-9.-]*)?$")
 PLAIN = ("", "v")
 # Docker Hub serves its registry API from a different host than its image names.
 REGISTRY_HOSTS = {"docker.io": "registry-1.docker.io"}
@@ -113,13 +115,15 @@ def parse(tag: str) -> tuple[tuple[str, str], tuple[int, ...]] | None:
     (('v', '-gpu-nvidia-cuda-12-llama-cpp'), (4, 11, 0))
     >>> parse("2.9.1-alpine")
     (('', '-alpine'), (2, 9, 1))
-    >>> parse("latest"), parse("3.7"), parse("1.2.3-4")
+    >>> parse("18.6-standard-trixie")
+    (('', '-standard-trixie'), (18, 6, 0))
+    >>> parse("latest"), parse("3"), parse("1.2.3-4")
     (None, None, None)
     """
     match = STABLE.match(tag)
     if not match:
         return None
-    return (match[1], match[5] or ""), tuple(int(part) for part in match.groups()[1:4])
+    return (match[1], match[5] or ""), tuple(int(part or 0) for part in match.groups()[1:4])
 
 
 def version(tag: str) -> tuple[int, ...] | None:
@@ -145,6 +149,8 @@ def newest(found: list, prefix: str, suffix: str) -> str:
     'v1.3.0'
     >>> newest(found, "cuda-v", "")
     '?'
+    >>> bump("1.38", newest([(parse(tag), tag) for tag in ("1.38", "1.38.0")], "", ""))
+    'none'
     """
     same_style = [(number, tag) for (style, number), tag in found if style == (prefix, suffix)]
     # Some repositories publish both 1.2.3 and v1.2.3; keep the style already pinned.
