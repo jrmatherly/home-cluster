@@ -7,67 +7,67 @@ something. Step 5 of the skill keeps this file current.
 
 The chart column is what the template pins. The releases column is where the notes are.
 
-| App                       | Namespace          | Chart pinned                                                           | Release notes                                                     |
-| ------------------------- | ------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| cilium                    | kube-system        | `quay.io/cilium/charts/cilium`                                         | <https://github.com/cilium/cilium/releases>                       |
-| coredns                   | kube-system        | `ghcr.io/coredns/charts/coredns`                                       | <https://github.com/coredns/helm/releases>                        |
-| metrics-server            | kube-system        | `ghcr.io/home-operations/charts-mirror/metrics-server`                 | <https://github.com/kubernetes-sigs/metrics-server/releases>      |
-| nvidia-device-plugin      | kube-system        | `ghcr.io/home-operations/charts-mirror/nvidia-device-plugin`           | <https://github.com/NVIDIA/k8s-device-plugin/releases>            |
-| reloader                  | kube-system        | `ghcr.io/stakater/charts/reloader`                                     | <https://github.com/stakater/Reloader/releases>                   |
-| spegel                    | kube-system        | `ghcr.io/spegel-org/helm-charts/spegel`                                | <https://github.com/spegel-org/spegel/releases>                   |
-| cert-manager              | cert-manager       | `quay.io/jetstack/charts/cert-manager`                                 | <https://github.com/cert-manager/cert-manager/releases>           |
-| flux-operator             | flux-system        | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`                   | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
-| flux-instance             | flux-system        | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`                   | same repository as flux-operator                                  |
-| cloudflare-dns            | network            | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
-| unifi-dns                 | network            | `ghcr.io/home-operations/charts-mirror/external-dns`                   | <https://github.com/kubernetes-sigs/external-dns/releases>        |
-| unifi-dns (image)         | network            | `ghcr.io/home-operations/external-dns-unifi-webhook`                   | <https://github.com/home-operations/external-dns-unifi-webhook>   |
-| cloudflare-tunnel         | network            | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| cloudflare-tunnel (image) | network            | `docker.io/cloudflare/cloudflared`                                     | <https://github.com/cloudflare/cloudflared/releases>              |
-| envoy-gateway             | network            | `mirror.gcr.io/envoyproxy/gateway-helm`                                | <https://github.com/envoyproxy/gateway/releases>                  |
-| k8s-gateway               | network            | `codeberg.org/k8s-gateway/charts/k8s-gateway`                          | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
-| local-path-provisioner    | storage            | `ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner` | <https://github.com/rancher/local-path-provisioner/releases>      |
-| cloudnative-pg            | cnpg-system        | `ghcr.io/cloudnative-pg/charts/cloudnative-pg`                         | <https://github.com/cloudnative-pg/cloudnative-pg/releases>       |
-| plugin-barman-cloud       | cnpg-system        | `ghcr.io/cloudnative-pg/charts/plugin-barman-cloud`                    | <https://github.com/cloudnative-pg/plugin-barman-cloud/releases>  |
-| kube-prometheus-stack     | observability      | `ghcr.io/prometheus-community/charts/kube-prometheus-stack`            | <https://github.com/prometheus-community/helm-charts/releases>    |
-| influxdb                  | observability      | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| influxdb (image)          | observability      | `docker.io/library/influxdb`                                           | <https://github.com/influxdata/influxdb/releases>                 |
-| pocket-id                 | security           | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| pocket-id (image)         | security           | `ghcr.io/pocket-id/pocket-id`                                          | <https://github.com/pocket-id/pocket-id/releases>                 |
-| radar                     | radar              | `ghcr.io/skyhook-io/charts/radar`                                      | <https://github.com/skyhook-io/radar/releases>                    |
-| localai                   | ai                 | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| localai (images)          | ai                 | `localai/localai` and `quay.io/go-skynet/local-ai-backends`            | <https://github.com/mudler/LocalAI/releases>                      |
-| pegaprox                  | pegaprox           | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| pegaprox (image)          | pegaprox           | `ghcr.io/pegaprox/pegaprox`                                            | <https://github.com/PegaProx/project-pegaprox/releases>           |
-| matherlynet               | matherlynet        | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                    | <https://github.com/jrmatherly/matherlynet/commits/main>          |
-| network-optimizer         | network-optimizer  | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| network-optimizer (image) | network-optimizer  | `ghcr.io/ozark-connect/network-optimizer`                              | <https://github.com/Ozark-Connect/NetworkOptimizer/releases>      |
-| actual-budget             | actual-budget      | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| actual-budget (image)     | actual-budget      | `ghcr.io/actualbudget/actual`                                          | <https://github.com/actualbudget/actual/releases>                 |
-| ai-workspace              | ai-workspace       | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| ai-workspace (image)      | ai-workspace       | `ghcr.io/jrmatherly/ai-workspace`                                      | <https://github.com/jrmatherly/ai-workspace/releases>             |
-| browserless (image)       | ai-workspace       | `ghcr.io/browserless/chromium` (plain Deployment, pinned by digest)    | <https://github.com/browserless/browserless/releases>             |
-| kener                     | kener              | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| kener (image)             | kener              | `ghcr.io/rajnandan1/kener`                                             | <https://github.com/rajnandan1/kener/releases>                    |
-| reactive-resume           | reactive-resume    | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| reactive-resume (image)   | reactive-resume    | `ghcr.io/reactive-resume/reactive-resume`                              | <https://github.com/AmruthPillai/Reactive-Resume/releases>        |
-| media apps (9 charts)     | media              | `ghcr.io/bjw-s-labs/helm/app-template`                                 | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| sonarr (image)            | media              | `ghcr.io/home-operations/sonarr`                                       | <https://github.com/Sonarr/Sonarr/releases>                       |
-| radarr (image)            | media              | `ghcr.io/home-operations/radarr`                                       | <https://github.com/Radarr/Radarr/releases>                       |
-| prowlarr (image)          | media              | `ghcr.io/home-operations/prowlarr`                                     | <https://github.com/Prowlarr/Prowlarr/releases>                   |
-| sabnzbd (image)           | media              | `ghcr.io/home-operations/sabnzbd`                                      | <https://github.com/sabnzbd/sabnzbd/releases>                     |
-| recyclarr (image)         | media              | `ghcr.io/recyclarr/recyclarr`                                          | <https://github.com/recyclarr/recyclarr/releases>                 |
-| bazarr (image)            | media              | `ghcr.io/home-operations/bazarr`                                       | <https://github.com/morpheus65535/bazarr/releases>                |
-| tautulli (image)          | media              | `ghcr.io/home-operations/tautulli`                                     | <https://github.com/Tautulli/Tautulli/releases>                   |
-| seerr (image)             | media              | `ghcr.io/seerr-team/seerr`                                             | <https://github.com/seerr-team/seerr/releases>                    |
-| maintainerr (image)       | media              | `ghcr.io/maintainerr/maintainerr`                                      | <https://github.com/jorenn92/Maintainerr/releases>                |
-| hook jobs (image)         | media, kube-system | `docker.io/alpine/k8s` (media configure Jobs, `restart-reset`)         | <https://github.com/alpine-docker/k8s>                            |
-| wait init (image)         | three namespaces   | `docker.io/library/busybox` (ai-workspace, kener, reactive-resume)     | <https://hub.docker.com/_/busybox>                                |
-| csi-driver-nfs            | storage            | classic `HelmRepository`, the only one; the inventory cannot see it    | <https://github.com/kubernetes-csi/csi-driver-nfs/releases>       |
-| docs (image)              | docs               | `ghcr.io/jrmatherly/home-cluster/docs` (`:latest`, Renovate pins it)   | this repo's Docs Image workflow                                   |
-| redis (component image)   | per consumer       | `docker.io/library/redis`                                              | <https://github.com/redis/redis/releases>                         |
-| postgres (ImageCatalog)   | per consumer       | `ghcr.io/cloudnative-pg/postgresql`                                    | <https://github.com/cloudnative-pg/postgres-containers/releases>  |
-| echo                      | default            | `ghcr.io/home-operations/charts/echo`                                  | not identified; ask the user or search before a non-patch bump    |
-| prometheus-operator-crds  | bootstrap only     | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`         | <https://github.com/prometheus-community/helm-charts/releases>    |
+| App                       | Namespace          | Chart pinned                                                                                      | Release notes                                                     |
+| ------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| cilium                    | kube-system        | `quay.io/cilium/charts/cilium`                                                                    | <https://github.com/cilium/cilium/releases>                       |
+| coredns                   | kube-system        | `ghcr.io/coredns/charts/coredns`                                                                  | <https://github.com/coredns/helm/releases>                        |
+| metrics-server            | kube-system        | `ghcr.io/home-operations/charts-mirror/metrics-server`                                            | <https://github.com/kubernetes-sigs/metrics-server/releases>      |
+| nvidia-device-plugin      | kube-system        | `ghcr.io/home-operations/charts-mirror/nvidia-device-plugin`                                      | <https://github.com/NVIDIA/k8s-device-plugin/releases>            |
+| reloader                  | kube-system        | `ghcr.io/stakater/charts/reloader`                                                                | <https://github.com/stakater/Reloader/releases>                   |
+| spegel                    | kube-system        | `ghcr.io/spegel-org/helm-charts/spegel`                                                           | <https://github.com/spegel-org/spegel/releases>                   |
+| cert-manager              | cert-manager       | `quay.io/jetstack/charts/cert-manager`                                                            | <https://github.com/cert-manager/cert-manager/releases>           |
+| flux-operator             | flux-system        | `ghcr.io/controlplaneio-fluxcd/charts/flux-operator`                                              | <https://github.com/controlplaneio-fluxcd/flux-operator/releases> |
+| flux-instance             | flux-system        | `ghcr.io/controlplaneio-fluxcd/charts/flux-instance`                                              | same repository as flux-operator                                  |
+| cloudflare-dns            | network            | `ghcr.io/home-operations/charts-mirror/external-dns`                                              | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| unifi-dns                 | network            | `ghcr.io/home-operations/charts-mirror/external-dns`                                              | <https://github.com/kubernetes-sigs/external-dns/releases>        |
+| unifi-dns (image)         | network            | `ghcr.io/home-operations/external-dns-unifi-webhook`                                              | <https://github.com/home-operations/external-dns-unifi-webhook>   |
+| cloudflare-tunnel         | network            | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| cloudflare-tunnel (image) | network            | `docker.io/cloudflare/cloudflared`                                                                | <https://github.com/cloudflare/cloudflared/releases>              |
+| envoy-gateway             | network            | `mirror.gcr.io/envoyproxy/gateway-helm`                                                           | <https://github.com/envoyproxy/gateway/releases>                  |
+| k8s-gateway               | network            | `codeberg.org/k8s-gateway/charts/k8s-gateway`                                                     | <https://codeberg.org/k8s-gateway/k8s_gateway>                    |
+| local-path-provisioner    | storage            | `ghcr.io/rancher/local-path-provisioner/charts/local-path-provisioner`                            | <https://github.com/rancher/local-path-provisioner/releases>      |
+| cloudnative-pg            | cnpg-system        | `ghcr.io/cloudnative-pg/charts/cloudnative-pg`                                                    | <https://github.com/cloudnative-pg/cloudnative-pg/releases>       |
+| plugin-barman-cloud       | cnpg-system        | `ghcr.io/cloudnative-pg/charts/plugin-barman-cloud`                                               | <https://github.com/cloudnative-pg/plugin-barman-cloud/releases>  |
+| kube-prometheus-stack     | observability      | `ghcr.io/prometheus-community/charts/kube-prometheus-stack`                                       | <https://github.com/prometheus-community/helm-charts/releases>    |
+| influxdb                  | observability      | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| influxdb (image)          | observability      | `docker.io/library/influxdb`                                                                      | <https://github.com/influxdata/influxdb/releases>                 |
+| pocket-id                 | security           | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| pocket-id (image)         | security           | `ghcr.io/pocket-id/pocket-id`                                                                     | <https://github.com/pocket-id/pocket-id/releases>                 |
+| radar                     | radar              | `ghcr.io/skyhook-io/charts/radar`                                                                 | <https://github.com/skyhook-io/radar/releases>                    |
+| localai                   | ai                 | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| localai (images)          | ai                 | `localai/localai` and `quay.io/go-skynet/local-ai-backends`                                       | <https://github.com/mudler/LocalAI/releases>                      |
+| pegaprox                  | pegaprox           | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| pegaprox (image)          | pegaprox           | `ghcr.io/pegaprox/pegaprox`                                                                       | <https://github.com/PegaProx/project-pegaprox/releases>           |
+| matherlynet               | matherlynet        | `ghcr.io/jrmatherly/matherlynet/charts/matherlynet`                                               | <https://github.com/jrmatherly/matherlynet/commits/main>          |
+| network-optimizer         | network-optimizer  | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| network-optimizer (image) | network-optimizer  | `ghcr.io/ozark-connect/network-optimizer`                                                         | <https://github.com/Ozark-Connect/NetworkOptimizer/releases>      |
+| actual-budget             | actual-budget      | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| actual-budget (image)     | actual-budget      | `ghcr.io/actualbudget/actual`                                                                     | <https://github.com/actualbudget/actual/releases>                 |
+| ai-workspace              | ai-workspace       | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| ai-workspace (image)      | ai-workspace       | `ghcr.io/jrmatherly/ai-workspace`                                                                 | <https://github.com/jrmatherly/ai-workspace/releases>             |
+| browserless (image)       | ai-workspace       | `ghcr.io/browserless/chromium` (plain Deployment, pinned by digest)                               | <https://github.com/browserless/browserless/releases>             |
+| kener                     | kener              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| kener (image)             | kener              | `ghcr.io/rajnandan1/kener`                                                                        | <https://github.com/rajnandan1/kener/releases>                    |
+| reactive-resume           | reactive-resume    | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| reactive-resume (image)   | reactive-resume    | `ghcr.io/reactive-resume/reactive-resume`                                                         | <https://github.com/AmruthPillai/Reactive-Resume/releases>        |
+| media apps (9 charts)     | media              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| sonarr (image)            | media              | `ghcr.io/home-operations/sonarr`                                                                  | <https://github.com/Sonarr/Sonarr/releases>                       |
+| radarr (image)            | media              | `ghcr.io/home-operations/radarr`                                                                  | <https://github.com/Radarr/Radarr/releases>                       |
+| prowlarr (image)          | media              | `ghcr.io/home-operations/prowlarr`                                                                | <https://github.com/Prowlarr/Prowlarr/releases>                   |
+| sabnzbd (image)           | media              | `ghcr.io/home-operations/sabnzbd`                                                                 | <https://github.com/sabnzbd/sabnzbd/releases>                     |
+| recyclarr (image)         | media              | `ghcr.io/recyclarr/recyclarr`                                                                     | <https://github.com/recyclarr/recyclarr/releases>                 |
+| bazarr (image)            | media              | `ghcr.io/home-operations/bazarr`                                                                  | <https://github.com/morpheus65535/bazarr/releases>                |
+| tautulli (image)          | media              | `ghcr.io/home-operations/tautulli`                                                                | <https://github.com/Tautulli/Tautulli/releases>                   |
+| seerr (image)             | media              | `ghcr.io/seerr-team/seerr`                                                                        | <https://github.com/seerr-team/seerr/releases>                    |
+| maintainerr (image)       | media              | `ghcr.io/maintainerr/maintainerr`                                                                 | <https://github.com/jorenn92/Maintainerr/releases>                |
+| hook jobs (image)         | media, kube-system | `docker.io/alpine/k8s` (media configure Jobs, `restart-reset`)                                    | <https://github.com/alpine-docker/k8s>                            |
+| wait init (image)         | five apps          | `docker.io/library/busybox` (ai-workspace, kener, radar, reactive-resume, local-path-provisioner) | <https://hub.docker.com/_/busybox>                                |
+| csi-driver-nfs            | storage            | classic `HelmRepository`, the only one; the inventory cannot see it                               | <https://github.com/kubernetes-csi/csi-driver-nfs/releases>       |
+| docs (image)              | docs               | `ghcr.io/jrmatherly/home-cluster/docs` (`:latest`, Renovate pins it)                              | this repo's Docs Image workflow                                   |
+| redis (component image)   | per consumer       | `docker.io/library/redis`                                                                         | <https://github.com/redis/redis/releases>                         |
+| postgres (ImageCatalog)   | per consumer       | `ghcr.io/cloudnative-pg/postgresql`                                                               | <https://github.com/cloudnative-pg/postgres-containers/releases>  |
+| echo                      | default            | `ghcr.io/home-operations/charts/echo`                                                             | not identified; ask the user or search before a non-patch bump    |
+| prometheus-operator-crds  | bootstrap only     | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`                                    | <https://github.com/prometheus-community/helm-charts/releases>    |
 
 The charts under `charts-mirror` are copies of the upstream chart, so the upstream project's notes apply.
 
@@ -195,6 +195,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   a backup first.
 - **actual-budget (image)** tags are `<yy>.<m>.<n>` with no `v`. `-alpine` is a variant, and `edge` and `latest`
   are moving tags. Renovate's docker versioning reads the plain tag, so it needs no rule.
+- **sonarr, radarr, prowlarr (images)** are home-operations builds whose tags carry the upstream build number
+  (`4.0.20.3012`) and include builds upstream marks pre-release; the tag cannot show which. Before moving one,
+  check `gh release view v<tag> -R Sonarr/Sonarr --json isPrerelease` (or the Radarr or Prowlarr repository).
+  As of 2026-10-15 the Sonarr image publishes the v5 pre-releases (`5.0.0.2569`) and skipped the stable
+  `4.0.20.3014`, and the pin `4.0.20.3012` is itself a pre-release build; Radarr and Prowlarr pin upstream's
+  latest stable. A Sonarr v5 move also needs Recyclarr 8.8.0 or later.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
   The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator

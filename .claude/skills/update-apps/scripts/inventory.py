@@ -28,8 +28,10 @@ TEMPLATES = ROOT / "template/config"
 # v4.11.0-gpu-nvidia-cuda-12-llama-cpp; a pre-release such as 1.4.0-rc1 reads
 # as a suffix too, which is what keeps it from being offered.
 # The patch number is optional, because some images publish only 1.38 (busybox) or
-# 18.6-standard-trixie (CloudNativePG); a missing patch reads as 0.
-STABLE = re.compile(r"^(.*?v?)(\d+)\.(\d+)(?:\.(\d+))?(-[a-z][a-z0-9.-]*)?$")
+# 18.6-standard-trixie (CloudNativePG), and a fourth part is allowed for the Servarr
+# builds (4.0.20.3012) and CalVer releases (v2026.10.12.2); missing parts read as 0.
+# The prefix holds no digit, or it would swallow the major of a four-part tag.
+STABLE = re.compile(r"^(\D*?v?)(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(-[a-z][a-z0-9.-]*)?$")
 PLAIN = ("", "v")
 # Docker Hub serves its registry API from a different host than its image names.
 REGISTRY_HOSTS = {"docker.io": "registry-1.docker.io"}
@@ -110,20 +112,22 @@ def parse(tag: str) -> tuple[tuple[str, str], tuple[int, ...]] | None:
     """Return ((prefix, suffix), version) for a stable tag, or None.
 
     >>> parse("v1.21.2")
-    (('v', ''), (1, 21, 2))
+    (('v', ''), (1, 21, 2, 0))
     >>> parse("v4.11.0-gpu-nvidia-cuda-12-llama-cpp")
-    (('v', '-gpu-nvidia-cuda-12-llama-cpp'), (4, 11, 0))
+    (('v', '-gpu-nvidia-cuda-12-llama-cpp'), (4, 11, 0, 0))
     >>> parse("2.9.1-alpine")
-    (('', '-alpine'), (2, 9, 1))
+    (('', '-alpine'), (2, 9, 1, 0))
     >>> parse("18.6-standard-trixie")
-    (('', '-standard-trixie'), (18, 6, 0))
-    >>> parse("latest"), parse("3"), parse("1.2.3-4")
-    (None, None, None)
+    (('', '-standard-trixie'), (18, 6, 0, 0))
+    >>> parse("4.0.20.3012"), parse("v2026.10.12.2")
+    ((('', ''), (4, 0, 20, 3012)), (('v', ''), (2026, 10, 12, 2)))
+    >>> parse("latest"), parse("3"), parse("1.2.3-4"), parse("1.2.3.4.5")
+    (None, None, None, None)
     """
     match = STABLE.match(tag)
     if not match:
         return None
-    return (match[1], match[5] or ""), tuple(int(part or 0) for part in match.groups()[1:4])
+    return (match[1], match[6] or ""), tuple(int(part or 0) for part in match.groups()[1:5])
 
 
 def version(tag: str) -> tuple[int, ...] | None:
@@ -151,6 +155,11 @@ def newest(found: list, prefix: str, suffix: str) -> str:
     '?'
     >>> bump("1.38", newest([(parse(tag), tag) for tag in ("1.38", "1.38.0")], "", ""))
     'none'
+    >>> servarr = [(parse(tag), tag) for tag in ("4.0.20.3012", "4.1.0.1", "5.0.0.7")]
+    >>> newest(servarr, "", ""), bump("4.0.20.3012", "4.1.0.1")
+    ('5.0.0.7', 'minor')
+    >>> newest([(parse(tag), tag) for tag in ("v2026.10.12.2", "v2027.1.2.1")], "v", "")
+    'v2027.1.2.1'
     """
     same_style = [(number, tag) for (style, number), tag in found if style == (prefix, suffix)]
     # Some repositories publish both 1.2.3 and v1.2.3; keep the style already pinned.
