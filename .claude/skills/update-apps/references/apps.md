@@ -103,7 +103,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `service.port` do nothing. The chart defaults to `example.com`, root, `dnsPolicy: Default` and a
   readiness probe that fails on one miss, so the HelmRelease pins `securityContext.runAsUser: 1000`,
   `deployment.dnsPolicy: ClusterFirst` and the old probe thresholds. The Corefile is the ConfigMap
-  `k8s-gateway` in `network`; compare it before and after any chart bump.
+  `k8s-gateway` in `network`; compare it before and after any chart bump. From image 1.9.2 (chart 4.0.1)
+  it also reads `external-dns.kubernetes.io/hostname` on Services, so it answers `external.` and
+  `internal.<domain>` with the Envoy gateway addresses (both were empty before, measured 2026-10-15).
 - **unifi-dns** is a second ExternalDNS, with a webhook sidecar that writes local DNS records to the UniFi
   console for routes on the internal gateway. It has two pins: the `external-dns` chart, shared with
   cloudflare-dns, and the webhook image. The webhook's README lists the minimum ExternalDNS and UniFi Network
