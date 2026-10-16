@@ -198,9 +198,15 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **sonarr, radarr, prowlarr (images)** are home-operations builds whose tags carry the upstream build number
   (`4.0.20.3012`) and include builds upstream marks pre-release; the tag cannot show which. Before moving one,
   check `gh release view v<tag> -R Sonarr/Sonarr --json isPrerelease` (or the Radarr or Prowlarr repository).
-  As of 2026-10-15 the Sonarr image publishes the v5 pre-releases (`5.0.0.2569`) and skipped the stable
-  `4.0.20.3014`, and the pin `4.0.20.3012` is itself a pre-release build; Radarr and Prowlarr pin upstream's
-  latest stable. A Sonarr v5 move also needs Recyclarr 8.8.0 or later.
+  A pre-release build can be the same source as the stable one: upstream tags a build, then promotes a later
+  build of the same commit, so compare the two before switching images
+  (`gh api repos/Sonarr/Sonarr/compare/v<pin>...v<stable> --jq .status`; `identical` means nothing to gain).
+  The Sonarr image publishes the v5 pre-releases and skipped the stable `4.0.20.3014`, but that tag and the
+  pin `4.0.20.3012` are both commit `cab419a` (checked 2026-10-15), so keep the pin until v5 goes stable. The
+  stable-tagged alternatives cost more: `hotio/sonarr` writes to `/etc` and fails on a read-only root, and
+  `linuxserver/sonarr` starts under the pod's securityContext with a `/run` emptyDir but calls read-only plus
+  non-root unsupported (both measured in Docker). Radarr and Prowlarr pin upstream's latest stable. A Sonarr
+  v5 move also needs Recyclarr 8.8.0 or later.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
   The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator
