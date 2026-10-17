@@ -31,6 +31,8 @@ stage_fixed = true
 
 [pre-commit.commands.format-toml]
 glob = ["*.toml"]
+# format-mise owns .mise/; oxfmt ignores it and exits 2 when every named file is ignored.
+exclude = [".mise/**"]
 run = "oxfmt {staged_files}"
 stage_fixed = true
 
