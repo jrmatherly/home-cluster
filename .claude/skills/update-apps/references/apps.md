@@ -106,6 +106,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `k8s-gateway` in `network`; compare it before and after any chart bump. From image 1.9.2 (chart 4.0.1)
   it also reads `external-dns.kubernetes.io/hostname` on Services, so it answers `external.` and
   `internal.<domain>` with the Envoy gateway addresses (both were empty before, measured 2026-10-15).
+- **spegel** dropped the host port in chart 0.8.0: `service.registry.hostPort` is gone, containerd's mirror
+  points only at the registry NodePort (30020 since 0.8.0, 30021 before) with `trafficDistribution:
+  PreferSameNode`, and the registry refuses containerd older than 2.2 at startup and, on 2.4 or later,
+  `discard_unpacked_layers = true` (`talos/all/50-files.yaml` sets it false). The chart has no values
+  schema, so a removed key renders without error and does nothing; diff the defaults.
 - **unifi-dns** is a second ExternalDNS, with a webhook sidecar that writes local DNS records to the UniFi
   console for routes on the internal gateway. It has two pins: the `external-dns` chart, shared with
   cloudflare-dns, and the webhook image. The webhook's README lists the minimum ExternalDNS and UniFi Network

@@ -57,6 +57,12 @@
       versioning: "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(-preview(?<prerelease>\\d+))?$",
     },
     {
+      description: "Sonarr v5 tags are pre-releases upstream (gh release list -R Sonarr/Sonarr); drop this rule once a v5 tag is marked Latest",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/home-operations/sonarr"],
+      allowedVersions: "<5",
+    },
+    {
       description: "InfluxDB 3 is a different database (no Flux, other APIs); stay on 2.x",
       matchDatasources: ["docker"],
       matchPackageNames: ["docker.io/library/influxdb"],
