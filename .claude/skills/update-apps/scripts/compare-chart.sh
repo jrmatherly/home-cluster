@@ -14,7 +14,9 @@ ns=$1 app=$2 old=$3 new=$4
 root=$(git rev-parse --show-toplevel)
 dir="$root/kubernetes/apps/$ns/$app/app"
 url=$(yq -r '.spec.url' "$dir/ocirepository.yaml")
-out=$(mktemp -d)
+# macOS mktemp ignores TMPDIR, and helm writes to ~/Library/Caches; the Bash sandbox allows neither.
+out=$(mktemp -d "${TMPDIR:-/tmp}/compare-chart.XXXXXX")
+export HELM_CACHE_HOME="$out/helm" HELM_CONFIG_HOME="$out/helm" HELM_DATA_HOME="$out/helm"
 
 # explode resolves aliases such as *app, whose anchors sit outside .spec.values.
 yq 'explode(.) | .spec.values // {}' "$dir/helmrelease.yaml" > "$out/values.yaml"
