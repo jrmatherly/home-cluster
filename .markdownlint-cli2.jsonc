@@ -2,6 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/main/schema/markdownlint-cli2-config-schema.json",
   "gitignore": true,
   "globs": ["**/*.md"],
+  // A Nimbus starter file, kept byte-identical to upstream so `nimbus-docs diff --apply` can move it.
+  "ignores": ["docs/AGENT.md"],
   "config": {
     // oxfmt owns layout and does not wrap prose.
     "MD013": false,

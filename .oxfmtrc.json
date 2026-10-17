@@ -1,6 +1,12 @@
 {
   "printWidth": 100,
-  "ignorePatterns": ["**/*.mdx", "docs/src/**", "docs/astro.config.ts", ".mise/**"],
+  "ignorePatterns": [
+    "**/*.mdx",
+    "docs/src/**",
+    "docs/astro.config.ts",
+    "docs/AGENT.md",
+    ".mise/**"
+  ],
   "overrides": [
     {
       "files": ["*.jsonc"],

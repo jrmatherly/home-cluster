@@ -19,6 +19,8 @@ stage_fixed = true
 
 [pre-commit.commands.format-markdown]
 glob = ["*.md", "*.markdown"]
+# oxfmt exits 2 when every named file is ignored, so keep the Nimbus starter file out of the list.
+exclude = ["docs/AGENT.md"]
 run = "oxfmt {staged_files}"
 stage_fixed = true
 

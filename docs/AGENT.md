@@ -6,7 +6,7 @@ Astro-based docs. The `nimbus-docs` package handles content schemas, sidebar/TOC
 
 ## File layout
 
-```text
+```
 astro.config.ts              # imports nimbus + defineNimbusConfig
 nimbus.json                  # records the last reviewed Nimbus package version
 src/
@@ -22,7 +22,7 @@ src/
 │   ├── [...slug].astro
 │   ├── [...slug]/index.md.ts   # Markdown version of every page, all collections
 │   ├── [...slug]/index.mdx.ts  # authored source of every page, all collections
-│   ├── [section]/llms.txt.ts   # per-section llms.txt
+│   ├── [...section]/llms.txt.ts  # per-section llms.txt, nested sections included
 │   ├── 404.astro
 │   ├── index.astro              # home page (the empty starter uses content/docs/index.mdx)
 │   ├── llms.txt.ts
@@ -62,24 +62,45 @@ Rules:
 
 ## Adding things
 
-| Goal                         | Action                                                                                                                                                       |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| New doc page                 | Create `src/content/docs/<slug>.mdx`. Sidebar picks it up.                                                                                                   |
-| New partial                  | Create `src/content/partials/<slug>.mdx`. Use via `<Render file="<slug>" />`.                                                                                |
-| UI from registry             | `npx @cloudflare/nimbus-docs add <slug>`. Register in `src/components.ts` if used in MDX.                                                                    |
-| Feature recipe               | `npx @cloudflare/nimbus-docs add <feature-slug> --print`. Prints the recipe for you to follow; it changes no files itself.                                   |
-| Check it builds              | `npx @cloudflare/nimbus-docs check` — build-free preflight (env + structure + authoring + types). `--json` for an agent loop, `--fix` to repair what's safe. |
-| Custom page route            | Add a file under `src/pages/`.                                                                                                                               |
-| Custom OG style              | Edit `src/pages/og/_og-card-config.ts`.                                                                                                                      |
-| Check for updates            | `npx @cloudflare/nimbus-docs outdated` — starter files behind their tag + registry components behind.                                                        |
-| Upgrade Nimbus               | Update the package, then run `npx @cloudflare/nimbus-docs migrate --dry-run --diff`. Review every change and required manual step before applying.           |
-| Upgrade a starter file       | `npx @cloudflare/nimbus-docs diff <file>` to review, `diff --apply <file>` to pull a clean upstream change.                                                  |
-| Upgrade a registry component | `npx @cloudflare/nimbus-docs add <slug> --overwrite`, then review with `git diff`.                                                                           |
+| Goal | Action |
+|---|---|
+| New doc page | Create `src/content/docs/<slug>.mdx`. Sidebar picks it up. |
+| New partial | Create `src/content/partials/<slug>.mdx`. Use via `<Render file="<slug>" />`. |
+| UI from registry | `npx @cloudflare/nimbus-docs add <slug>`. Register in `src/components.ts` if used in MDX. |
+| Feature recipe | `npx @cloudflare/nimbus-docs add <feature-slug> --print`. Prints the recipe for you to follow; it changes no files itself. |
+| Check it builds | `npx @cloudflare/nimbus-docs check` — build-free preflight (env + structure + authoring + types). `--json` for an agent loop, `--fix` to repair what's safe. |
+| Custom page route | Add a file under `src/pages/`. |
+| Custom OG style | Edit `src/pages/og/_og-card-config.ts`. |
+| Check for updates | `npx @cloudflare/nimbus-docs outdated` — starter files behind their tag + registry components behind. |
+| Upgrade Nimbus | Update the package, then run `npx @cloudflare/nimbus-docs migrate --dry-run --diff`. Review every change and required manual step before applying. |
+| Upgrade a starter file | `npx @cloudflare/nimbus-docs diff <file>` to review, `diff --apply <file>` to pull a clean upstream change. |
+| Upgrade a registry component | `npx @cloudflare/nimbus-docs add <slug> --overwrite`, then review with `git diff`. |
 
 Sätteri is Nimbus's default Markdown and MDX processor. Extend it using `markdown.mdastPlugins` for Markdown AST transformations or `markdown.hastPlugins` for HTML AST transformations.
 If the site replaces Sätteri with another processor, set `admonitions: false` and keep that processor's existing callout implementation.
 
 List installable items: `npx @cloudflare/nimbus-docs list`.
+
+## Sidebar
+
+The sidebar mirrors `src/content/docs/`. A folder becomes a group, and its `index.mdx` is the group's landing page; set `sidebar.group.label` there to rename the group. Within a group, `sidebar.order` sorts entries (lowest first, otherwise alphabetical), `sidebar.label` shortens a page's rail title, and `sidebar.hidden: true` builds a page without listing it.
+
+To add an external link or fix the top-level order, set `sidebar.items` in `defineNimbusConfig` in `astro.config.ts`. Items you list replace the generated top level, and a listed item's `label` wins over the folder's `sidebar.group.label`:
+
+```ts
+sidebar: {
+  items: [
+    { label: "Guides", autogenerate: { directory: "guides" } },
+    { label: "GitHub", link: "https://github.com/you/repo" },
+  ],
+},
+```
+
+Everything else: <https://nimbus-docs.com/navigation/sidebar/>.
+
+## Agent interfaces
+
+Read the release-matched guide at [`node_modules/@cloudflare/nimbus-docs/dist/docs-for-agents.md`](node_modules/@cloudflare/nimbus-docs/dist/docs-for-agents.md), especially for preview packages. Nimbus publishes discovery automatically; add project-owned Skills under `skills/<name>/SKILL.md`. Keep `<WebMCP />` in `BaseLayout.astro` for browser-agent search with default Pagefind. Markdown negotiation applies to request-rendered pages; static hosting and response headers follow the deployment target's setup.
 
 ## Upgrading Nimbus
 
@@ -103,13 +124,13 @@ Then run `npx @cloudflare/nimbus-docs check --json`. It runs the environment, st
 
 - **`status`** (`passed` | `failed` | `partial`) and **`readiness`** (`buildable` | `blocked` | `unknown`) are the primary signals. `status` is the whole-run verdict; `readiness` answers "does env + structure say it builds?". `ok` (=== zero errors) is kept for back-compat only.
 - **`findings[{scope,code,severity,file,line,message,fixable,fix}]`** are problems we evaluated. Apply each `fix` (or `check --fix`).
-- **`scopes[].notes[{code,reason,requiresBuild?,requiresInput?}]`** are checks we _couldn't_ evaluate yet (e.g. types before a build). A note is never a finding and never carries a `fix` — you resolve it by making the missing thing exist (usually a build), not by `--fix`. `summary.notes` counts them.
+- **`scopes[].notes[{code,reason,requiresBuild?,requiresInput?}]`** are checks we *couldn't* evaluate yet (e.g. types before a build). A note is never a finding and never carries a `fix` — you resolve it by making the missing thing exist (usually a build), not by `--fix`. `summary.notes` counts them.
 
 Loop until `status !== "failed"` and no finding has a `fix` without `fix.requiresInput` — `summary.fixable` also counts fixes that need input (a placeholder `site`), which `--fix` can't apply for you. An error with no `fix` (such as `nimbus/dependencies-missing`) ends the loop too: do what its message says (install dependencies), then run `check` again, or stop and report it. A `partial` run with nothing left to fix is a **stop** (optionally build, then re-check), not a `--fix` retry. Exit is `1` only when `status` is `"failed"`. For full coverage (types + link-checking) run a build first, then `check` again. With server output, `check` stays `partial` with the note `nimbus/request-rendering-build-required` even after a build: it doesn't verify request-rendered pages, so a passing production build is the gate.
 
 Then walk the categories below for what `check` doesn't cover yet — route-file existence, registry hygiene, the AI surface, post-build search, and Cloudflare config. Emit findings as:
 
-```text
+```
 - [error|warn|info] FILE:LINE — what + why + fix.
 ```
 
