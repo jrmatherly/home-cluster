@@ -6,6 +6,7 @@ components:
   - ../../../../components/redis
 resources:
   - ./cluster.yaml
+  - ./configmap.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml

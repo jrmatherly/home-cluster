@@ -1,0 +1,36 @@
+---
+# The app upserts these into its models table on every start, visible to every
+# workspace, so LocalAI's models need no hand entry in the UI. Only string
+# fields may hold a ${NAME} placeholder, which the app fills from its env.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-kb-models
+data:
+  builtin_models.yaml: |
+    builtin_models:
+      - id: builtin-localai-chat
+        type: KnowledgeQA
+        source: remote
+        is_default: true
+        name: qwen-3.5-4b
+        display_name: Qwen3.5-4B (LocalAI)
+        parameters:
+          base_url: http://localai.ai.svc.cluster.local:8080/v1
+          api_key: ${LOCALAI_API_KEY}
+          provider: generic
+          # One LocalAI slot, measured 2026-10-12.
+          context_window: 16384
+      - id: builtin-localai-embedding
+        type: Embedding
+        source: remote
+        is_default: true
+        name: nomic-embed-text-v1.5
+        display_name: nomic-embed-text-v1.5 (LocalAI)
+        parameters:
+          base_url: http://localai.ai.svc.cluster.local:8080/v1
+          api_key: ${LOCALAI_API_KEY}
+          provider: generic
+          embedding_parameters:
+            dimension: 768
+            truncate_prompt_tokens: 0

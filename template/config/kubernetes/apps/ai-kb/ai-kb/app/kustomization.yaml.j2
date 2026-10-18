@@ -7,6 +7,9 @@ components:
   - ../../../../components/redis
 resources:
   - ./cluster.yaml
+#% if nvidia_enabled %#
+  - ./configmap.yaml
+#% endif %#
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml

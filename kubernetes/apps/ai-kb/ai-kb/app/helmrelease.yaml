@@ -53,6 +53,15 @@ spec:
             secretKeyRef:
               name: ai-kb-secret
               key: OIDC_AUTH_CLIENT_SECRET
+        # The LocalAI models come from the ai-kb-models ConfigMap, mounted by
+        # the postRenderers patch below, with the key filled in from the env.
+        - name: BUILTIN_MODELS_CONFIG
+          value: /config/builtin_models.yaml
+        - name: LOCALAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: LOCALAI_API_KEY
         # The app's SSRF guard refuses private addresses, which is what pods get
         # for the Pocket ID host (the internal gateway) and the LocalAI Service.
         - name: SSRF_WHITELIST
@@ -92,3 +101,17 @@ spec:
                 namespace: ai-kb
                 annotations:
                   reloader.stakater.com/auto: "true"
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: app
+                        volumeMounts:
+                          - name: models-config
+                            mountPath: /config/builtin_models.yaml
+                            subPath: builtin_models.yaml
+                            readOnly: true
+                    volumes:
+                      - name: models-config
+                        configMap:
+                          name: ai-kb-models
