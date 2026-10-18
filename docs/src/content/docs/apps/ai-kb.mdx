@@ -1,6 +1,6 @@
 ---
 title: AI KB
-description: Take AI KB from the templates in Git to a knowledge base with its first system administrator, the pg_search extension owned by the app role, and sign-up closed to the internet.
+description: Take AI KB from the templates in Git to a knowledge base with its first system administrator, the pg_search extension owned by the app role, and password sign-up off.
 sidebar:
   order: 16
 ---
@@ -41,7 +41,7 @@ With `rustfs_access_key` and `rustfs_secret_key` set (generate them with `openss
 `openssl rand -hex 32`; they need `[rustfs]`), the `ai-kb-files` bucket on RustFS becomes the
 default storage backend: the chart's `STORAGE_TYPE` becomes `s3`, the `S3_*` settings point
 at `http://rustfs-svc.rustfs.svc.cluster.local:9000` with path-style requests, the pair reaches the
-app from `ai-kb-secret`, `STORAGE_ALLOW_LIST` keeps `local` and `s3`, and `SSRF_WHITELIST_EXTRA` names the
+app from `ai-kb-secret`, and `SSRF_WHITELIST_EXTRA` names the
 RustFS Service, because the app's S3 client validates its endpoint through the same SSRF guard. The
 namespace gets the `rustfs.storage/client` label that RustFS's NetworkPolicy admits, and the ai-kb
 entry in `rustfs_consumers` makes the provisioning Job create the bucket and scope the pair to it.
@@ -81,14 +81,20 @@ kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -d app -c 'select version, 
 
 ## Sign-up and the first admin
 
-Anyone who can reach the sign-up form gets a workspace (tenant) of their own, so the external gateway answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, and accounts are created from the LAN, where `ai-kb.${SECRET_DOMAIN}` resolves to the internal gateway through UniFi DNS. Registration by invitation (`/api/v1/auth/register-by-invite`) is a different path and stays open from the internet.
+Password sign-up is off. `DISABLE_REGISTRATION=true` puts the app in `invite_only` mode: the register form is hidden, and `POST /api/v1/auth/register` and registration by invitation are both refused. A new account comes from a first Pocket ID sign-in, which creates it, or from a system administrator in the UI; an invitation only adds an account that exists to a workspace. The external gateway still answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, as defence in depth. A registration mode saved in the UI (`auth.registration_mode` in the system settings, stored in the database) takes precedence over the env var (read in the app's source at the pinned tag).
 
 The bootstrap only promotes an account that already exists, and it runs at startup, so the order is:
 
-1. From the LAN, open `https://ai-kb.${SECRET_DOMAIN}` and register with `admin_email`.
+1. Sign in at `https://ai-kb.${SECRET_DOMAIN}` with Pocket ID as `admin_email`. This needs `oidc_client_id`; without it a fresh install has no way to create its first account.
 2. `kubectl -n ai-kb rollout restart deployment ai-kb-app`. The log then reads `[bootstrap] promoted user ... to system admin`.
 
-Once a system administrator exists the env var grants nothing more, so a later revoke in the UI is not undone by a restart. Registration mode is then a system setting in the UI (`auth.registration_mode`: `self_serve`, `invite_register` or `invite_only`), stored in the database; set it to `invite_register` to close LAN self-serve sign-up too.
+Once a system administrator exists the env var grants nothing more, so a later revoke in the UI is not undone by a restart.
+
+## Workspace settings from the environment
+
+- `AIKB_IM_PLATFORMS` is `slack,telegram,mattermost`: a workspace can connect only those IM platforms, and the others get no adapter.
+- `AIKB_AUDIT_RETENTION_DAYS` is `365`: audit log entries older than a year are deleted (the app's default is 90).
+- `STORAGE_ALLOW_LIST` is `local,s3,minio`: the storage backends a workspace may pick.
 
 ## Pocket ID sign-in
 

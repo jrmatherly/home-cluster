@@ -197,9 +197,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   must keep that dimension or every knowledge base is re-embedded.
 - **ai-kb** is Jason's own product (`jrmatherly/ai-kb`): the chart and its four images are released together
   under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change, and read the
-  release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG` and
-  `SSRF_WHITELIST_EXTRA` and the `S3_*` storage settings through `app.extraEnv` and mounts the `ai-kb-models` ConfigMap with a postRenderers patch
-  the chart does not know about. Its database runs one CNPG instance (the community pg_search refuses to start
+  release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG`,
+  `SSRF_WHITELIST_EXTRA`, `DISABLE_REGISTRATION`, `AIKB_IM_PLATFORMS`, `AIKB_AUDIT_RETENTION_DAYS`,
+  `STORAGE_ALLOW_LIST` and the `S3_*` storage settings through `app.extraEnv`, mounts the `ai-kb-models`
+  ConfigMap through `app.extraVolumes` and `app.extraVolumeMounts`, and sets `externalDatabase.host` and
+  `externalRedis.addr`, which chart 0.4.1 requires when its own Postgres and Redis are off; check
+  each key against the new chart's `values.yaml`. Its database runs one CNPG instance (the community pg_search refuses to start
   on a standby) and loads `pg_search` from `paradedb/paradedb-extension`, whose Postgres major and Debian
   release must match the catalog image in `components/postgres`; Renovate offers it through a
   `customManagers` rule, and Docker versioning keeps it on `-18-trixie` tags. The app's migrations run

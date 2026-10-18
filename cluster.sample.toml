@@ -957,9 +957,11 @@ schematic_id = ""
 #    Needs [postgres.backup], [redis] and an ingress.mode other than "none".
 #    Set all three fields to enable; leaving them blank skips it.
 #
-#    Anyone who can reach the sign-up form gets a workspace of their own, so
-#    the external gateway answers 404 for it and new accounts are created from
-#    the LAN. Register with admin_email first, then restart the app pod once
+#    Password sign-up is off (invite_only), and the external gateway answers
+#    404 for the sign-up form as well. A first Pocket ID sign-in creates an
+#    account, so set the client fields below: without them a fresh install
+#    has no way to create its first account. Sign in as admin_email first,
+#    then restart the app pod once
 #    (`kubectl -n ai-kb rollout restart deployment ai-kb-app`), which promotes
 #    that account to system administrator. Never change aes_key once set.
 #
@@ -984,7 +986,7 @@ schematic_id = ""
 # aes_key = ""
 
 # The account the app promotes to system administrator at startup, as long as
-# no system administrator exists yet. Register it from the LAN first.
+# no system administrator exists yet. Sign in with it through Pocket ID first.
 # OPTIONAL. Example: "admin@example.com"
 
 # admin_email = ""
