@@ -1,0 +1,75 @@
+#% if ai_kb_enabled %#
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ai-kb
+spec:
+  hostnames: ["ai-kb.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /api }
+      backendRefs:
+        - name: app
+          port: 8080
+    - matches:
+        - path: { type: PathPrefix, value: /docs }
+      backendRefs:
+        - name: website
+          port: 80
+    - backendRefs:
+        - name: frontend
+          port: 80
+---
+# The internet gets everything but self-serve sign-up, which hands anyone a
+# workspace of their own; new accounts are made from the LAN. Registration by
+# invitation is a different path and stays open.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ai-kb-public
+spec:
+  hostnames: ["ai-kb.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-external
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path: { type: Exact, value: /api/v1/auth/register }
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: ai-kb-not-found
+    - matches:
+        - path: { type: PathPrefix, value: /api }
+      backendRefs:
+        - name: app
+          port: 8080
+    - matches:
+        - path: { type: PathPrefix, value: /docs }
+      backendRefs:
+        - name: website
+          port: 80
+    - backendRefs:
+        - name: frontend
+          port: 80
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: ai-kb-not-found
+spec:
+  directResponse:
+    statusCode: 404
+    contentType: text/plain
+    body:
+      type: Inline
+      inline: Not Found
+#% endif %#

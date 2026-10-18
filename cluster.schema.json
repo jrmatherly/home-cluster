@@ -23,6 +23,27 @@
       "title": "ActualBudget",
       "type": "object"
     },
+    "AiKb": {
+      "additionalProperties": false,
+      "properties": {
+        "jwt_secret": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "aes_key": {
+          "default": "",
+          "pattern": "^([A-Za-z0-9]{32})?$",
+          "title": "Aes Key",
+          "type": "string"
+        },
+        "admin_email": {
+          "$ref": "#/$defs/EmailAddress",
+          "default": ""
+        }
+      },
+      "title": "AiKb",
+      "type": "object"
+    },
     "AiWorkspace": {
       "additionalProperties": false,
       "properties": {
@@ -1167,6 +1188,14 @@
         "browsing_token": "",
         "public": false,
         "env": {}
+      }
+    },
+    "ai_kb": {
+      "$ref": "#/$defs/AiKb",
+      "default": {
+        "jwt_secret": "",
+        "aes_key": "",
+        "admin_email": ""
       }
     },
     "localai": {

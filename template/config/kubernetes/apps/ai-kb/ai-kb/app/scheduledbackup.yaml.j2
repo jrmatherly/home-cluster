@@ -1,0 +1,17 @@
+#% if ai_kb_enabled %#
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: ai-kb-db
+spec:
+  # Six fields, seconds first: 05:30 UTC every day.
+  schedule: "0 30 5 * * *"
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: ai-kb-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+#% endif %#

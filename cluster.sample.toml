@@ -952,6 +952,40 @@ schematic_id = ""
 
 
 # =============================================================================
+#    AI KB, a knowledge base with retrieval-augmented chat, served at
+#    https://ai-kb.<domain.name> on both gateways. It has its own login.
+#    Needs [postgres.backup], [redis] and an ingress.mode other than "none".
+#    Set all three fields to enable; leaving them blank skips it.
+#
+#    Anyone who can reach the sign-up form gets a workspace of their own, so
+#    the external gateway answers 404 for it and new accounts are created from
+#    the LAN. Register with admin_email first, then restart the app pod once
+#    (`kubectl -n ai-kb rollout restart deployment ai-kb-app`), which promotes
+#    that account to system administrator. Never change aes_key once set.
+# =============================================================================
+[ai_kb]
+
+# Signs sessions, at least 32 characters. Changing it signs everyone out.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# jwt_secret = ""
+
+# Encrypts the API keys and credentials AI KB stores, exactly 32 letters and
+# digits. Never change it once set: what it encrypted becomes unreadable.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 16`
+
+# aes_key = ""
+
+# The account the app promotes to system administrator at startup, as long as
+# no system administrator exists yet. Register it from the LAN first.
+# OPTIONAL. Example: "admin@example.com"
+
+# admin_email = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

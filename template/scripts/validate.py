@@ -632,6 +632,21 @@ class AiWorkspace(Model):
         return self
 
 
+class AiKb(Model):
+    # Signs sessions. Changing it signs everyone out.
+    jwt_secret: LongSecret = ""
+    # The AES-256 key for stored API keys and credentials. Never change it once
+    # set: the rows it encrypted become unreadable.
+    aes_key: str = Field(default="", pattern=r"^([A-Za-z0-9]{32})?$")
+    # Promoted to system administrator at startup once that account exists.
+    admin_email: EmailAddress = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "ai_kb", ("jwt_secret", "aes_key", "admin_email"))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -685,6 +700,7 @@ class Config(Model):
     actual_budget: ActualBudget = ActualBudget()
     media: Media = Media()
     ai_workspace: AiWorkspace = AiWorkspace()
+    ai_kb: AiKb = AiKb()
     localai: LocalAi = LocalAi()
     nodes: list[Node]
 
@@ -851,6 +867,12 @@ class Config(Model):
     def ai_workspace_enabled(self) -> bool:
         return self.ai_workspace.oidc_client_id != ""
 
+    # Gates AI KB and its database. The fields are set together or not at all.
+    @computed_field
+    @property
+    def ai_kb_enabled(self) -> bool:
+        return self.ai_kb.jwt_secret != ""
+
     # Changes when any media key changes, so a HelmRelease that carries it is
     # upgraded and its configure hook pushes the new keys into the apps.
     @computed_field
@@ -990,6 +1012,20 @@ class Config(Model):
             raise ValueError(
                 "ai_workspace.public requires pocket_id.public: a visitor from the internet "
                 "must reach the Pocket ID login"
+            )
+        if self.ai_kb_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "ai_kb requires postgres.backup: its database holds the knowledge bases, "
+                "which cannot be recreated"
+            )
+        if self.ai_kb_enabled and not self.redis_enabled:
+            raise ValueError(
+                "ai_kb requires redis.password: AI KB's task queue and streams live in Redis"
+            )
+        if self.ai_kb_enabled and self.ingress.mode == "none":
+            raise ValueError(
+                "ai_kb requires ingress.mode other than 'none': it is served on the "
+                "external gateway"
             )
         if self.media_enabled and not self.pocket_id_enabled:
             raise ValueError("media requires pocket_id: the gateway sign-in is the only login")

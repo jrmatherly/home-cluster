@@ -157,6 +157,11 @@ public = true
 [ai_workspace.env]
 ANTHROPIC_API_KEY = "fake-anthropic-key"
 
+[ai_kb]
+jwt_secret = "fakefakefakefakefakefakefakefake"
+aes_key = "fakefakefakefakefakefakefakefake"
+admin_email = "admin@example.com"
+
 [[nodes]]
 name = "k8s-0"
 address = "10.10.10.100"

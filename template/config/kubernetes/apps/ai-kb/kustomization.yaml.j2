@@ -1,0 +1,13 @@
+#% if ai_kb_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai-kb
+
+components:
+  - ../../components/sops
+
+resources:
+  - ./namespace.yaml
+  - ./ai-kb/ks.yaml
+#% endif %#

@@ -1,0 +1,32 @@
+#% if ai_kb_enabled %#
+---
+# The gateway is the only intended path, and the app trusts the client address
+# the gateway forwards. The three web containers listen on 8080; only the
+# app's own pods reach docreader's gRPC port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-kb
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ai-kb
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ai-kb
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 50051
+#% endif %#

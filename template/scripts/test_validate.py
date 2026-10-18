@@ -1156,6 +1156,35 @@ def test_ai_workspace_env_accepts_button_label():
     assert _load_raw(raw).ai_workspace.env == {"AUTH_OIDC_NAME": "Home"}
 
 
+AI_KB = (
+    POSTGRES_BACKUP
+    | REDIS
+    | {
+        "ai_kb.jwt_secret": "x" * 32,
+        "ai_kb.aes_key": "a" * 32,
+        "ai_kb.admin_email": "admin@example.com",
+    }
+)
+
+
+def test_ai_kb_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml", **POSTGRES_BACKUP | REDIS)).ai_kb_enabled is False
+    assert _load_raw(config_from("private.toml", **AI_KB)).ai_kb_enabled is True
+
+
+@pytest.mark.parametrize("key", ["a" * 31, "a" * 33, "a" * 31 + "-"])
+def test_ai_kb_aes_key_is_32_letters_and_digits(key):
+    raw = config_from("private.toml", **AI_KB | {"ai_kb.aes_key": key})
+    with pytest.raises(ConfigError, match=r"ai_kb\.aes_key"):
+        _load_raw(raw)
+
+
+def test_ai_kb_requires_ingress():
+    raw = config_from("private.toml", **AI_KB | {"ingress.mode": "none"})
+    with pytest.raises(ConfigError, match=r"ai_kb requires ingress\.mode"):
+        _load_raw(raw)
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

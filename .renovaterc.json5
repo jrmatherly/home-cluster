@@ -11,6 +11,15 @@
   mise: {
     managerFilePatterns: ["/^\\.mise/conf\\.d/[^/]+\\.toml$/"],
   },
+  customManagers: [
+    {
+      description: "CloudNativePG extension image volumes (postgresql.extensions[].image.reference) are plain image references no built-in manager reads",
+      customType: "regex",
+      managerFilePatterns: ["/\\.ya?ml(?:\\.j2)?$/"],
+      matchStrings: ["reference: (?<depName>[^:\\s]+):(?<currentValue>[^\\s]+)"],
+      datasourceTemplate: "docker",
+    },
+  ],
   packageRules: [
     {
       description: "GitHub Actions Group",
