@@ -166,6 +166,7 @@ oidc_client_secret = "fakefakefakefakefakefakefakefake"
 rustfs_access_key = "aikbfakefakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 tracing = true
+neo4j_password = "fakefakefakefakefakefakefakefake"
 
 [rustfs]
 access_key = "fakefakefakefake"

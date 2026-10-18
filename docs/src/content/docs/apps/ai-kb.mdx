@@ -66,6 +66,10 @@ both keys are set. The exporter is the stock OTLP client, not the SSRF-safe one,
 no `SSRF_WHITELIST_EXTRA` entry (read in the app's source at the pinned tag). The namespace gets the
 `langfuse.tracing/client` label that Langfuse's NetworkPolicy admits on port 3000.
 
+### GraphRAG with Neo4j
+
+With `neo4j_password` set (letters and digits, at least 32, from `openssl rand -hex 16`), the chart's own Neo4j runs in the namespace (image `neo4j:2026.09.0` from the chart, a Deployment with `Recreate` on a 10Gi `local-path` claim, `ai-kb-neo4j`), and the chart sets `NEO4J_ENABLE`, `NEO4J_URI` (`bolt://neo4j:7687`) and the `neo4j` user's credentials on the app. The password reaches the chart through the values document in `ai-kb-secret`. A knowledge base with graph extraction on makes extra LocalAI calls for every document it imports. Neo4j stores the password on its first start, so a later change must also be made inside Neo4j, or the app cannot sign in. The app tries Neo4j 30 times, two seconds apart, then exits (read in the app's source at the pinned tag), so on a fresh enable it restarts until Neo4j answers. The ingress NetworkPolicy admits the app's own pods on 7687.
+
 ## Watch it come up
 
 ```sh
@@ -113,7 +117,7 @@ The ai-kb namespace carries the `localai.ai/client` label that LocalAI's Network
 
 ## Network
 
-A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the app's own pods on 8080 and 50051 (frontend to app for `/files` and the embed-frame policy, app to docreader). The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path.
+A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the app's own pods on 8080 and 50051 (frontend to app for `/files` and the embed-frame policy, app to docreader), plus 7687 when Neo4j is on (app to Neo4j). The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path.
 
 ## Updates
 

@@ -1022,6 +1022,18 @@ schematic_id = ""
 
 # tracing = false
 
+# Turns on GraphRAG: the chart's Neo4j runs in the ai-kb namespace on a 10Gi
+# local-path volume, and a knowledge base with graph extraction on makes extra
+# LocalAI calls for every document it imports. This is the password of Neo4j's
+# neo4j user, letters and digits, at least 32. Neo4j stores it on its first
+# start, so a later change must also be made inside Neo4j, or the app cannot
+# sign in. The app tries Neo4j 30 times, two seconds apart, then exits, so on
+# a fresh enable it restarts until Neo4j answers.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 16`
+
+# neo4j_password = ""
+
 
 # =============================================================================
 #    RustFS, an S3-compatible object store for the cluster's own apps, at

@@ -168,6 +168,12 @@ spec:
       enabled: false
     externalRedis:
       addr: redis:6379
+    #% if ai_kb_neo4j %#
+    # GraphRAG. The chart sets NEO4J_ENABLE and NEO4J_URI on the app, and the
+    # password comes from ai-kb-secret's values document.
+    neo4j:
+      enabled: true
+    #% endif %#
     secrets:
       dbUser: app
       dbName: app

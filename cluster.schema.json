@@ -62,6 +62,10 @@
           "default": false,
           "title": "Tracing",
           "type": "boolean"
+        },
+        "neo4j_password": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
         }
       },
       "title": "AiKb",
@@ -1305,7 +1309,8 @@
         "oidc_client_secret": "",
         "rustfs_access_key": "",
         "rustfs_secret_key": "",
-        "tracing": false
+        "tracing": false,
+        "neo4j_password": ""
       }
     },
     "rustfs": {
