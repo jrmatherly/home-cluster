@@ -365,6 +365,63 @@
       "title": "Kubernetes",
       "type": "object"
     },
+    "Langfuse": {
+      "additionalProperties": false,
+      "properties": {
+        "public_key": {
+          "default": "",
+          "pattern": "^(pk-lf-[A-Za-z0-9-]{32,})?$",
+          "title": "Public Key",
+          "type": "string"
+        },
+        "secret_key": {
+          "default": "",
+          "pattern": "^(sk-lf-[A-Za-z0-9-]{32,})?$",
+          "title": "Secret Key",
+          "type": "string"
+        },
+        "salt": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "encryption_key": {
+          "default": "",
+          "pattern": "^([0-9a-fA-F]{64})?$",
+          "title": "Encryption Key",
+          "type": "string"
+        },
+        "nextauth_secret": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "clickhouse_password": {
+          "default": "",
+          "pattern": "^([A-Za-z0-9]{24,})?$",
+          "title": "Clickhouse Password",
+          "type": "string"
+        },
+        "rustfs_access_key": {
+          "$ref": "#/$defs/S3AccessKey",
+          "default": ""
+        },
+        "rustfs_secret_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        }
+      },
+      "title": "Langfuse",
+      "type": "object"
+    },
     "LocalAi": {
       "additionalProperties": false,
       "properties": {
@@ -1251,6 +1308,21 @@
         "access_key": "",
         "secret_key": "",
         "node": ""
+      }
+    },
+    "langfuse": {
+      "$ref": "#/$defs/Langfuse",
+      "default": {
+        "public_key": "",
+        "secret_key": "",
+        "salt": "",
+        "encryption_key": "",
+        "nextauth_secret": "",
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "clickhouse_password": "",
+        "rustfs_access_key": "",
+        "rustfs_secret_key": ""
       }
     },
     "localai": {

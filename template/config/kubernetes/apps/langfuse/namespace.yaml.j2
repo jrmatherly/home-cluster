@@ -1,0 +1,12 @@
+#% if langfuse_enabled %#
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: langfuse
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    rustfs.storage/client: "true"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+#% endif %#

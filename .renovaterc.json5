@@ -60,6 +60,12 @@
       minimumReleaseAge: "3 days",
     },
     {
+      description: "Langfuse's web and worker images share a schema, which the web pod migrates on start",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/langfuse/langfuse", "docker.io/langfuse/langfuse-worker"],
+      groupName: "Langfuse",
+    },
+    {
       description: "Network Optimizer previews are <semver>-preview<n>; read them as pre-releases, not a variant, so the stable release is offered",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/ozark-connect/network-optimizer"],

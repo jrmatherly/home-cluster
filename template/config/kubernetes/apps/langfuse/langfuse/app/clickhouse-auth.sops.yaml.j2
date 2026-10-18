@@ -1,0 +1,10 @@
+#% if langfuse_enabled %#
+---
+# Its own Secret, so rotating a Langfuse key does not restart the only ClickHouse replica.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clickhouse-auth
+stringData:
+  password: "#{ langfuse.clickhouse_password }#"
+#% endif %#

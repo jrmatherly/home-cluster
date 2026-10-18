@@ -163,13 +163,25 @@ aes_key = "fakefakefakefakefakefakefakefake"
 admin_email = "admin@example.com"
 oidc_client_id = "ai-kb"
 oidc_client_secret = "fakefakefakefakefakefakefakefake"
-rustfs_access_key = "fakefakefakefake"
+rustfs_access_key = "aikbfakefakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 
 [rustfs]
 access_key = "fakefakefakefake"
 secret_key = "fakefakefakefakefakefakefakefake"
 node = "k8s-1"
+
+[langfuse]
+public_key = "pk-lf-fakefakefakefakefakefakefakefake"
+secret_key = "sk-lf-fakefakefakefakefakefakefakefake"
+salt = "fakefakefakefakefakefakefakefake"
+encryption_key = "0000000000000000000000000000000000000000000000000000000000000000"
+nextauth_secret = "fakefakefakefakefakefakefakefake"
+oidc_client_id = "langfuse"
+oidc_client_secret = "fakefakefakefakefakefakefakefake"
+clickhouse_password = "fakefakefakefakefakefakefake"
+rustfs_access_key = "langfusefakefake"
+rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

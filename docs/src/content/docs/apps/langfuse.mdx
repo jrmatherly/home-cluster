@@ -1,0 +1,116 @@
+---
+title: Langfuse
+description: Take Langfuse from the templates in Git to a running trace store that AI KB can send to.
+sidebar:
+  order: 18
+---
+
+The steps outside the repo that `[langfuse]` in `cluster.toml` needs, in order. The deployment
+itself is in Git: the `[langfuse]` section and `kubernetes/apps/langfuse/`. "Measured" below was
+run in Docker against `langfuse/langfuse:4.63.0`, `langfuse/langfuse-worker:4.63.0` and
+`clickhouse/clickhouse-server:26.4.5.143` on 2026-10-18, under the pods' restrictions (read-only
+root, every capability dropped, the pods' uids). Nothing here has run on the cluster yet.
+
+## What it holds
+
+Langfuse is an LLM tracing UI. AI KB sends it one trace per chat, with the full prompt and answer,
+so treat its data like AI KB's own. It needs four stores, all in the `langfuse` namespace or on the
+cluster:
+
+- Postgres: the CloudNativePG cluster `langfuse-db` (two instances, WAL archiving, a daily backup
+  at 05:45 UTC) holds users, projects and API keys.
+- ClickHouse: one StatefulSet `clickhouse` with a 20Gi `local-path` volume holds the traces. It has
+  one replica and no backup, so a lost node loses the trace history but nothing else. Trace
+  retention is an Enterprise feature, so the volume is the ceiling; measure it after a month with
+  `kubectl -n langfuse exec clickhouse-0 -- du -sh /var/lib/clickhouse`.
+- Redis: the namespace's own, from `components/redis`, holds the ingestion queues.
+- S3: the `langfuse-events` bucket in RustFS holds every raw event before the worker processes it.
+  Langfuse reads those objects back for trace detail, so the bucket has no expiry and grows with
+  tracing. Measure it after a month.
+
+The UI is at `https://langfuse.${SECRET_DOMAIN}` on the internal gateway only.
+
+## Pocket ID client
+
+In the Pocket ID admin UI, create an OIDC client:
+
+- Name: Langfuse.
+- Callback URL: `https://langfuse.${SECRET_DOMAIN}/api/auth/callback/custom`.
+- Allowed user groups: `cluster_admins`.
+
+Every user the client admits becomes an owner of the Home organization on first sign-in, so the
+group restriction is the access control. The password form is off.
+
+## Keys
+
+Generate each value once:
+
+```sh
+echo "pk-lf-$(uuidgen | tr A-Z a-z)"                              # public_key
+echo "sk-lf-$(uuidgen | tr A-Z a-z)"                              # secret_key
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo     # salt, then again for nextauth_secret
+openssl rand -hex 32                                              # encryption_key
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo     # clickhouse_password
+openssl rand -hex 16                                              # rustfs_access_key
+openssl rand -hex 32                                              # rustfs_secret_key
+```
+
+Never change `salt` (every API key stops working) or `encryption_key` (stored LLM and integration
+keys become unreadable). Changing `nextauth_secret` signs everyone out.
+
+## cluster.toml
+
+Section `[langfuse]`, after `[rustfs]`: the eight generated values above, plus `oidc_client_id`
+and `oidc_client_secret` from the Pocket ID client. It needs `[postgres.backup]`, `[redis]`,
+`[pocket_id]` and `[rustfs]`.
+
+Then `just configure`, restore the sops files that did not change:
+
+```sh
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+```
+
+Commit the rendered `kubernetes/apps/langfuse/` and the changed `kubernetes/apps/rustfs/`, then
+push. `just kube reconcile` makes Flux pull now.
+
+## First start
+
+```sh
+kubectl -n rustfs logs job/rustfs-provision
+kubectl -n langfuse get pods,pvc
+kubectl -n langfuse logs deploy/langfuse-web
+```
+
+The provisioning log ends with `provisioned langfuse in langfuse-events`. The web log lists every
+Prisma migration, then the ClickHouse migrations, then `Running init scripts...`. Measured in
+Docker: 457 Postgres migrations and the ClickHouse migrations took 18 seconds on a laptop, after
+which `/api/public/ready` answered OK. On the cluster the startup probe allows ten minutes, because
+the chart's own probes kill the pod part way through a first start (langfuse-k8s issues 272 and
+427), which leaves a failed migration behind.
+
+On that first start Langfuse also creates the Home organization, the AI KB project and the
+project's key pair from `public_key` and `secret_key`. It creates them only when they are absent, so
+a later change to the pair in `cluster.toml` must also be made in the project's settings.
+
+## Sign in
+
+Open `https://langfuse.${SECRET_DOMAIN}` from the LAN and pick Pocket ID. The first sign-in creates
+the account and makes it an owner of Home. Open the AI KB project and check Settings, API keys: the
+public key matches `public_key`.
+
+## Updates
+
+Renovate offers the chart, the two Langfuse images (keep them on the same version) and the
+ClickHouse image. The web pod runs the migrations, and on v4 they are not all additive, so a
+rollback needs more than an image swap. ClickHouse must stay on a version Langfuse supports
+(25.12 or later, 26.4 recommended).
+
+## If something breaks
+
+- The web pod restarts during its first start: check the log for `P3009`, which names a failed
+  migration. Prisma's documented recovery is `prisma migrate resolve --rolled-back <migration>`,
+  run from the web image against the same database, then a restart.
+- Traces never appear: check `kubectl -n langfuse logs deploy/langfuse-worker` for S3 errors, and
+  that the provisioning Job ran after the key pair was added.
+- ClickHouse is near its 4Gi limit: the system log tables Langfuse never reads are already off, so
+  look at `system.parts` for the largest table.

@@ -69,6 +69,9 @@ The chart column is what the template pins. The releases column is where the not
 | rustfs                    | rustfs             | classic `HelmRepository` `https://charts.rustfs.com`, one of two; the inventory cannot see it     | <https://github.com/rustfs/rustfs/releases>                       |
 | rustfs (images)           | rustfs             | `ghcr.io/rustfs/rustfs`, and `docker.io/library/busybox` for the chart's init container           | <https://github.com/rustfs/rustfs/releases>                       |
 | rustfs provision (image)  | rustfs             | `docker.io/rustfs/rc`                                                                             | <https://github.com/rustfs/cli/releases>                          |
+| langfuse                  | langfuse           | `ghcr.io/langfuse/langfuse-k8s/charts/langfuse` (the chart lags the app; images pinned apart)     | <https://github.com/langfuse/langfuse-k8s/releases>               |
+| langfuse (images)         | langfuse           | `docker.io/langfuse/langfuse` and `docker.io/langfuse/langfuse-worker` (one version, by digest)   | <https://github.com/langfuse/langfuse/releases>                   |
+| clickhouse (image)        | langfuse           | `docker.io/clickhouse/clickhouse-server` (plain StatefulSet, pinned by digest; 25.12 or later)    | <https://github.com/ClickHouse/ClickHouse/releases>               |
 | docs (image)              | docs               | `ghcr.io/jrmatherly/home-cluster/docs` (`:latest`, Renovate pins it)                              | this repo's Docs Image workflow                                   |
 | redis (component image)   | per consumer       | `docker.io/library/redis`                                                                         | <https://github.com/redis/redis/releases>                         |
 | postgres (ImageCatalog)   | per consumer       | `ghcr.io/cloudnative-pg/postgresql`                                                               | <https://github.com/cloudnative-pg/postgres-containers/releases>  |
@@ -82,6 +85,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **flux-operator and flux-instance** share a version. Update both in one commit.
 - **cloudflare-tunnel** has two pins: the `app-template` chart and the `cloudflared` image. They are independent.
   Update them in separate commits so a failure points at one of them.
+- **langfuse web and worker** share a version and a schema, which the web pod migrates on start. Update both
+  images in one commit; the chart is independent and pins neither.
 
 ## Order when several are pending
 

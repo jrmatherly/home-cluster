@@ -676,6 +676,31 @@ class RustFs(Model):
         return self
 
 
+class Langfuse(Model):
+    # The AI KB project's API key pair, which Langfuse creates on its first start.
+    public_key: str = Field(default="", pattern=r"^(pk-lf-[A-Za-z0-9-]{32,})?$")
+    secret_key: str = Field(default="", pattern=r"^(sk-lf-[A-Za-z0-9-]{32,})?$")
+    # Hashes the API keys. Never change it once set: every key stops working.
+    salt: ApiKey = ""
+    # Encrypts stored LLM and integration keys; Langfuse requires 64 hex
+    # characters. Never change it once set: what it encrypted becomes unreadable.
+    encryption_key: str = Field(default="", pattern=r"^([0-9a-fA-F]{64})?$")
+    # Signs sessions. Changing it signs everyone out.
+    nextauth_secret: ApiKey = ""
+    # The OIDC client created for Langfuse in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+    clickhouse_password: str = Field(default="", pattern=r"^([A-Za-z0-9]{24,})?$")
+    # The app's own RustFS key pair; the provisioning Job scopes it to the langfuse-events bucket.
+    rustfs_access_key: S3AccessKey = ""
+    rustfs_secret_key: ApiKey = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "langfuse", tuple(type(self).model_fields))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -731,6 +756,7 @@ class Config(Model):
     ai_workspace: AiWorkspace = AiWorkspace()
     ai_kb: AiKb = AiKb()
     rustfs: RustFs = RustFs()
+    langfuse: Langfuse = Langfuse()
     localai: LocalAi = LocalAi()
     nodes: list[Node]
 
@@ -918,6 +944,11 @@ class Config(Model):
     def rustfs_enabled(self) -> bool:
         return self.rustfs.access_key != ""
 
+    @computed_field
+    @property
+    def langfuse_enabled(self) -> bool:
+        return self.langfuse.public_key != ""
+
     # One bucket and one key pair scoped to it per app; the provisioning Job creates them.
     @computed_field
     @property
@@ -930,6 +961,15 @@ class Config(Model):
                     "bucket": "ai-kb-files",
                     "access_key": self.ai_kb.rustfs_access_key,
                     "secret_key": self.ai_kb.rustfs_secret_key,
+                }
+            )
+        if self.langfuse_enabled:
+            consumers.append(
+                {
+                    "name": "langfuse",
+                    "bucket": "langfuse-events",
+                    "access_key": self.langfuse.rustfs_access_key,
+                    "secret_key": self.langfuse.rustfs_secret_key,
                 }
             )
         return consumers
@@ -1116,8 +1156,30 @@ class Config(Model):
             )
         if self.rustfs_enabled:
             self._worker("rustfs.node", self.rustfs.node)
+        if self.rustfs_enabled:
+            owners = {self.rustfs.access_key: "rustfs.access_key"}
+            for c in self.rustfs_consumers:
+                field = f"{c['name'].replace('-', '_')}.rustfs_access_key"
+                if c["access_key"] in owners:
+                    raise ValueError(
+                        f"{field} and {owners[c['access_key']]} share an access key: "
+                        "each RustFS key pair is a separate account"
+                    )
+                owners[c["access_key"]] = field
         if self.ai_kb_rustfs and not self.rustfs_enabled:
             raise ValueError("ai_kb.rustfs_access_key requires rustfs: the bucket lives there")
+        # pocket_id already requires postgres.backup, so no separate backup check.
+        if self.langfuse_enabled and not self.redis_enabled:
+            raise ValueError("langfuse requires redis.password: Langfuse's queues live in Redis")
+        if self.langfuse_enabled and not self.pocket_id_enabled:
+            raise ValueError(
+                "langfuse.oidc_client_id requires pocket_id: Pocket ID is Langfuse's only login"
+            )
+        if self.langfuse_enabled and not self.rustfs_enabled:
+            raise ValueError(
+                "langfuse.rustfs_access_key requires rustfs: Langfuse writes every event "
+                "to its bucket there"
+            )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(
                 "network_optimizer requires observability: Network Optimizer writes its "

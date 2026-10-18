@@ -1,0 +1,67 @@
+# Negative fixture: a [langfuse] encryption_key that is not 64 hex characters.
+# Expected to be rejected by the encryption_key pattern.
+# expect: langfuse.encryption_key: String should match pattern '^([0-9a-fA-F]{64})?$'
+[network]
+node_cidr = "10.10.10.0/24"
+
+[kubernetes.api]
+addr = "10.10.10.254"
+
+[gateways]
+internal = "10.10.10.252"
+dns = "10.10.10.253"
+external = "10.10.10.251"
+
+[domain]
+name = "example.com"
+
+[dns]
+token = "fake"
+
+[repository]
+url = "https://github.com/onedr0p/cluster-template.git"
+
+[postgres.backup]
+endpoint = "https://fake.r2.cloudflarestorage.com"
+bucket = "fake"
+access_key_id = "fake"
+secret_access_key = "fake"
+
+[redis]
+password = "fakefakefakefakefakefakefakefake"
+
+[pocket_id]
+encryption_key = "fakefakefakefakefakefakefakefake"
+
+[rustfs]
+access_key = "fakefakefakefake"
+secret_key = "fakefakefakefakefakefakefakefake"
+node = "k8s-1"
+
+[langfuse]
+public_key = "pk-lf-fakefakefakefakefakefakefakefake"
+secret_key = "sk-lf-fakefakefakefakefakefakefakefake"
+salt = "fakefakefakefakefakefakefakefake"
+encryption_key = "fakefakefakefakefakefakefakefakefakefakefakefakefakefakefakefake"
+nextauth_secret = "fakefakefakefakefakefakefakefake"
+oidc_client_id = "langfuse"
+oidc_client_secret = "fakefakefakefakefakefakefakefake"
+clickhouse_password = "fakefakefakefakefakefakefake"
+rustfs_access_key = "langfusefakefake"
+rustfs_secret_key = "fakefakefakefakefakefakefakefake"
+
+[[nodes]]
+name = "k8s-0"
+address = "10.10.10.100"
+controller = true
+disk = "/dev/sdfake"
+mac_addr = "00:00:00:00:00:00"
+schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+
+[[nodes]]
+name = "k8s-1"
+address = "10.10.10.101"
+controller = false
+disk = "/dev/sdfake"
+mac_addr = "00:00:00:00:00:01"
+schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"

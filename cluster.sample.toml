@@ -1041,6 +1041,82 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Langfuse, LLM tracing for AI KB, served at https://langfuse.<domain.name>
+#    on the internal gateway. It signs users in with Pocket ID itself.
+#    Needs [postgres.backup], [redis], [pocket_id] and [rustfs].
+#    Set all ten fields to enable; leaving them blank skips it.
+#
+#    Create the client in the Pocket ID admin UI with the callback URL
+#    https://langfuse.<domain.name>/api/auth/callback/custom and restrict it
+#    to the cluster_admins group: every Pocket ID user the client admits
+#    becomes an owner of the Home organization on first sign-in.
+#
+#    On its first start Langfuse creates the Home organization, the AI KB
+#    project and that project's key pair from public_key and secret_key.
+#    It only creates them when they are absent, so a later change to the pair
+#    must also be made in the project settings.
+# =============================================================================
+[langfuse]
+
+# The AI KB project's public key: "pk-lf-" and then at least 32 letters,
+# digits or hyphens. Set all ten fields together, or none.
+# OPTIONAL. Example: the output of `echo "pk-lf-$(uuidgen | tr A-Z a-z)"`
+
+# public_key = ""
+
+# The AI KB project's secret key: "sk-lf-" and then at least 32 letters,
+# digits or hyphens. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `echo "sk-lf-$(uuidgen | tr A-Z a-z)"`
+
+# secret_key = ""
+
+# Hashes the API keys, letters and digits, at least 32. Never change it once
+# set: every API key stops working. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+
+# salt = ""
+
+# Encrypts the LLM and integration keys Langfuse stores, exactly 64 hex
+# characters. Never change it once set: what it encrypted becomes
+# unreadable. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# encryption_key = ""
+
+# Signs sessions, letters and digits, at least 32. Changing it signs
+# everyone out. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+
+# nextauth_secret = ""
+
+# The OIDC client created by hand in the Pocket ID admin UI, with the callback
+# URL https://langfuse.<domain.name>/api/auth/callback/custom and restricted
+# to the cluster_admins group. Sign-up stays on, so the client's group is
+# what decides who gets in. The secret is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_id = ""
+# oidc_client_secret = ""
+
+# The password of the langfuse user in the namespace's own ClickHouse,
+# letters and digits, at least 24. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo`
+
+# clickhouse_password = ""
+
+# The app's own RustFS key pair, letters and digits, at least 16 and 32. The
+# provisioning Job creates the langfuse-events bucket and scopes the pair to
+# it; Langfuse writes every raw event there before it processes it and reads
+# them back for trace detail, so the bucket has no expiry and grows with
+# tracing; measure it after a month. They are written to a SOPS-encrypted
+# Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 16` and `-hex 32`
+
+# rustfs_access_key = ""
+# rustfs_secret_key = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

@@ -104,6 +104,10 @@ jobs:
           - partial-rustfs
           - rustfs-bad-node
           - rustfs-short-secret
+          - partial-langfuse
+          - langfuse-without-rustfs
+          - langfuse-bad-encryption-key
+          - rustfs-duplicate-key
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

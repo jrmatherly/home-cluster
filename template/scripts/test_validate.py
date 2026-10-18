@@ -1227,6 +1227,69 @@ def test_ai_kb_rustfs_pair_requires_rustfs():
         _load_raw(config_from("private.toml", **AI_KB_RUSTFS))
 
 
+LANGFUSE_FIELDS = {
+    "langfuse.public_key": "pk-lf-" + "p" * 32,
+    "langfuse.secret_key": "sk-lf-" + "s" * 32,
+    "langfuse.salt": "a" * 32,
+    "langfuse.encryption_key": "0" * 64,
+    "langfuse.nextauth_secret": "n" * 32,
+    "langfuse.oidc_client_id": "langfuse",
+    "langfuse.oidc_client_secret": "secret",
+    "langfuse.clickhouse_password": "c" * 24,
+    "langfuse.rustfs_access_key": "l" * 16,
+    "langfuse.rustfs_secret_key": "m" * 32,
+}
+LANGFUSE = POCKET_ID | REDIS | RUSTFS | LANGFUSE_FIELDS
+
+
+def test_rustfs_consumers_lists_langfuse_when_it_is_enabled():
+    config = _load_raw(config_from("private.toml", **LANGFUSE))
+    assert config.langfuse_enabled
+    assert config.rustfs_consumers == [
+        {
+            "name": "langfuse",
+            "bucket": "langfuse-events",
+            "access_key": "l" * 16,
+            "secret_key": "m" * 32,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("dropped", "message"),
+    [
+        (REDIS, r"langfuse requires redis\.password"),
+        (POCKET_ID.keys() - POSTGRES_BACKUP.keys(), r"langfuse\.oidc_client_id requires pocket_id"),
+        (RUSTFS, r"langfuse\.rustfs_access_key requires rustfs"),
+    ],
+)
+def test_langfuse_requires_its_datastores_and_login(dropped, message):
+    raw = {key: value for key, value in LANGFUSE.items() if key not in dropped}
+    with pytest.raises(ConfigError, match=message):
+        _load_raw(config_from("private.toml", **raw))
+
+
+def test_rustfs_access_keys_must_differ():
+    shared = AI_KB_RUSTFS | {"ai_kb.rustfs_access_key": "l" * 16}
+    with pytest.raises(
+        ConfigError,
+        match=r"langfuse\.rustfs_access_key and ai_kb\.rustfs_access_key share an access key",
+    ):
+        _load_raw(config_from("private.toml", **LANGFUSE | shared))
+    with pytest.raises(
+        ConfigError, match=r"langfuse\.rustfs_access_key and rustfs\.access_key share"
+    ):
+        _load_raw(
+            config_from("private.toml", **LANGFUSE | {"langfuse.rustfs_access_key": "k" * 16})
+        )
+
+
+def test_langfuse_is_all_or_none():
+    raw = POCKET_ID | REDIS | RUSTFS | {"langfuse.public_key": "pk-lf-" + "p" * 32}
+    with pytest.raises(ConfigError, match=r"langfuse is partially configured"):
+        _load_raw(config_from("private.toml", **raw))
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 
