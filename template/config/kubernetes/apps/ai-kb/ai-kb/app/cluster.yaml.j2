@@ -5,9 +5,11 @@ kind: Cluster
 metadata:
   name: ai-kb-db
 spec:
-  # Each instance is pinned to a node by its local-path volume, so a second one
-  # lets a node go down without taking the app with it.
-  instances: 2
+  # One instance, not the usual two: the community pg_search refuses to start
+  # on a standby ("replicas are not supported on community and require
+  # paradedb enterprise", measured 2026-10-17). WAL archiving and the daily
+  # backup are the safety net.
+  instances: 1
   imageCatalogRef:
     apiGroup: postgresql.cnpg.io
     kind: ImageCatalog
