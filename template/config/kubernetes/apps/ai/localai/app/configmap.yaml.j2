@@ -37,4 +37,15 @@ data:
     function:
       grammar:
         disable: true
+  # The GGUF declares mean pooling and an 8192-token window, which llama.cpp honours.
+  nomic-embed-text-v1.5.yaml: |
+    name: nomic-embed-text-v1.5
+    backend: llama-cpp
+    embeddings: true
+    parameters:
+      model: nomic-embed-text-v1.5/nomic-embed-text-v1.5.Q8_0.gguf
+    context_size: 8192
+    gpu_layers: 99999999
+    f16: true
+    mmap: true
 #% endif %#

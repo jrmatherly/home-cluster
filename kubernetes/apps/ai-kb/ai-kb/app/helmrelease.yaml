@@ -40,10 +40,23 @@ spec:
         # Store, then Edge Add-ons.
         - name: OIDC_AUTH_EXTENSION_RETURN_URLS
           value: https://beamnnjkmfepmlfpbcchiiooimoloiod.chromiumapp.org/oidc,https://eminfjejkcandcdbcjhdeobhhjidapdc.chromiumapp.org/oidc
+        - name: OIDC_AUTH_ENABLE
+          value: "true"
+        - name: OIDC_AUTH_PROVIDER_DISPLAY_NAME
+          value: Pocket ID
+        - name: OIDC_AUTH_DISCOVERY_URL
+          value: https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
+        - name: OIDC_AUTH_CLIENT_ID
+          value: "be4ecf7a-6314-40e0-8a05-af6cc9602382"
+        - name: OIDC_AUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: OIDC_AUTH_CLIENT_SECRET
         # The app's SSRF guard refuses private addresses, which is what pods get
         # for the Pocket ID host (the internal gateway) and the LocalAI Service.
         - name: SSRF_WHITELIST
-          value: localai.ai.svc.cluster.local
+          value: auth.${SECRET_DOMAIN},localai.ai.svc.cluster.local
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui

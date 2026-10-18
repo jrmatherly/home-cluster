@@ -121,6 +121,9 @@ spec:
           - path: /models/qwen-3.5-4b.yaml
             subPath: qwen-3.5-4b.yaml
             readOnly: true
+          - path: /models/nomic-embed-text-v1.5.yaml
+            subPath: nomic-embed-text-v1.5.yaml
+            readOnly: true
       # The model is an image, built from images/qwen3.5-4b. The node keeps it cached,
       # so a restart needs neither a download nor Hugging Face.
       models-qwen:
@@ -128,6 +131,13 @@ spec:
         image: ghcr.io/jrmatherly/models/qwen3.5-4b:q4_k_m-e87f176@sha256:8307f2eae1b4fb40f428a226eb7c6b58b4ed4db8d0dc96101cff9b85b45484f5
         globalMounts:
           - path: /models/qwen3.5-4b
+            readOnly: true
+      # The embedding model, built from images/nomic-embed-text-v1.5.
+      models-nomic:
+        type: image
+        image: ghcr.io/jrmatherly/models/nomic-embed-text-v1.5:q8_0-0188c9b@sha256:73a11e2f8691a67615fd153fabccb535b9fc1e792aa3ef8f50f7c14db2e63c24
+        globalMounts:
+          - path: /models/nomic-embed-text-v1.5
             readOnly: true
       configuration:
         type: emptyDir
