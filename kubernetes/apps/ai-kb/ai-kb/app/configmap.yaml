@@ -1,11 +1,14 @@
 ---
 # The app upserts these into its models table on every start, visible to every
 # workspace, so LocalAI's models need no hand entry in the UI. Only string
-# fields may hold a ${NAME} placeholder, which the app fills from its env.
+# fields may hold a ${NAME} placeholder, which the app fills from its env, and
+# Flux's post-build substitution must leave those placeholders alone.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ai-kb-models
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
 data:
   builtin_models.yaml: |
     builtin_models:
