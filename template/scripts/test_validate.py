@@ -1284,6 +1284,18 @@ def test_rustfs_access_keys_must_differ():
         )
 
 
+def test_ai_kb_tracing_requires_langfuse():
+    with pytest.raises(ConfigError, match=r"ai_kb\.tracing requires langfuse"):
+        _load_raw(config_from("private.toml", **AI_KB | {"ai_kb.tracing": True}))
+    config = _load_raw(config_from("private.toml", **LANGFUSE | AI_KB | {"ai_kb.tracing": True}))
+    assert config.ai_kb_tracing
+
+
+def test_ai_kb_tracing_requires_the_rest_of_the_section():
+    with pytest.raises(ConfigError, match=r"ai_kb\.tracing requires the rest of \[ai_kb\]"):
+        _load_raw(config_from("private.toml", **LANGFUSE | {"ai_kb.tracing": True}))
+
+
 def test_langfuse_is_all_or_none():
     raw = POCKET_ID | REDIS | RUSTFS | {"langfuse.public_key": "pk-lf-" + "p" * 32}
     with pytest.raises(ConfigError, match=r"langfuse is partially configured"):

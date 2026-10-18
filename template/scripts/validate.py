@@ -651,13 +651,17 @@ class AiKb(Model):
     # The app's own RustFS key pair; the provisioning Job scopes it to the ai-kb-files bucket.
     rustfs_access_key: S3AccessKey = ""
     rustfs_secret_key: ApiKey = ""
+    # Sends traces to Langfuse. AI KB wraps its chat, embedding, rerank, VLM and ASR models and its
+    # knowledge ingest and post-process paths in Langfuse tracers, so traces carry full prompts and
+    # answers and the chunk text of every ingested document.
+    tracing: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
         _all_or_none(self, "ai_kb", ("jwt_secret", "aes_key", "admin_email"))
         _all_or_none(self, "ai_kb", ("oidc_client_id", "oidc_client_secret"))
         _all_or_none(self, "ai_kb", ("rustfs_access_key", "rustfs_secret_key"))
-        for field in ("oidc_client_id", "rustfs_access_key"):
+        for field in ("oidc_client_id", "rustfs_access_key", "tracing"):
             if getattr(self, field) and not self.jwt_secret:
                 raise ValueError(f"ai_kb.{field} requires the rest of [ai_kb]")
         return self
@@ -941,6 +945,11 @@ class Config(Model):
 
     @computed_field
     @property
+    def ai_kb_tracing(self) -> bool:
+        return self.ai_kb.tracing
+
+    @computed_field
+    @property
     def rustfs_enabled(self) -> bool:
         return self.rustfs.access_key != ""
 
@@ -1166,6 +1175,8 @@ class Config(Model):
                         "each RustFS key pair is a separate account"
                     )
                 owners[c["access_key"]] = field
+        if self.ai_kb_tracing and not self.langfuse_enabled:
+            raise ValueError("ai_kb.tracing requires langfuse: the traces are sent there")
         if self.ai_kb_rustfs and not self.rustfs_enabled:
             raise ValueError("ai_kb.rustfs_access_key requires rustfs: the bucket lives there")
         # pocket_id already requires postgres.backup, so no separate backup check.

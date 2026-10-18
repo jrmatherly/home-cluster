@@ -86,7 +86,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **cloudflare-tunnel** has two pins: the `app-template` chart and the `cloudflared` image. They are independent.
   Update them in separate commits so a failure points at one of them.
 - **langfuse web and worker** share a version and a schema, which the web pod migrates on start. Update both
-  images in one commit; the chart is independent and pins neither.
+  images in one commit; the chart is independent and pins neither. The ai-kb HelmRelease names the chart's web
+  Service (`langfuse-web`) in `LANGFUSE_HOST`, so check that name on a chart bump.
 
 ## Order when several are pending
 

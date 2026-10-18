@@ -15,6 +15,10 @@ spec:
     - name: rustfs-provision
       namespace: rustfs
     #% endif %#
+    #% if ai_kb_tracing %#
+    - name: langfuse
+      namespace: langfuse
+    #% endif %#
   interval: 1h
   path: ./kubernetes/apps/ai-kb/ai-kb/app
   postBuild:

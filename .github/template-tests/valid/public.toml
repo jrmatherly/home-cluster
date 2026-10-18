@@ -165,6 +165,7 @@ oidc_client_id = "ai-kb"
 oidc_client_secret = "fakefakefakefakefakefakefakefake"
 rustfs_access_key = "aikbfakefakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefake"
+tracing = true
 
 [rustfs]
 access_key = "fakefakefakefake"

@@ -1007,6 +1007,19 @@ schematic_id = ""
 # rustfs_access_key = ""
 # rustfs_secret_key = ""
 
+# Sends traces to Langfuse, using the AI KB project key pair from [langfuse].
+# AI KB wraps its chat, embedding, rerank, VLM and ASR models and its
+# knowledge ingest and post-process paths in Langfuse tracers, so traces carry
+# full prompts and answers and the chunk text of every ingested document. It
+# stays off until AI KB's tracer has a metadata-only mode. Langfuse creates
+# the project keys on its first start only, so a later change to the pair in
+# cluster.toml must also be made in Langfuse's project settings, or every
+# export gets 401 silently.
+# Needs [langfuse].
+# OPTIONAL. Default: false
+
+# tracing = false
+
 
 # =============================================================================
 #    RustFS, an S3-compatible object store for the cluster's own apps, at

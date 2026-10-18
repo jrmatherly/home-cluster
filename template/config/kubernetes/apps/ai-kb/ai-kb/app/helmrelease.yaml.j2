@@ -98,6 +98,25 @@ spec:
               name: ai-kb-secret
               key: S3_SECRET_KEY
         #% endif %#
+        #% if ai_kb_tracing %#
+        # Tracing turns on when both keys are set and LANGFUSE_ENABLED is unset.
+        # The exporter is the stock OTLP client, not the SSRF-safe one, so the
+        # host needs no allowlist entry.
+        - name: LANGFUSE_HOST
+          value: http://langfuse-web.langfuse.svc.cluster.local:3000
+        - name: LANGFUSE_ENVIRONMENT
+          value: home
+        - name: LANGFUSE_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: LANGFUSE_PUBLIC_KEY
+        - name: LANGFUSE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: LANGFUSE_SECRET_KEY
+        #% endif %#
         #% set ssrf_hosts = (["auth.${SECRET_DOMAIN}"] if ai_kb_oidc else []) + (["localai.ai.svc.cluster.local"] if nvidia_enabled else []) + (["rustfs-svc.rustfs.svc.cluster.local"] if ai_kb_rustfs else []) %#
         #% if ssrf_hosts %#
         # The app's SSRF guard refuses private addresses, which is what pods get

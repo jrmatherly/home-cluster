@@ -12,6 +12,9 @@ metadata:
     #% if ai_kb_rustfs %#
     rustfs.storage/client: "true"
     #% endif %#
+    #% if ai_kb_tracing %#
+    langfuse.tracing/client: "true"
+    #% endif %#
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 #% endif %#

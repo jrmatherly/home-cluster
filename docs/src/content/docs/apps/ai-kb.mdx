@@ -52,6 +52,20 @@ app's source at the pinned tag: the startup migration only sets a default for a 
 none). The ai-kb Kustomization depends on `rustfs-provision`, because the app checks its bucket at
 startup.
 
+### Traces in Langfuse
+
+With `tracing = true` (it needs `[langfuse]`), AI KB sends traces to [Langfuse](/apps/langfuse/) in the AI KB project. AI
+KB wraps its chat, embedding, rerank, VLM and ASR models and its knowledge ingest and post-process
+paths in Langfuse tracers, so traces carry full prompts and answers and the chunk text of every
+ingested document. It stays off until AI KB's tracer has a metadata-only mode. Langfuse creates the
+project keys on its first start only, so a later change to the pair in `cluster.toml` must also be
+made in Langfuse's project settings, or every export gets 401 silently. The app reads `LANGFUSE_HOST`, set to
+`http://langfuse-web.langfuse.svc.cluster.local:3000`, `LANGFUSE_ENVIRONMENT` `home`, and the
+project key pair from `[langfuse]`, which reaches it through `ai-kb-secret`; tracing turns on when
+both keys are set. The exporter is the stock OTLP client, not the SSRF-safe one, so the host needs
+no `SSRF_WHITELIST_EXTRA` entry (read in the app's source at the pinned tag). The namespace gets the
+`langfuse.tracing/client` label that Langfuse's NetworkPolicy admits on port 3000.
+
 ## Watch it come up
 
 ```sh

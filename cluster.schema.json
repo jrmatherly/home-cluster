@@ -57,6 +57,11 @@
         "rustfs_secret_key": {
           "$ref": "#/$defs/ApiKey",
           "default": ""
+        },
+        "tracing": {
+          "default": false,
+          "title": "Tracing",
+          "type": "boolean"
         }
       },
       "title": "AiKb",
@@ -1299,7 +1304,8 @@
         "oidc_client_id": "",
         "oidc_client_secret": "",
         "rustfs_access_key": "",
-        "rustfs_secret_key": ""
+        "rustfs_secret_key": "",
+        "tracing": false
       }
     },
     "rustfs": {
