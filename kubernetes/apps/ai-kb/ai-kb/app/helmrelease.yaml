@@ -40,6 +40,10 @@ spec:
         # Store, then Edge Add-ons.
         - name: OIDC_AUTH_EXTENSION_RETURN_URLS
           value: https://beamnnjkmfepmlfpbcchiiooimoloiod.chromiumapp.org/oidc,https://eminfjejkcandcdbcjhdeobhhjidapdc.chromiumapp.org/oidc
+        # The app's SSRF guard refuses private addresses, which is what pods get
+        # for the Pocket ID host (the internal gateway) and the LocalAI Service.
+        - name: SSRF_WHITELIST
+          value: localai.ai.svc.cluster.local
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui

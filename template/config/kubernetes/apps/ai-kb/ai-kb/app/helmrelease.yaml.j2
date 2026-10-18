@@ -55,10 +55,13 @@ spec:
             secretKeyRef:
               name: ai-kb-secret
               key: OIDC_AUTH_CLIENT_SECRET
-        # Pods resolve auth.${SECRET_DOMAIN} to the internal gateway, a private
-        # address the app's SSRF guard would otherwise refuse for discovery.
+        #% endif %#
+        #% set ssrf_hosts = (["auth.${SECRET_DOMAIN}"] if ai_kb_oidc else []) + (["localai.ai.svc.cluster.local"] if nvidia_enabled else []) %#
+        #% if ssrf_hosts %#
+        # The app's SSRF guard refuses private addresses, which is what pods get
+        # for the Pocket ID host (the internal gateway) and the LocalAI Service.
         - name: SSRF_WHITELIST
-          value: auth.${SECRET_DOMAIN}
+          value: #{ ssrf_hosts | join(",") }#
         #% endif %#
     frontend:
       image:
