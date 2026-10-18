@@ -35,6 +35,11 @@ spec:
         # exists, so the first restart after it registers makes it the admin.
         - name: AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL
           value: "jason@matherly.net"
+        # The browser extension's OIDC sign-in returns to the store-assigned
+        # extension origins (ai-kb extension/store/listing.md): Chrome Web
+        # Store, then Edge Add-ons.
+        - name: OIDC_AUTH_EXTENSION_RETURN_URLS
+          value: https://beamnnjkmfepmlfpbcchiiooimoloiod.chromiumapp.org/oidc,https://eminfjejkcandcdbcjhdeobhhjidapdc.chromiumapp.org/oidc
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui
