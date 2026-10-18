@@ -192,7 +192,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **ai-kb** is Jason's own product (`jrmatherly/ai-kb`): the chart and its four images are released together
   under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change, and read the
   release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG` and
-  `SSRF_WHITELIST` through `app.extraEnv` and mounts the `ai-kb-models` ConfigMap with a postRenderers patch
+  `SSRF_WHITELIST_EXTRA` and the `S3_*` storage settings through `app.extraEnv` and mounts the `ai-kb-models` ConfigMap with a postRenderers patch
   the chart does not know about. Its database runs one CNPG instance (the community pg_search refuses to start
   on a standby) and loads `pg_search` from `paradedb/paradedb-extension`, whose Postgres major and Debian
   release must match the catalog image in `components/postgres`; Renovate offers it through a

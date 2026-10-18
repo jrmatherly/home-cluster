@@ -49,6 +49,14 @@
         "oidc_client_secret": {
           "$ref": "#/$defs/Secret",
           "default": ""
+        },
+        "rustfs_access_key": {
+          "$ref": "#/$defs/S3AccessKey",
+          "default": ""
+        },
+        "rustfs_secret_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
         }
       },
       "title": "AiKb",
@@ -1232,7 +1240,9 @@
         "aes_key": "",
         "admin_email": "",
         "oidc_client_id": "",
-        "oidc_client_secret": ""
+        "oidc_client_secret": "",
+        "rustfs_access_key": "",
+        "rustfs_secret_key": ""
       }
     },
     "rustfs": {

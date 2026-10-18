@@ -9,6 +9,9 @@ metadata:
     #% if nvidia_enabled %#
     localai.ai/client: "true"
     #% endif %#
+    #% if ai_kb_rustfs %#
+    rustfs.storage/client: "true"
+    #% endif %#
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 #% endif %#

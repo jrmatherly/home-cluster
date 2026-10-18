@@ -31,6 +31,12 @@ spec:
       # The data-files volume is local-path, which one node mounts at a time.
       strategy:
         type: Recreate
+      #% if ai_kb_rustfs %#
+      # The chart renders STORAGE_TYPE from env, so it is set here and not in
+      # extraEnv, which would make a second variable of the same name.
+      env:
+        STORAGE_TYPE: s3
+      #% endif %#
       extraEnv:
         # Promotes that account at startup while no system administrator
         # exists, so the first restart after it registers makes it the admin.
@@ -67,11 +73,38 @@ spec:
               name: ai-kb-secret
               key: LOCALAI_API_KEY
         #% endif %#
-        #% set ssrf_hosts = (["auth.${SECRET_DOMAIN}"] if ai_kb_oidc else []) + (["localai.ai.svc.cluster.local"] if nvidia_enabled else []) %#
+        #% if ai_kb_rustfs %#
+        # Uploads go to the app's RustFS bucket; the key pair is scoped to it.
+        - name: STORAGE_ALLOW_LIST
+          value: local,s3
+        - name: S3_ENDPOINT
+          value: http://rustfs-svc.rustfs.svc.cluster.local:9000
+        - name: S3_REGION
+          value: us-east-1
+        - name: S3_BUCKET_NAME
+          value: #{ (rustfs_consumers | selectattr("name", "equalto", "ai-kb") | first).bucket }#
+        - name: S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: S3_USE_SSL
+          value: "false"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: S3_ACCESS_KEY
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: S3_SECRET_KEY
+        #% endif %#
+        #% set ssrf_hosts = (["auth.${SECRET_DOMAIN}"] if ai_kb_oidc else []) + (["localai.ai.svc.cluster.local"] if nvidia_enabled else []) + (["rustfs-svc.rustfs.svc.cluster.local"] if ai_kb_rustfs else []) %#
         #% if ssrf_hosts %#
         # The app's SSRF guard refuses private addresses, which is what pods get
-        # for the Pocket ID host (the internal gateway) and the LocalAI Service.
-        - name: SSRF_WHITELIST
+        # for the Pocket ID host (the internal gateway) and the LocalAI and
+        # RustFS Services. The EXTRA list is always merged in; an admin's edit
+        # of the SSRF allowlist in the app's settings replaces SSRF_WHITELIST.
+        - name: SSRF_WHITELIST_EXTRA
           value: #{ ssrf_hosts | join(",") }#
         #% endif %#
     frontend:

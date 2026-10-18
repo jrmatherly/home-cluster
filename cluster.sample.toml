@@ -996,6 +996,17 @@ schematic_id = ""
 # oidc_client_id = ""
 # oidc_client_secret = ""
 
+# The app's own RustFS key pair, letters and digits, at least 16 and 32. The
+# provisioning Job creates the ai-kb-files bucket and scopes the pair to it,
+# and a new workspace stores its files there instead of on the data-files
+# volume; a workspace that exists keeps its backend until it is switched in
+# the workspace settings. They are written to a SOPS-encrypted Secret.
+# Needs [rustfs]. Set both or neither.
+# OPTIONAL. Example: the output of `openssl rand -hex 16` and `-hex 32`
+
+# rustfs_access_key = ""
+# rustfs_secret_key = ""
+
 
 # =============================================================================
 #    RustFS, an S3-compatible object store for the cluster's own apps, at

@@ -1194,6 +1194,39 @@ def test_ai_kb_requires_ingress():
         _load_raw(raw)
 
 
+RUSTFS = {"rustfs.access_key": "k" * 16, "rustfs.secret_key": "s" * 32, "rustfs.node": "k8s-1"}
+AI_KB_RUSTFS = AI_KB | {"ai_kb.rustfs_access_key": "a" * 16, "ai_kb.rustfs_secret_key": "b" * 32}
+
+
+def test_rustfs_consumers_lists_ai_kb_when_its_pair_is_set():
+    assert _load_raw(config_from("private.toml", **RUSTFS)).rustfs_consumers == []
+    config = _load_raw(config_from("private.toml", **RUSTFS | AI_KB_RUSTFS))
+    assert config.rustfs_consumers == [
+        {"name": "ai-kb", "bucket": "ai-kb-files", "access_key": "a" * 16, "secret_key": "b" * 32}
+    ]
+
+
+def test_rustfs_consumers_checksum_changes_with_a_consumer():
+    before = _load_raw(config_from("private.toml", **RUSTFS)).rustfs_consumers_checksum
+    after = _load_raw(
+        config_from("private.toml", **RUSTFS | AI_KB_RUSTFS)
+    ).rustfs_consumers_checksum
+    assert before != after
+
+
+def test_ai_kb_rustfs_pair_requires_the_rest_of_the_section():
+    pair = {"ai_kb.rustfs_access_key": "a" * 16, "ai_kb.rustfs_secret_key": "b" * 32}
+    with pytest.raises(
+        ConfigError, match=r"ai_kb\.rustfs_access_key requires the rest of \[ai_kb\]"
+    ):
+        _load_raw(config_from("private.toml", **RUSTFS | pair))
+
+
+def test_ai_kb_rustfs_pair_requires_rustfs():
+    with pytest.raises(ConfigError, match=r"ai_kb\.rustfs_access_key requires rustfs"):
+        _load_raw(config_from("private.toml", **AI_KB_RUSTFS))
+
+
 SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text()))
 
 

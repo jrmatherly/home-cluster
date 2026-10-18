@@ -35,6 +35,23 @@ git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' '
 
 Commit the rendered `kubernetes/apps/ai-kb/` and push. `just kube reconcile` makes Flux pull now.
 
+### Files on RustFS
+
+With `rustfs_access_key` and `rustfs_secret_key` set (generate them with `openssl rand -hex 16` and
+`openssl rand -hex 32`; they need `[rustfs]`), the `ai-kb-files` bucket on RustFS becomes the
+default storage backend: the chart's `STORAGE_TYPE` becomes `s3`, the `S3_*` settings point
+at `http://rustfs-svc.rustfs.svc.cluster.local:9000` with path-style requests, the pair reaches the
+app from `ai-kb-secret`, `STORAGE_ALLOW_LIST` keeps `local` and `s3`, and `SSRF_WHITELIST_EXTRA` names the
+RustFS Service, because the app's S3 client validates its endpoint through the same SSRF guard. The
+namespace gets the `rustfs.storage/client` label that RustFS's NetworkPolicy admits, and the ai-kb
+entry in `rustfs_consumers` makes the provisioning Job create the bucket and scope the pair to it.
+A workspace created after the switch stores its files there. A workspace that exists keeps the
+backend recorded at its creation (the data-files volume) until its default storage backend is
+switched in the workspace settings, and files already uploaded are not moved (measured in the
+app's source at the pinned tag: the startup migration only sets a default for a workspace that has
+none). The ai-kb Kustomization depends on `rustfs-provision`, because the app checks its bucket at
+startup.
+
 ## Watch it come up
 
 ```sh
@@ -66,13 +83,13 @@ A new client in Pocket ID, named `AI KB`:
 - Callback URL: `https://ai-kb.${SECRET_DOMAIN}/api/v1/auth/oidc/callback` (exactly this; the login page builds it from the browser origin)
 - Confidential client, scopes `openid profile email`; the app reads the email from `email` and the username from `name`, falling back to `preferred_username`
 
-Copy the client ID and the secret into `oidc_client_id` and `oidc_client_secret` in `[ai_kb]`, then `just configure`, restore, commit, push and `just kube reconcile`. The HelmRelease adds the `OIDC_AUTH_*` env vars (the chart has no OIDC values), the secret comes from `ai-kb-secret`, and Reloader restarts the pod when that Secret changes. `SSRF_WHITELIST` names `auth.${SECRET_DOMAIN}`, because pods resolve it to the internal gateway's private address, which the app's SSRF-safe HTTP client refuses for discovery otherwise. A bad value is a crash loop, not a silent fallback: the app refuses to start when `OIDC_AUTH_ENABLE` is set without the client, secret and discovery URL.
+Copy the client ID and the secret into `oidc_client_id` and `oidc_client_secret` in `[ai_kb]`, then `just configure`, restore, commit, push and `just kube reconcile`. The HelmRelease adds the `OIDC_AUTH_*` env vars (the chart has no OIDC values), the secret comes from `ai-kb-secret`, and Reloader restarts the pod when that Secret changes. `SSRF_WHITELIST_EXTRA` names `auth.${SECRET_DOMAIN}`, because pods resolve it to the internal gateway's private address, which the app's SSRF-safe HTTP client refuses for discovery otherwise. A bad value is a crash loop, not a silent fallback: the app refuses to start when `OIDC_AUTH_ENABLE` is set without the client, secret and discovery URL.
 
 Done when `GET /api/v1/auth/oidc/config` reports `enabled: true` with the display name `Pocket ID` and `GET /api/v1/auth/oidc/start` answers a 302 to Pocket ID. The first Pocket ID sign-in with an address that already has an account links to it; any other address gets a new account, which is why Pocket ID's "allow users to edit their own account details" stays off.
 
 ## Models and keys
 LocalAI's models arrive declaratively. The `ai-kb-models` ConfigMap is the app's `builtin_models.yaml` (`BUILTIN_MODELS_CONFIG` names the mount), which the app upserts into its `models` table on every start as built-in defaults visible to every workspace: the chat model `qwen-3.5-4b` (`KnowledgeQA`, context window 16384, one LocalAI slot) and the embedding model `nomic-embed-text-v1.5` (768 dimensions), both provider `generic` at `http://localai.ai.svc.cluster.local:8080/v1` with the key as `${LOCALAI_API_KEY}` from `ai-kb-secret`. Removing an entry from the ConfigMap retires that model on the next start; a model added in the UI is never touched by the loader. Other providers and their API keys are entered per tenant in the app's settings and stored encrypted with `aes_key` in the database.
-The ai-kb namespace carries the `localai.ai/client` label that LocalAI's NetworkPolicy admits, and `SSRF_WHITELIST` on the app names `localai.ai.svc.cluster.local`, because the Service resolves to a cluster address the app's SSRF-safe HTTP client refuses otherwise (measured 2026-10-18: the pod's own curl listed both models once the label and allowlist were in place).
+The ai-kb namespace carries the `localai.ai/client` label that LocalAI's NetworkPolicy admits, and `SSRF_WHITELIST_EXTRA` on the app names `localai.ai.svc.cluster.local`, because the Service resolves to a cluster address the app's SSRF-safe HTTP client refuses otherwise (measured 2026-10-18: the pod's own curl listed both models once the label and allowlist were in place).
 
 ## Network
 

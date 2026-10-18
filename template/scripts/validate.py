@@ -648,15 +648,18 @@ class AiKb(Model):
     # The OIDC client created for AI KB in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     oidc_client_secret: Secret = ""
+    # The app's own RustFS key pair; the provisioning Job scopes it to the ai-kb-files bucket.
+    rustfs_access_key: S3AccessKey = ""
+    rustfs_secret_key: ApiKey = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
         _all_or_none(self, "ai_kb", ("jwt_secret", "aes_key", "admin_email"))
         _all_or_none(self, "ai_kb", ("oidc_client_id", "oidc_client_secret"))
-        if self.oidc_client_id and not self.jwt_secret:
-            raise ValueError(
-                "ai_kb.oidc_client_id requires the rest of [ai_kb]: it signs in to the app"
-            )
+        _all_or_none(self, "ai_kb", ("rustfs_access_key", "rustfs_secret_key"))
+        for field in ("oidc_client_id", "rustfs_access_key"):
+            if getattr(self, field) and not self.jwt_secret:
+                raise ValueError(f"ai_kb.{field} requires the rest of [ai_kb]")
         return self
 
 
@@ -907,6 +910,11 @@ class Config(Model):
 
     @computed_field
     @property
+    def ai_kb_rustfs(self) -> bool:
+        return self.ai_kb.rustfs_access_key != ""
+
+    @computed_field
+    @property
     def rustfs_enabled(self) -> bool:
         return self.rustfs.access_key != ""
 
@@ -914,7 +922,17 @@ class Config(Model):
     @computed_field
     @property
     def rustfs_consumers(self) -> list[dict[str, str]]:
-        return []
+        consumers = []
+        if self.ai_kb_rustfs:
+            consumers.append(
+                {
+                    "name": "ai-kb",
+                    "bucket": "ai-kb-files",
+                    "access_key": self.ai_kb.rustfs_access_key,
+                    "secret_key": self.ai_kb.rustfs_secret_key,
+                }
+            )
+        return consumers
 
     # Changes when a consumer changes, so the provisioning Job is recreated and runs again.
     @computed_field
@@ -1098,6 +1116,8 @@ class Config(Model):
             )
         if self.rustfs_enabled:
             self._worker("rustfs.node", self.rustfs.node)
+        if self.ai_kb_rustfs and not self.rustfs_enabled:
+            raise ValueError("ai_kb.rustfs_access_key requires rustfs: the bucket lives there")
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(
                 "network_optimizer requires observability: Network Optimizer writes its "

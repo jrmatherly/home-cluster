@@ -99,6 +99,8 @@ jobs:
           - ai-kb-without-backup
           - ai-kb-bad-aes-key
           - ai-kb-oidc-without-pocket-id
+          - ai-kb-rustfs-without-rustfs
+          - partial-ai-kb-rustfs
           - partial-rustfs
           - rustfs-bad-node
           - rustfs-short-secret

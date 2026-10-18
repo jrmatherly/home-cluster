@@ -10,6 +10,11 @@ spec:
       namespace: cnpg-system
     - name: plugin-barman-cloud
       namespace: cnpg-system
+    #% if ai_kb_rustfs %#
+    # The app checks its bucket at startup, so the key pair has to exist first.
+    - name: rustfs-provision
+      namespace: rustfs
+    #% endif %#
   interval: 1h
   path: ./kubernetes/apps/ai-kb/ai-kb/app
   postBuild:
