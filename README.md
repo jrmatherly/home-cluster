@@ -24,8 +24,8 @@ addresses, because this repository is public.
   Proxmox and network time series, Hubble.
 - **Apps:** a media stack (Sonarr, Radarr, Prowlarr, SABnzbd, Recyclarr, Bazarr, Tautulli, Seerr,
   Maintainerr), Actual Budget, Kener, Network Optimizer, PegaProx, Radar, Reactive Resume, AI
-  Workspace (with a browserless pod), LocalAI on the GPU node, the public site, and this
-  documentation.
+  Workspace (with a browserless pod), AI KB, LocalAI on the GPU node (a chat and an embedding
+  model), the public site, and this documentation.
 
 Each app lives under `kubernetes/apps/<namespace>/<app>/`, rendered from its `.j2` source under
 `template/config/`. `cluster.sample.toml` documents every setting, and a section in `cluster.toml`

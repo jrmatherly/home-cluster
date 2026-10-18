@@ -30,8 +30,11 @@ TEMPLATES = ROOT / "template/config"
 # The patch number is optional, because some images publish only 1.38 (busybox) or
 # 18.6-standard-trixie (CloudNativePG), and a fourth part is allowed for the Servarr
 # builds (4.0.20.3012) and CalVer releases (v2026.10.12.2); missing parts read as 0.
-# The prefix holds no digit, or it would swallow the major of a four-part tag.
-STABLE = re.compile(r"^(\D*?v?)(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(-[a-z][a-z0-9.-]*)?$")
+# The prefix holds no digit, or it would swallow the major of a four-part tag. A suffix
+# may open with a number and a word (0.26.2-18-trixie, ParadeDB's extension image: the
+# Postgres major and the Debian release), but a bare number (1.2.3-4) is a build, not a
+# variant.
+STABLE = re.compile(r"^(\D*?v?)(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(-(?:\d+-)?[a-z][a-z0-9.-]*)?$")
 PLAIN = ("", "v")
 # Docker Hub serves its registry API from a different host than its image names.
 REGISTRY_HOSTS = {"docker.io": "registry-1.docker.io"}
@@ -54,12 +57,13 @@ def pins() -> list[tuple[str, str, str, str, Path]]:
                 found.append((path.parts[-3], "image", repo, tag, rel))
         if "helmfile" not in path.parts:
             # Single-line pins: image volumes under persistence, plain Deployments, CronJobs,
-            # the Redis component and the Postgres ImageCatalog. Skipped: a `latest` tag (the
-            # docs image; Renovate moves its digest) and the model images, whose tags are a
-            # quantization plus a revision and are bumped by hand (apps.md, localai).
+            # the Redis component, the Postgres ImageCatalog and a CNPG extension image
+            # (`reference:`). Skipped: a `latest` tag (the docs image; Renovate moves its
+            # digest) and the model images, whose tags are a quantization plus a revision and
+            # are bumped by hand (apps.md, localai).
             app = path.parts[-3] if path.parts[-2] == "app" else path.parts[-2]
             for repo, tag in re.findall(
-                r'\n\s+image: "?([^\s"@:]+(?:/[^\s"@:]+)+):([^\s@"]+)', text
+                r'\n\s+(?:image|reference): "?([^\s"@:]+(?:/[^\s"@:]+)+):([^\s@"]+)', text
             ):
                 if tag != "latest" and not repo.startswith("ghcr.io/jrmatherly/models/"):
                     found.append((app, "image", repo, tag, rel))
@@ -119,6 +123,8 @@ def parse(tag: str) -> tuple[tuple[str, str], tuple[int, ...]] | None:
     (('', '-alpine'), (2, 9, 1, 0))
     >>> parse("18.6-standard-trixie")
     (('', '-standard-trixie'), (18, 6, 0, 0))
+    >>> parse("0.26.2-18-trixie")
+    (('', '-18-trixie'), (0, 26, 2, 0))
     >>> parse("4.0.20.3012"), parse("v2026.10.12.2")
     ((('', ''), (4, 0, 20, 3012)), (('v', ''), (2026, 10, 12, 2)))
     >>> parse("latest"), parse("3"), parse("1.2.3-4"), parse("1.2.3.4.5")

@@ -46,6 +46,9 @@ The chart column is what the template pins. The releases column is where the not
 | ai-workspace              | ai-workspace       | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | ai-workspace (image)      | ai-workspace       | `ghcr.io/jrmatherly/ai-workspace`                                                                 | <https://github.com/jrmatherly/ai-workspace/releases>             |
 | browserless (image)       | ai-workspace       | `ghcr.io/browserless/chromium` (plain Deployment, pinned by digest)                               | <https://github.com/browserless/browserless/releases>             |
+| ai-kb                     | ai-kb              | `ghcr.io/jrmatherly/ai-kb/charts/ai-kb` (own chart, `OCIRepository` tag)                          | <https://github.com/jrmatherly/ai-kb/releases>                    |
+| ai-kb (images)            | ai-kb              | `ghcr.io/jrmatherly/ai-kb-{app,ui,website,docreader}` (one CalVer tag, pinned by digest)          | <https://github.com/jrmatherly/ai-kb/releases>                    |
+| ai-kb extension (image)   | ai-kb              | `docker.io/paradedb/paradedb-extension` (a `customManagers` rule reads this `image.reference`)    | <https://github.com/paradedb/paradedb/releases>                   |
 | kener                     | kener              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | kener (image)             | kener              | `ghcr.io/rajnandan1/kener`                                                                        | <https://github.com/rajnandan1/kener/releases>                    |
 | reactive-resume           | reactive-resume    | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
@@ -176,11 +179,24 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `SENTRY_RELEASE`; anything more is a chart change to read. Its database (`matherlynet-db`) is outside the chart.
 - **localai** renders only on a cluster with an NVIDIA node, and holds the whole GPU. Its main image and backend
   image move together (Renovate group "LocalAI"); the backend tag must keep the `-gpu-nvidia-cuda-12-llama-cpp`
-  suffix, because the GPU is a GTX 1080 (Pascal). The model image is hand-bumped: edit the pins in
-  `images/qwen3.5-4b/Dockerfile` and push, the Model Images workflow builds the new tag and prints its digest in
+  suffix, because the GPU is a GTX 1080 (Pascal). The model images are hand-bumped: edit the pins in
+  `images/<model>/Dockerfile` and push, the Model Images workflow builds the new tag and prints its digest in
   the run summary, then update the image volume reference and `parameters.model` in the `localai-models`
   ConfigMap. The `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full
-  security context. After an update, `/readyz` answers 200 only once the model is preloaded.
+  security context. After an update, `/readyz` answers 200 only once the models are preloaded. The embedding
+  model (`images/nomic-embed-text-v1.5`) produces the 768-dimension vectors AI KB stores, so a replacement
+  must keep that dimension or every knowledge base is re-embedded.
+- **ai-kb** is Jason's own product (`jrmatherly/ai-kb`): the chart and its four images are released together
+  under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change, and read the
+  release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG` and
+  `SSRF_WHITELIST` through `app.extraEnv` and mounts the `ai-kb-models` ConfigMap with a postRenderers patch
+  the chart does not know about. Its database runs one CNPG instance (the community pg_search refuses to start
+  on a standby) and loads `pg_search` from `paradedb/paradedb-extension`, whose Postgres major and Debian
+  release must match the catalog image in `components/postgres`; Renovate offers it through a
+  `customManagers` rule, and Docker versioning keeps it on `-18-trixie` tags. The app's migrations run
+  `ALTER EXTENSION pg_search UPDATE`, so the extensions must stay owned by the `app` role (the Cluster's
+  initdb SQL does that on a fresh install). After an update, the app log's migration block must end with
+  `Database migrated from version N to M`, not `Continuing with application startup`.
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
@@ -288,8 +304,9 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | matherlynet                  | `kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment`, then `curl -s https://<domain>/`                     | rollout complete, and the page has `pageswap`                    |
 | network-optimizer            | `kubectl -n network-optimizer exec deploy/network-optimizer -- curl -s localhost:8042/api/health`, then open Performance Tweaks | `{"status":"healthy",...}`, and the gateway firmware shows green |
 | actual-budget                | `curl -s https://budget.<domain>/health` and `kubectl -n actual-budget get pods`                                                | `{"status":"UP"}`, and the pod Running                           |
-| localai                      | `kubectl -n ai exec deploy/localai -- curl -fsS localhost:8080/readyz` (curl is in the image, measured 2026-10-12)              | `200` once the model is loaded                                   |
+| localai                      | `kubectl -n ai exec deploy/localai -- curl -fsS localhost:8080/readyz` (curl is in the image, measured 2026-10-12)              | `200` once both models are loaded                                |
 | ai-workspace                 | `kubectl -n ai-workspace get pods`, then `curl -s https://ai.<domain>/api/trpc/backend.listCapabilities`                        | migrate Job Completed, app Running, a JSON body                  |
+| ai-kb                        | `kubectl -n ai-kb get pods`, then `curl -s https://ai-kb.<domain>/api/v1/auth/oidc/config` and the app log's migration block    | seven pods Running, `enabled: true`, a `Database migrated` line  |
 | kener                        | `curl -s https://status.<domain>/healthcheck`                                                                                   | ok                                                               |
 | reactive-resume              | `curl -s -o /dev/null -w '%{http_code}' https://resume.<domain>/`                                                               | `200`                                                            |
 | media stack                  | `kubectl -n media get pods,jobs`, then open each UI once                                                                        | every pod Running, every configure Job Completed                 |
