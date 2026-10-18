@@ -78,6 +78,11 @@ type EmailAddress = Annotated[str, Field(pattern=f"^{EMAIL}$")]
 type EmailRule = Annotated[str, Field(pattern=rf"^({EMAIL}|@{_SAFE}\.{_SAFE})$")]
 # The arrs and SABnzbd generate 32 hex characters; a hand-made key is at least that long.
 type ApiKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{32,})?$")]
+# A RustFS access key; its secret key is an ApiKey. Letters and digits, because
+# the provisioning Job passes both to rc as arguments.
+type S3AccessKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{16,})?$")]
+# A [[nodes]] name that _worker checks against the node list.
+type WorkerName = Annotated[str, Field(pattern=r"^[a-z0-9-]*$")]
 
 
 class Model(BaseModel):
@@ -537,7 +542,7 @@ class Media(Model):
     nfs_server: IPv4Address | Literal[""] = ""
     nfs_share: str = Field(default="/srv/media", pattern=r'^/[^"\\\s$]*$')
     # The worker whose Proxmox host serves the export.
-    node: str = Field(default="", pattern=r"^[a-z0-9-]*$")
+    node: WorkerName = ""
     timezone: str = Field(default="Etc/UTC", pattern=r"^[A-Za-z0-9_+/-]+$")
     # New random keys, shared with the other apps through the media-keys Secret.
     sonarr_api_key: ApiKey = ""
@@ -655,6 +660,19 @@ class AiKb(Model):
         return self
 
 
+class RustFs(Model):
+    # The root key pair. Consumers get their own scoped pair from their own section.
+    access_key: S3AccessKey = ""
+    secret_key: ApiKey = ""
+    # The worker whose local-path volume holds every object.
+    node: WorkerName = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "rustfs", ("access_key", "secret_key", "node"))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -709,6 +727,7 @@ class Config(Model):
     media: Media = Media()
     ai_workspace: AiWorkspace = AiWorkspace()
     ai_kb: AiKb = AiKb()
+    rustfs: RustFs = RustFs()
     localai: LocalAi = LocalAi()
     nodes: list[Node]
 
@@ -886,6 +905,24 @@ class Config(Model):
     def ai_kb_oidc(self) -> bool:
         return self.ai_kb.oidc_client_id != ""
 
+    @computed_field
+    @property
+    def rustfs_enabled(self) -> bool:
+        return self.rustfs.access_key != ""
+
+    # One bucket and one key pair scoped to it per app; the provisioning Job creates them.
+    @computed_field
+    @property
+    def rustfs_consumers(self) -> list[dict[str, str]]:
+        return []
+
+    # Changes when a consumer changes, so the provisioning Job is recreated and runs again.
+    @computed_field
+    @property
+    def rustfs_consumers_checksum(self) -> str:
+        consumers = json.dumps(self.rustfs_consumers, sort_keys=True)
+        return hashlib.sha256(consumers.encode()).hexdigest()[:16]
+
     # Changes when any media key changes, so a HelmRelease that carries it is
     # upgraded and its configure hook pushes the new keys into the apps.
     @computed_field
@@ -915,6 +952,10 @@ class Config(Model):
     @property
     def cert_sans(self) -> list[str]:
         return ["127.0.0.1", str(self.kubernetes.api.addr), *(self.kubernetes.api.tls_sans or [])]
+
+    def _worker(self, label: str, name: str) -> None:
+        if not any(node.name == name and not node.controller for node in self.nodes):
+            raise ValueError(f"{label} {name} must name a [[nodes]] entry with controller = false")
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -1047,18 +1088,16 @@ class Config(Model):
             )
         if self.media_enabled and not self.pocket_id_enabled:
             raise ValueError("media requires pocket_id: the gateway sign-in is the only login")
-        if self.media_enabled and not any(
-            node.name == self.media.node and not node.controller for node in self.nodes
-        ):
-            raise ValueError(
-                f"media.node {self.media.node} must name a [[nodes]] entry with controller = false"
-            )
+        if self.media_enabled:
+            self._worker("media.node", self.media.node)
         # pocket_id.public already requires an ingress, so no separate ingress check.
         if self.media.public and not self.pocket_id.public:
             raise ValueError(
                 "media.public requires pocket_id.public: a visitor from the internet "
                 "must reach the Pocket ID login"
             )
+        if self.rustfs_enabled:
+            self._worker("rustfs.node", self.rustfs.node)
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(
                 "network_optimizer requires observability: Network Optimizer writes its "

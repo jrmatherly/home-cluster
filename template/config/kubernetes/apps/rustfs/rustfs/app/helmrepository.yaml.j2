@@ -1,0 +1,10 @@
+#% if rustfs_enabled %#
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: rustfs
+spec:
+  interval: 1h
+  url: https://charts.rustfs.com
+#% endif %#

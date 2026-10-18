@@ -164,6 +164,11 @@ admin_email = "admin@example.com"
 oidc_client_id = "ai-kb"
 oidc_client_secret = "fakefakefakefakefakefakefakefake"
 
+[rustfs]
+access_key = "fakefakefakefake"
+secret_key = "fakefakefakefakefakefakefakefake"
+node = "k8s-1"
+
 [[nodes]]
 name = "k8s-0"
 address = "10.10.10.100"

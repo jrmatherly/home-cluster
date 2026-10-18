@@ -99,6 +99,9 @@ jobs:
           - ai-kb-without-backup
           - ai-kb-bad-aes-key
           - ai-kb-oidc-without-pocket-id
+          - partial-rustfs
+          - rustfs-bad-node
+          - rustfs-short-secret
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

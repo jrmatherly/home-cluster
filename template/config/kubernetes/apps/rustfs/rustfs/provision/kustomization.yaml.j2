@@ -1,0 +1,14 @@
+#% if rustfs_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./job.yaml
+  - ./secret.sops.yaml
+# The hash suffix changes the Job's volume reference, so an edited script
+# recreates the Job as a changed consumer does.
+configMapGenerator:
+  - name: rustfs-provision
+    files:
+      - provision.sh
+#% endif %#

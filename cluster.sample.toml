@@ -998,6 +998,38 @@ schematic_id = ""
 
 
 # =============================================================================
+#    RustFS, an S3-compatible object store for the cluster's own apps, at
+#    http://rustfs-svc.rustfs.svc.cluster.local:9000 (path-style requests,
+#    region us-east-1). It is not exposed on a gateway and its console is
+#    off. Set all three fields to enable; leaving them blank skips it.
+#
+#    It runs standalone: one pod and one local-path volume on the worker in
+#    node, so every object lives on that node's disk and nowhere else. An app
+#    that stores files here sets its own key pair in its own section; a Job
+#    then creates the app's bucket and a service account scoped to it.
+# =============================================================================
+[rustfs]
+
+# Root access key, letters and digits, at least 16. It is written to a
+# SOPS-encrypted Secret. Set all three fields together, or none.
+# OPTIONAL. Example: the output of `openssl rand -hex 16`
+
+# access_key = ""
+
+# Root secret key, letters and digits, at least 32. It is written to a
+# SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# secret_key = ""
+
+# The worker that holds the volume: one of the [[nodes]] names, not a
+# controller. The pod is pinned to it, because the volume cannot move.
+# OPTIONAL. Example: "k8s-1"
+
+# node = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

@@ -65,7 +65,10 @@ The chart column is what the template pins. The releases column is where the not
 | maintainerr (image)       | media              | `ghcr.io/maintainerr/maintainerr`                                                                 | <https://github.com/jorenn92/Maintainerr/releases>                |
 | hook jobs (image)         | media, kube-system | `docker.io/alpine/k8s` (media configure Jobs, `restart-reset`)                                    | <https://github.com/alpine-docker/k8s>                            |
 | wait init (image)         | five apps          | `docker.io/library/busybox` (ai-workspace, kener, radar, reactive-resume, local-path-provisioner) | <https://hub.docker.com/_/busybox>                                |
-| csi-driver-nfs            | storage            | classic `HelmRepository`, the only one; the inventory cannot see it                               | <https://github.com/kubernetes-csi/csi-driver-nfs/releases>       |
+| csi-driver-nfs            | storage            | classic `HelmRepository`, one of two; the inventory cannot see it                                 | <https://github.com/kubernetes-csi/csi-driver-nfs/releases>       |
+| rustfs                    | rustfs             | classic `HelmRepository` `https://charts.rustfs.com`, one of two; the inventory cannot see it     | <https://github.com/rustfs/rustfs/releases>                       |
+| rustfs (images)           | rustfs             | `ghcr.io/rustfs/rustfs`, and `docker.io/library/busybox` for the chart's init container           | <https://github.com/rustfs/rustfs/releases>                       |
+| rustfs provision (image)  | rustfs             | `docker.io/rustfs/rc`                                                                             | <https://github.com/rustfs/cli/releases>                          |
 | docs (image)              | docs               | `ghcr.io/jrmatherly/home-cluster/docs` (`:latest`, Renovate pins it)                              | this repo's Docs Image workflow                                   |
 | redis (component image)   | per consumer       | `docker.io/library/redis`                                                                         | <https://github.com/redis/redis/releases>                         |
 | postgres (ImageCatalog)   | per consumer       | `ghcr.io/cloudnative-pg/postgresql`                                                               | <https://github.com/cloudnative-pg/postgres-containers/releases>  |
@@ -197,6 +200,13 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `ALTER EXTENSION pg_search UPDATE`, so the extensions must stay owned by the `app` role (the Cluster's
   initdb SQL does that on a fresh install). After an update, the app log's migration block must end with
   `Database migrated from version N to M`, not `Continuing with application startup`.
+- **rustfs** released 1.0.0 to 1.0.3 in a month, and its chart and image share a version. The chart's `main`
+  runs ahead of the published tarball, so read `values.yaml` from the tarball of the new version, not from Git.
+  It runs standalone on one `local-path` volume, which an upgrade keeps (the chart marks the claim
+  `helm.sh/resource-policy: keep`). Check the notes for scanner and single-disk memory changes
+  (rustfs/rustfs#8121, #8015), which is why `scanner.cycle_secs` is set. `rc` is pre-1.0; after bumping it, run
+  the provisioning Job's script against the new image, because it depends on `bucket create --ignore-existing`
+  and `admin service-account info`, `create` and `update`.
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
@@ -307,6 +317,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | localai                      | `kubectl -n ai exec deploy/localai -- curl -fsS localhost:8080/readyz` (curl is in the image, measured 2026-10-12)              | `200` once both models are loaded                                |
 | ai-workspace                 | `kubectl -n ai-workspace get pods`, then `curl -s https://ai.<domain>/api/trpc/backend.listCapabilities`                        | migrate Job Completed, app Running, a JSON body                  |
 | ai-kb                        | `kubectl -n ai-kb get pods`, then `curl -s https://ai-kb.<domain>/api/v1/auth/oidc/config` and the app log's migration block    | seven pods Running, `enabled: true`, a `Database migrated` line  |
+| rustfs                       | `kubectl -n rustfs get pods,jobs` and `kubectl -n rustfs logs job/rustfs-provision`                                             | pod Running, Job Completed, a `provisioned` line per consumer    |
 | kener                        | `curl -s https://status.<domain>/healthcheck`                                                                                   | ok                                                               |
 | reactive-resume              | `curl -s -o /dev/null -w '%{http_code}' https://resume.<domain>/`                                                               | `200`                                                            |
 | media stack                  | `kubectl -n media get pods,jobs`, then open each UI once                                                                        | every pod Running, every configure Job Completed                 |

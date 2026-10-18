@@ -1,0 +1,98 @@
+---
+title: RustFS
+description: Take RustFS from the templates in Git to a running S3 store with one scoped bucket and key pair per app.
+sidebar:
+  order: 17
+---
+
+The steps outside the repo that `[rustfs]` in `cluster.toml` needs, in order. The deployment itself
+is in Git: the `[rustfs]` section and `kubernetes/apps/rustfs/`. "Measured" below was run in Docker
+against `rustfs/rustfs:1.0.3` and `rustfs/rc:v0.1.36` on 2026-10-18, under the pod's restrictions
+(read-only root, every capability dropped, the pod's uid). Nothing here has run on the cluster yet.
+
+## What it holds
+
+RustFS is an S3-compatible object store for the cluster's own apps. It runs standalone: one pod and
+one 20Gi `local-path` claim at `/data` on the worker named in `rustfs.node`. Every object lives on
+that node's disk and nowhere else. A single drive has no parity, so the server logs
+`storage_class_zero_redundancy` at startup and can detect bitrot but not repair it. The node's ZFS
+mirror on its Proxmox host is the only protection, the same as any other `local-path` volume.
+Replication to R2 is not possible, because RustFS replicates only to a target with bucket
+versioning and R2 does not implement it.
+
+Clients reach it at `http://rustfs-svc.rustfs.svc.cluster.local:9000` with path-style requests and
+region `us-east-1`. It is on no gateway, and its web console is off.
+
+## Pick the node
+
+Pick a worker, not a controller, and not the media host's or the GPU node, so a busy neighbour does
+not share its disk. The pod is pinned to it for good: moving the store to another node means copying
+the bucket contents, because a `local-path` volume cannot move.
+
+## cluster.toml
+
+Section `[rustfs]`, after `[ai_kb]`:
+
+- `access_key`: the root access key, from `openssl rand -hex 16`.
+- `secret_key`: the root secret key, from `openssl rand -hex 32`.
+- `node`: the worker from the step above.
+
+Then `just configure`, restore the sops files that did not change:
+
+```sh
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+```
+
+Commit the rendered `kubernetes/apps/rustfs/` and push. `just kube reconcile` makes Flux pull now.
+
+## Watch it come up
+
+```sh
+kubectl -n rustfs get pods,pvc,jobs
+kubectl -n rustfs logs job/rustfs-provision
+```
+
+The `rustfs` pod Running, the `rustfs-data` claim Bound, and the `rustfs-provision` Job Completed.
+With no consumer yet, the Job only checks that the server answers and signs in as root. With
+consumers, its log ends with one `provisioned <app> in <bucket>` line each.
+
+## Add a consumer
+
+An app that stores files in RustFS gets its own bucket and its own key pair, never the root pair.
+
+1. Add the key pair fields to the app's section in `cluster.toml` (AI KB has `rustfs_access_key`
+   and `rustfs_secret_key`; generate them with `openssl rand -hex 16` and `openssl rand -hex 32`).
+2. `just configure`, commit and push.
+3. The app's entry in `rustfs_consumers` changes the checksum on the Job's pod template, so Flux
+   replaces the Job and it runs again. It creates the bucket if it is missing, then creates a
+   service account with the app's keys and a policy that allows only that bucket, or updates the
+   secret and policy of one that exists.
+4. Check `kubectl -n rustfs logs job/rustfs-provision` for the `provisioned` line.
+
+Measured in Docker: the first run creates the bucket and the key, a second run with the same keys
+converges, a rotated secret replaces the old one (the old secret is refused), and the app's key gets
+`AccessDenied` on any other bucket.
+
+The app's namespace also needs the label `rustfs.storage/client: "true"`, because the NetworkPolicy
+admits only labelled namespaces. The app's template sets it.
+
+## Rotate a key
+
+- A consumer's secret key: change it in the app's section, configure, commit and push. The Job
+  updates the service account, and Reloader restarts the app on its Secret change.
+- The root pair: change it in `[rustfs]` and push. The server restarts with the new pair, and
+  consumer keys keep working, because they are service accounts stored in RustFS's own data.
+
+## Updates
+
+Renovate offers the chart, the server image and the `rc` image. Read the release notes for scanner
+and single-disk memory changes (issues 8121 and 8015 upstream). `rc` is pre-1.0, so after bumping it
+run the provisioning script against the new image before merging.
+
+## If something breaks
+
+- The Job fails: `kubectl -n rustfs logs job/rustfs-provision` names the step. "not ready after five
+  minutes" means the server is down; check `kubectl -n rustfs describe pod`.
+- The pod is Pending: the node in `rustfs.node` is down or drained, and the pod cannot move.
+- Memory climbs toward the 1Gi limit: restart the pod, then check the scanner settings against the
+  upstream issue.

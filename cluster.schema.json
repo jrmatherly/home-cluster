@@ -460,10 +460,8 @@
           "type": "string"
         },
         "node": {
-          "default": "",
-          "pattern": "^[a-z0-9-]*$",
-          "title": "Node",
-          "type": "string"
+          "$ref": "#/$defs/WorkerName",
+          "default": ""
         },
         "timezone": {
           "default": "Etc/UTC",
@@ -937,6 +935,29 @@
       "title": "Repository",
       "type": "object"
     },
+    "RustFs": {
+      "additionalProperties": false,
+      "properties": {
+        "access_key": {
+          "$ref": "#/$defs/S3AccessKey",
+          "default": ""
+        },
+        "secret_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        },
+        "node": {
+          "$ref": "#/$defs/WorkerName",
+          "default": ""
+        }
+      },
+      "title": "RustFs",
+      "type": "object"
+    },
+    "S3AccessKey": {
+      "pattern": "^([A-Za-z0-9]{16,})?$",
+      "type": "string"
+    },
     "Secret": {
       "pattern": "^[^\"\\\\\\s$]*$",
       "type": "string"
@@ -1000,6 +1021,10 @@
       },
       "title": "Unifi",
       "type": "object"
+    },
+    "WorkerName": {
+      "pattern": "^[a-z0-9-]*$",
+      "type": "string"
     }
   },
   "additionalProperties": false,
@@ -1208,6 +1233,14 @@
         "admin_email": "",
         "oidc_client_id": "",
         "oidc_client_secret": ""
+      }
+    },
+    "rustfs": {
+      "$ref": "#/$defs/RustFs",
+      "default": {
+        "access_key": "",
+        "secret_key": "",
+        "node": ""
       }
     },
     "localai": {

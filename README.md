@@ -17,7 +17,7 @@ addresses, because this repository is public.
   external-dns for Cloudflare and for the UniFi console, a Cloudflare tunnel, spegel, reloader.
 - **Storage:** `local-path` volumes pinned to a node, an NFS share from the media host through
   csi-driver-nfs, CloudNativePG for every Postgres with backups to object storage, one Redis per
-  app that needs it.
+  app that needs it, and RustFS as an in-cluster S3 store for app files.
 - **Identity:** Pocket ID issues passkey logins, and apps without a login sit behind an Envoy
   Gateway security policy that signs users in with it.
 - **Observability:** kube-prometheus-stack with Grafana and Alertmanager, InfluxDB for the

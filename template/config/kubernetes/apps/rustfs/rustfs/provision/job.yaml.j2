@@ -1,0 +1,67 @@
+#% if rustfs_enabled %#
+---
+# A Job's pod template is immutable, so force lets Flux replace the Job when the
+# consumer checksum or the script's ConfigMap name changes, and the new Job runs
+# the script again.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-provision
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      annotations:
+        rustfs.consumers/checksum: "#{ rustfs_consumers_checksum }#"
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rc
+          image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
+          command: ["sh", "/config/provision.sh"]
+          env:
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - secretRef:
+                name: rustfs-secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: rustfs-provision
+        - name: secrets
+          secret:
+            secretName: rustfs-provision-secret
+        - name: tmp
+          emptyDir: {}
+#% endif %#

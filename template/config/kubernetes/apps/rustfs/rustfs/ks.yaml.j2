@@ -1,0 +1,44 @@
+#% if rustfs_enabled %#
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: rustfs
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/rustfs/rustfs/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: rustfs
+  # rustfs-provision depends on this, so the server answers before its Job runs.
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: rustfs-provision
+spec:
+  dependsOn:
+    - name: rustfs
+  interval: 1h
+  path: ./kubernetes/apps/rustfs/rustfs/provision
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: rustfs
+  # A failed Job marks the Kustomization not ready, so a broken run is visible.
+  wait: true
+#% endif %#

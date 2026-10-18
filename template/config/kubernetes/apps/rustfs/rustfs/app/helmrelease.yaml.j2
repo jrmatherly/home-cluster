@@ -1,0 +1,75 @@
+#% if rustfs_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: rustfs
+spec:
+  chart:
+    spec:
+      chart: rustfs
+      version: 1.0.3
+      sourceRef:
+        kind: HelmRepository
+        name: rustfs
+  interval: 1h
+  values:
+    mode:
+      standalone:
+        enabled: true
+      distributed:
+        enabled: false
+    image:
+      rustfs:
+        repository: ghcr.io/rustfs/rustfs
+        tag: 1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
+      initImage:
+        repository: docker.io/library/busybox
+        tag: stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+    ingress:
+      enabled: false
+    secret:
+      existingSecret: rustfs-secret
+    serviceAccount:
+      automount: false
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    config:
+      rustfs:
+        # Buckets and keys are managed with rc from the provisioning Job, so
+        # nothing needs the web console.
+        console_enable: "false"
+        # Empty sends the logs to stdout instead of a second volume.
+        obs_log_directory: ""
+        scanner:
+          # Every 6 hours. Memory on a single-disk server grows with the
+          # scanner's sweep rate (rustfs/rustfs#8121).
+          cycle_secs: "21600"
+    storageclass:
+      dataStorageSize: 20Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 192Mi
+      limits:
+        memory: 1Gi
+    # The local-path volume lives on this node only. A single node also has to
+    # stay on RustFS's default strict durability, so RUSTFS_DURABILITY_MODE is
+    # never set.
+    nodeSelector:
+      kubernetes.io/hostname: "#{ rustfs.node }#"
+  # The chart puts no checksum on its pod template and the pod reads the root
+  # pair through envFrom, so Reloader restarts it when rustfs-secret changes.
+  postRenderers:
+    - kustomize:
+        patches:
+          - patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: rustfs
+                namespace: rustfs
+                annotations:
+                  reloader.stakater.com/auto: "true"
+#% endif %#
