@@ -12,6 +12,18 @@ spec:
     kind: ImageCatalog
     name: postgresql
     major: 18
+  # The app's migrations create these four extensions and later run
+  # ALTER EXTENSION pg_search UPDATE, which only the owner may, so they are
+  # created here and handed to the app role; a CNPG Database object cannot
+  # set the owner. This runs once, at initdb, before the app can connect.
+  bootstrap:
+    initdb:
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS "uuid-ossp"
+        - CREATE EXTENSION IF NOT EXISTS vector
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm
+        - CREATE EXTENSION IF NOT EXISTS pg_search
+        - UPDATE pg_extension SET extowner = 'app'::regrole WHERE extname IN ('uuid-ossp', 'vector', 'pg_trgm', 'pg_search')
   postgresql:
     shared_preload_libraries: ["pg_search"]
     # ParadeDB's extension image. Its Postgres major and Debian release must
