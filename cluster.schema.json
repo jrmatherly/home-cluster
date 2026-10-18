@@ -39,6 +39,16 @@
         "admin_email": {
           "$ref": "#/$defs/EmailAddress",
           "default": ""
+        },
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
         }
       },
       "title": "AiKb",
@@ -1195,7 +1205,9 @@
       "default": {
         "jwt_secret": "",
         "aes_key": "",
-        "admin_email": ""
+        "admin_email": "",
+        "oidc_client_id": "",
+        "oidc_client_secret": ""
       }
     },
     "localai": {

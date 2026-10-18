@@ -41,6 +41,25 @@ spec:
         # Store, then Edge Add-ons.
         - name: OIDC_AUTH_EXTENSION_RETURN_URLS
           value: https://beamnnjkmfepmlfpbcchiiooimoloiod.chromiumapp.org/oidc,https://eminfjejkcandcdbcjhdeobhhjidapdc.chromiumapp.org/oidc
+        #% if ai_kb_oidc %#
+        - name: OIDC_AUTH_ENABLE
+          value: "true"
+        - name: OIDC_AUTH_PROVIDER_DISPLAY_NAME
+          value: Pocket ID
+        - name: OIDC_AUTH_DISCOVERY_URL
+          value: https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
+        - name: OIDC_AUTH_CLIENT_ID
+          value: "#{ ai_kb.oidc_client_id }#"
+        - name: OIDC_AUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: OIDC_AUTH_CLIENT_SECRET
+        # Pods resolve auth.${SECRET_DOMAIN} to the internal gateway, a private
+        # address the app's SSRF guard would otherwise refuse for discovery.
+        - name: SSRF_WHITELIST
+          value: auth.${SECRET_DOMAIN}
+        #% endif %#
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui

@@ -962,6 +962,11 @@ schematic_id = ""
 #    the LAN. Register with admin_email first, then restart the app pod once
 #    (`kubectl -n ai-kb rollout restart deployment ai-kb-app`), which promotes
 #    that account to system administrator. Never change aes_key once set.
+#
+#    To sign in with Pocket ID, create the client in the Pocket ID admin UI
+#    with the callback URL https://ai-kb.<domain.name>/api/v1/auth/oidc/callback.
+#    The first Pocket ID sign-in with an address that already has an account
+#    links to it; any other address gets a new account.
 # =============================================================================
 [ai_kb]
 
@@ -983,6 +988,13 @@ schematic_id = ""
 # OPTIONAL. Example: "admin@example.com"
 
 # admin_email = ""
+
+# The OIDC client created for AI KB in the Pocket ID admin UI.
+# Needs [pocket_id]. Set both or neither.
+# OPTIONAL.
+
+# oidc_client_id = ""
+# oidc_client_secret = ""
 
 
 # =============================================================================

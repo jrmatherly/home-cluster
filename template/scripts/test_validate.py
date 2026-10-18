@@ -1179,6 +1179,15 @@ def test_ai_kb_aes_key_is_32_letters_and_digits(key):
         _load_raw(raw)
 
 
+AI_KB_OIDC = AI_KB | {"ai_kb.oidc_client_id": "ai-kb", "ai_kb.oidc_client_secret": "s" * 32}
+
+
+def test_ai_kb_oidc_requires_pocket_id():
+    raw = config_from("private.toml", **AI_KB_OIDC | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"ai_kb\.oidc_client_id requires pocket_id"):
+        _load_raw(raw)
+
+
 def test_ai_kb_requires_ingress():
     raw = config_from("private.toml", **AI_KB | {"ingress.mode": "none"})
     with pytest.raises(ConfigError, match=r"ai_kb requires ingress\.mode"):

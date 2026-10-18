@@ -59,6 +59,17 @@ The bootstrap only promotes an account that already exists, and it runs at start
 
 Once a system administrator exists the env var grants nothing more, so a later revoke in the UI is not undone by a restart. Registration mode is then a system setting in the UI (`auth.registration_mode`: `self_serve`, `invite_register` or `invite_only`), stored in the database; set it to `invite_register` to close LAN self-serve sign-up too.
 
+## Pocket ID sign-in
+
+A new client in Pocket ID, named `AI KB`:
+
+- Callback URL: `https://ai-kb.${SECRET_DOMAIN}/api/v1/auth/oidc/callback` (exactly this; the login page builds it from the browser origin)
+- Confidential client, scopes `openid profile email`; the app reads the email from `email` and the username from `name`, falling back to `preferred_username`
+
+Copy the client ID and the secret into `oidc_client_id` and `oidc_client_secret` in `[ai_kb]`, then `just configure`, restore, commit, push and `just kube reconcile`. The HelmRelease adds the `OIDC_AUTH_*` env vars (the chart has no OIDC values), the secret comes from `ai-kb-secret`, and Reloader restarts the pod when that Secret changes. `SSRF_WHITELIST` names `auth.${SECRET_DOMAIN}`, because pods resolve it to the internal gateway's private address, which the app's SSRF-safe HTTP client refuses for discovery otherwise. A bad value is a crash loop, not a silent fallback: the app refuses to start when `OIDC_AUTH_ENABLE` is set without the client, secret and discovery URL.
+
+Done when `GET /api/v1/auth/oidc/config` reports `enabled: true` with the display name `Pocket ID` and `GET /api/v1/auth/oidc/start` answers a 302 to Pocket ID. The first Pocket ID sign-in with an address that already has an account links to it; any other address gets a new account, which is why Pocket ID's "allow users to edit their own account details" stays off.
+
 ## Models and keys
 
 Model providers and their API keys are entered per tenant in the app's settings and stored encrypted with `aes_key` in the database, not in this repo. LocalAI is not wired in: the namespace carries no `localai.ai/client` label and the NetworkPolicy admits ingress only, so an in-cluster model endpoint needs that label on the namespace first.

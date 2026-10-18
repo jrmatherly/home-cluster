@@ -161,6 +161,8 @@ ANTHROPIC_API_KEY = "fake-anthropic-key"
 jwt_secret = "fakefakefakefakefakefakefakefake"
 aes_key = "fakefakefakefakefakefakefakefake"
 admin_email = "admin@example.com"
+oidc_client_id = "ai-kb"
+oidc_client_secret = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

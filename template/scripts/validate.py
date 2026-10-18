@@ -640,10 +640,18 @@ class AiKb(Model):
     aes_key: str = Field(default="", pattern=r"^([A-Za-z0-9]{32})?$")
     # Promoted to system administrator at startup once that account exists.
     admin_email: EmailAddress = ""
+    # The OIDC client created for AI KB in the Pocket ID admin UI.
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
         _all_or_none(self, "ai_kb", ("jwt_secret", "aes_key", "admin_email"))
+        _all_or_none(self, "ai_kb", ("oidc_client_id", "oidc_client_secret"))
+        if self.oidc_client_id and not self.jwt_secret:
+            raise ValueError(
+                "ai_kb.oidc_client_id requires the rest of [ai_kb]: it signs in to the app"
+            )
         return self
 
 
@@ -873,6 +881,11 @@ class Config(Model):
     def ai_kb_enabled(self) -> bool:
         return self.ai_kb.jwt_secret != ""
 
+    @computed_field
+    @property
+    def ai_kb_oidc(self) -> bool:
+        return self.ai_kb.oidc_client_id != ""
+
     # Changes when any media key changes, so a HelmRelease that carries it is
     # upgraded and its configure hook pushes the new keys into the apps.
     @computed_field
@@ -1021,6 +1034,11 @@ class Config(Model):
         if self.ai_kb_enabled and not self.redis_enabled:
             raise ValueError(
                 "ai_kb requires redis.password: AI KB's task queue and streams live in Redis"
+            )
+        if self.ai_kb_oidc and not self.pocket_id_enabled:
+            raise ValueError(
+                "ai_kb.oidc_client_id requires pocket_id: Pocket ID is the OIDC provider AI KB "
+                "signs in with"
             )
         if self.ai_kb_enabled and self.ingress.mode == "none":
             raise ValueError(
