@@ -1,0 +1,72 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ai-kb
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: ai-kb
+  interval: 1h
+  valuesFrom:
+    # CloudNativePG generates this Secret.
+    - kind: Secret
+      name: ai-kb-db-app
+      valuesKey: password
+      targetPath: secrets.dbPassword
+    # components/redis renders this Secret.
+    - kind: Secret
+      name: redis-auth
+      valuesKey: password
+      targetPath: secrets.redisPassword
+    - kind: Secret
+      name: ai-kb-secret
+      valuesKey: values.yaml
+  values:
+    app:
+      image:
+        repository: ghcr.io/jrmatherly/ai-kb-app
+        tag: v2026.10.17.1@sha256:f394878dae91a6eba33251c37b0ab81126ba1bb4a4197dadf48d87ec8be57b36
+      # The data-files volume is local-path, which one node mounts at a time.
+      strategy:
+        type: Recreate
+      extraEnv:
+        # Promotes that account at startup while no system administrator
+        # exists, so the first restart after it registers makes it the admin.
+        - name: AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL
+          value: "jason@matherly.net"
+    frontend:
+      image:
+        repository: ghcr.io/jrmatherly/ai-kb-ui
+        tag: v2026.10.17.1@sha256:537fe6c99a863bda84e5a00a17c0fefc072313ee8d4ba806b421be0f7d0a0557
+    website:
+      image:
+        repository: ghcr.io/jrmatherly/ai-kb-website
+        tag: v2026.10.17.1@sha256:0d8be151f7f92f1c2a0746bb7157b5d45e79d1a50a6582069b3ff2cc3925b521
+    docreader:
+      image:
+        repository: ghcr.io/jrmatherly/ai-kb-docreader
+        tag: v2026.10.17.1@sha256:de6f6afb9768a48c4a22d0dfdd4c4276e03b2011b9aec228b9057da816df12e4
+    postgresql:
+      enabled: false
+      # The chart builds DB_HOST from this name even with its own Postgres off.
+      service:
+        name: ai-kb-db-rw
+    redis:
+      enabled: false
+    secrets:
+      dbUser: app
+      dbName: app
+  postRenderers:
+    - kustomize:
+        patches:
+          # Only the app Deployment reads the chart's Secret, and the chart
+          # puts no checksum on its pod template.
+          - patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: ai-kb-app
+                namespace: ai-kb
+                annotations:
+                  reloader.stakater.com/auto: "true"
