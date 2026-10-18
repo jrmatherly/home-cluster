@@ -1,0 +1,72 @@
+---
+title: AI KB
+description: Take AI KB from the templates in Git to a knowledge base with its first system administrator, the pg_search extension owned by the app role, and sign-up closed to the internet.
+sidebar:
+  order: 16
+---
+
+The steps outside the repo that `[ai_kb]` in `cluster.toml` needs, in order. The deployment itself is in Git: the `[ai_kb]` section and `kubernetes/apps/ai-kb/`. The app's own repository is `<github account>/ai-kb`, which publishes the chart `oci://ghcr.io/<github account>/ai-kb/charts/ai-kb` and the four images (`ai-kb-app`, `ai-kb-ui`, `ai-kb-website`, `ai-kb-docreader`).
+
+AI KB is served at `https://ai-kb.${SECRET_DOMAIN}` on both gateways. It has its own login, so the route carries no gateway `SecurityPolicy`. "Measured" below was run on the first deploy, 2026-10-17, against chart 0.3.0 and product v2026.10.17.1.
+
+## What the app holds
+
+Knowledge bases, their chunks and embeddings, users, tenants and the model and API-key settings each tenant enters live in the CloudNativePG cluster `ai-kb-db` (one instance, 10Gi, WAL archiving and a daily backup at 05:30 UTC through `components/postgres`). Uploaded files are on the `ai-kb-data-files` volume (`local-path`, 10Gi), which is why the `app` Deployment uses `Recreate`. The task queue and the chat streams are the namespace's Redis from `components/redis`.
+
+The database loads `pg_search` from ParadeDB's extension image as an image volume (`docker.io/paradedb/paradedb-extension:0.26.2-18-trixie`; its Postgres major and Debian release must match the catalog image, which already ships pgvector). Three facts measured on the first deploy shape the Cluster manifest:
+
+- The app's migrations run `ALTER EXTENSION pg_search UPDATE` (migrations 8 and 11), which only the extension's owner may, and a CNPG `Database` object creates extensions owned by `postgres`. So the Cluster's `postInitApplicationSQL` creates `uuid-ossp`, `vector`, `pg_trgm` and `pg_search` and hands them to the `app` role. It runs once, at initdb, before the app can connect, which also removes the race between the operator's `CREATE EXTENSION` and the app's first migration.
+- The community pg_search refuses to start on a standby ("replicas are not supported on community and require paradedb enterprise"), so the cluster runs one instance, not the usual two.
+- The first install predates both fixes. Its extensions were handed over by hand, `UPDATE pg_extension SET extowner = 'app'::regrole WHERE extname IN ('vector','pg_trgm','pg_search')` as `postgres` in the `app` database, and the broken second instance was removed with `kubectl cnpg destroy ai-kb-db 2 -n ai-kb`.
+
+## cluster.toml
+
+Section `[ai_kb]`, after `[ai_workspace.env]`:
+
+- `jwt_secret`: at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out.
+- `aes_key`: exactly 32 letters and digits, from `openssl rand -hex 16`. It encrypts the API keys and credentials AI KB stores. Never change it: what it encrypted becomes unreadable.
+- `admin_email`: the operator's address. The app promotes the account with this address to system administrator at startup, as long as no system administrator exists yet.
+
+Then `just configure`, restore the sops files that did not change:
+
+```sh
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+```
+
+Commit the rendered `kubernetes/apps/ai-kb/` and push. `just kube reconcile` makes Flux pull now.
+
+## Watch it come up
+
+```sh
+kubectl -n ai-kb get cluster,pods -w
+kubectl -n ai-kb logs deployment/ai-kb-app | grep -i 'migration\|bootstrap'
+```
+
+Measured: the primary was ready 13 s after the Cluster appeared, the HelmRelease installed in under two minutes, and the app's log ends with `Database migrated from version 0 to 117` (117 on v2026.10.17.1). `AUTO_RECOVER_DIRTY` is on, so a failed migration leaves the pod running and `schema_migrations` dirty; the pod retries on its next start. To read the state:
+
+```sh
+kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -d app -c 'select version, dirty from schema_migrations'
+```
+
+## Sign-up and the first admin
+
+Anyone who can reach the sign-up form gets a workspace (tenant) of their own, so the external gateway answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, and accounts are created from the LAN, where `ai-kb.${SECRET_DOMAIN}` resolves to the internal gateway through UniFi DNS. Registration by invitation (`/api/v1/auth/register-by-invite`) is a different path and stays open from the internet.
+
+The bootstrap only promotes an account that already exists, and it runs at startup, so the order is:
+
+1. From the LAN, open `https://ai-kb.${SECRET_DOMAIN}` and register with `admin_email`.
+2. `kubectl -n ai-kb rollout restart deployment ai-kb-app`. The log then reads `[bootstrap] promoted user ... to system admin`.
+
+Once a system administrator exists the env var grants nothing more, so a later revoke in the UI is not undone by a restart. Registration mode is then a system setting in the UI (`auth.registration_mode`: `self_serve`, `invite_register` or `invite_only`), stored in the database; set it to `invite_register` to close LAN self-serve sign-up too.
+
+## Models and keys
+
+Model providers and their API keys are entered per tenant in the app's settings and stored encrypted with `aes_key` in the database, not in this repo. LocalAI is not wired in: the namespace carries no `localai.ai/client` label and the NetworkPolicy admits ingress only, so an in-cluster model endpoint needs that label on the namespace first.
+
+## Network
+
+A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the app's own pods on 8080 and 50051 (frontend to app for `/files` and the embed-frame policy, app to docreader). The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path.
+
+## Updates
+
+The chart is pinned by `OCIRepository` tag and the four images by `tag@sha256:digest`; Renovate follows both. The pg_search extension image is a CNPG `image.reference`, which no built-in Renovate manager reads, so `.renovaterc.json5` carries a `customManagers` regex rule for it; Docker versioning keeps it on `-18-trixie` tags. When the catalog image moves to a new Postgres major or Debian release, move the extension image with it in the same change.
