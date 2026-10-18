@@ -1,0 +1,103 @@
+#% if ai_kb_enabled %#
+---
+# The app pod reaches its own dependencies and public addresses on 80 and 443,
+# never the rest of the LAN or the cluster. Endpoints a workspace configures
+# (web search, IM, MCP servers, connectors) are on the internet; the app's SSRF
+# allowlist is the app-side gate for them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-kb-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: app
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: ai-kb-db
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: docreader
+      ports:
+        - protocol: TCP
+          port: 50051
+    #% if ai_kb_neo4j %#
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: graph
+      ports:
+        - protocol: TCP
+          port: 7687
+    #% endif %#
+    #% if nvidia_enabled %#
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+      ports:
+        - protocol: TCP
+          port: 8080
+    #% endif %#
+    #% if ai_kb_oidc %#
+    # Pods resolve auth.${SECRET_DOMAIN} to the internal gateway, whose Envoy
+    # pods run in the network namespace.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+    #% endif %#
+    #% if ai_kb_rustfs %#
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: rustfs
+      ports:
+        - protocol: TCP
+          port: 9000
+    #% endif %#
+    #% if ai_kb_tracing %#
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: langfuse
+      ports:
+        - protocol: TCP
+          port: 3000
+    #% endif %#
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+#% for cidr in ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", kubernetes.pod_cidr, kubernetes.svc_cidr, network.node_cidr] %#
+              - #{ cidr }#
+#% endfor %#
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+#% endif %#

@@ -117,7 +117,7 @@ The ai-kb namespace carries the `localai.ai/client` label that LocalAI's Network
 
 ## Network
 
-A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the app's own pods on 8080 and 50051 (frontend to app for `/files` and the embed-frame policy, app to docreader), plus 7687 when Neo4j is on (app to Neo4j). The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path.
+A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the app's own pods on 8080 and 50051 (frontend to app for `/files` and the embed-frame policy, app to docreader), plus 7687 when Neo4j is on (app to Neo4j). The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path. A second NetworkPolicy, `ai-kb-egress`, fences the app pod's egress: DNS in `kube-system`, its Postgres (`cnpg.io/cluster: ai-kb-db`) on 5432, Redis on 6379, docreader on 50051, and, when each is on, Neo4j on 7687, LocalAI in `ai` on 8080, the `network` namespace for Pocket ID (pods resolve its host to the internal gateway), RustFS on 9000 and Langfuse on 3000; everything else is TCP 80 and 443 to public addresses only, never the RFC 1918 ranges, link-local, CGNAT or the pod, service and node CIDRs. Endpoints a workspace configures (web search, IM, MCP servers, connectors) must be on the internet, and the app's SSRF allowlist is the app-side gate for them.
 
 ## Updates
 
