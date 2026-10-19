@@ -5,6 +5,7 @@ metadata:
   name: langfuse
   labels:
     pod-security.kubernetes.io/enforce: restricted
+    localai.ai/client: "true"
     rustfs.storage/client: "true"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
