@@ -128,11 +128,11 @@ spec:
               name: ai-kb-secret
               key: LANGFUSE_SECRET_KEY
         # The app's SSRF guard refuses private addresses, which is what pods get
-        # for the Pocket ID host (the internal gateway) and the LocalAI and
-        # RustFS Services. The EXTRA list is always merged in; an admin's edit
+        # for the Pocket ID host (the internal gateway) and the LocalAI, RustFS
+        # and SearXNG Services. The EXTRA list is always merged in; an admin's edit
         # of the SSRF allowlist in the app's settings replaces SSRF_WHITELIST.
         - name: SSRF_WHITELIST_EXTRA
-          value: auth.${SECRET_DOMAIN},localai.ai.svc.cluster.local,rustfs-svc.rustfs.svc.cluster.local
+          value: auth.${SECRET_DOMAIN},localai.ai.svc.cluster.local,rustfs-svc.rustfs.svc.cluster.local,searxng.ai-kb.svc.cluster.local
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui

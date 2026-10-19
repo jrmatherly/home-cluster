@@ -1,0 +1,21 @@
+---
+# Merged over SearXNG's defaults. secret_key is not here: SEARXNG_SECRET sets it,
+# and the app refuses to start on the default.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng-settings
+data:
+  settings.yml: |
+    use_default_settings: true
+    general:
+      instance_name: "AI KB search"
+      enable_metrics: false
+    server:
+      image_proxy: false
+    search:
+      formats: [json]
+      autocomplete: ""
+    outgoing:
+      request_timeout: 6.0
+      max_request_timeout: 10.0

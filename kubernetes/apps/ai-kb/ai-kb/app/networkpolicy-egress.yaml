@@ -79,6 +79,13 @@ spec:
         - protocol: TCP
           port: 9000
     - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: langfuse
