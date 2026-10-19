@@ -657,7 +657,7 @@ class AiKb(Model):
     tracing: bool = False
     # Turns on the chart's Neo4j for GraphRAG; it is the password of its neo4j user.
     neo4j_password: ApiKey = ""
-    # Turns on the internal SearXNG instance for web search; it signs its image-proxy URLs.
+    # Turns on the internal SearXNG instance for web search; it is Flask's session key.
     searxng_secret: ApiKey = ""
 
     @model_validator(mode="after")
