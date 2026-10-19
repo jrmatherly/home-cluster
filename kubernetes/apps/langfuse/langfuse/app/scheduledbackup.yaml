@@ -1,0 +1,15 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: langfuse-db
+spec:
+  # Six fields, seconds first: 05:45 UTC every day.
+  schedule: "0 45 5 * * *"
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: langfuse-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

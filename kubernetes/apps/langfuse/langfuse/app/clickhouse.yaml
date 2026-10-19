@@ -1,0 +1,127 @@
+---
+# Langfuse never reads these system logs, and with no TTL they grow until
+# background merges run out of memory (Langfuse's scaling guide). query_log
+# stays for debugging, on a week instead of the image's 30 days.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-config
+data:
+  langfuse.xml: |
+    <clickhouse>
+      <logger>
+        <level>warning</level>
+        <console>1</console>
+        <log remove="1"/>
+        <errorlog remove="1"/>
+      </logger>
+      <query_log>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+      </query_log>
+      <trace_log remove="1"/>
+      <text_log remove="1"/>
+      <opentelemetry_span_log remove="1"/>
+      <asynchronous_metric_log remove="1"/>
+      <metric_log remove="1"/>
+      <latency_log remove="1"/>
+    </clickhouse>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: clickhouse
+  ports:
+    - name: http
+      port: 8123
+    - name: native
+      port: 9000
+---
+# One replica and no Keeper: Langfuse runs with CLICKHOUSE_CLUSTER_ENABLED=false.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  serviceName: clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clickhouse
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: clickhouse
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: clickhouse
+          image: docker.io/clickhouse/clickhouse-server:26.4.5.143@sha256:c7796a1335d14385c052f10061cf719f4a368a908432ec25980860b1333e9ccd
+          env:
+            - name: CLICKHOUSE_USER
+              value: langfuse
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-auth
+                  key: password
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            # The entrypoint writes the langfuse user here from the env on every start.
+            - name: users
+              mountPath: /etc/clickhouse-server/users.d
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/clickhouse-server/config.d/langfuse.xml
+              subPath: langfuse.xml
+              readOnly: true
+      volumes:
+        - name: users
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: clickhouse-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 20Gi

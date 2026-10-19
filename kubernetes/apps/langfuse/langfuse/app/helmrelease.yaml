@@ -1,0 +1,164 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: langfuse
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: langfuse
+  interval: 1h
+  timeout: 15m
+  values:
+    langfuse:
+      salt:
+        secretKeyRef: { name: langfuse-secret, key: SALT }
+      encryptionKey:
+        secretKeyRef: { name: langfuse-secret, key: ENCRYPTION_KEY }
+      nextauth:
+        url: https://langfuse.${SECRET_DOMAIN}
+        secret:
+          secretKeyRef: { name: langfuse-secret, key: NEXTAUTH_SECRET }
+      # Sign-up stays on, because turning it off also refuses a first Pocket ID
+      # sign-in; the Pocket ID client decides who gets in.
+      auth:
+        disableUsernamePassword: true
+        providers:
+          custom:
+            clientId: "3d8a79bb-e8d7-4fcb-a091-39afb6c5f2e9"
+            clientSecret:
+              secretKeyRef: { name: langfuse-secret, key: AUTH_CUSTOM_CLIENT_SECRET }
+            issuer: https://auth.${SECRET_DOMAIN}
+            name: Pocket ID
+      features:
+        telemetryEnabled: false
+      serviceAccount:
+        automountServiceAccountToken: false
+      # The chart puts no checksum of langfuse-secret on its pod templates.
+      deployment:
+        annotations:
+          reloader.stakater.com/auto: "true"
+      # The chart defaults to Always; the digest pins make IfNotPresent safe.
+      image:
+        pullPolicy: IfNotPresent
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
+      extraVolumes:
+        - name: tmp
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      web:
+        image:
+          repository: docker.io/langfuse/langfuse
+          tag: 4.63.0@sha256:67f48d12a190e4ad585249c75ae1ce172b449de3dbbe7486b8179cd28e21408e
+        pod:
+          additionalEnv:
+            - name: LANGFUSE_DEFAULT_ORG_ID
+              value: home
+            - name: LANGFUSE_DEFAULT_ORG_ROLE
+              value: OWNER
+            # Created on the first start only, when absent.
+            - name: LANGFUSE_INIT_ORG_ID
+              value: home
+            - name: LANGFUSE_INIT_ORG_NAME
+              value: Home
+            - name: LANGFUSE_INIT_PROJECT_ID
+              value: ai-kb
+            - name: LANGFUSE_INIT_PROJECT_NAME
+              value: AI KB
+            - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: langfuse-secret, key: LANGFUSE_INIT_PROJECT_PUBLIC_KEY }
+            - name: LANGFUSE_INIT_PROJECT_SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: langfuse-secret, key: LANGFUSE_INIT_PROJECT_SECRET_KEY }
+        resources:
+          requests: { memory: 512Mi }
+          limits: { memory: 2Gi }
+        pdb:
+          create: false
+      worker:
+        image:
+          repository: docker.io/langfuse/langfuse-worker
+          tag: 4.63.0@sha256:ca32a8fb2a214c7b5f42dd9c540c8072e41db659cb621f317911ce695ad6bca2
+        resources:
+          requests: { memory: 512Mi }
+          limits: { memory: 2Gi }
+        pdb:
+          create: false
+    postgresql:
+      deploy: false
+      host: langfuse-db-rw
+      auth:
+        username: app
+        database: app
+        existingSecret: langfuse-db-app
+    redis:
+      deploy: false
+      host: redis
+      auth:
+        existingSecret: redis-auth
+        existingSecretPasswordKey: password
+    clickhouse:
+      deploy: false
+      host: clickhouse
+      auth:
+        username: langfuse
+        existingSecret: clickhouse-auth
+        existingSecretKey: password
+      cluster:
+        enabled: false
+    s3:
+      deploy: false
+      bucket: langfuse-events
+      region: us-east-1
+      endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
+      accessKeyId:
+        secretKeyRef: { name: langfuse-secret, key: S3_ACCESS_KEY }
+      secretAccessKey:
+        secretKeyRef: { name: langfuse-secret, key: S3_SECRET_KEY }
+      batchExport:
+        enabled: false
+      # The chart renders the media settings whatever this says, and Langfuse has no
+      # switch to turn media upload off, so any media lands under its own prefix.
+      mediaUpload:
+        enabled: false
+        prefix: media/
+  postRenderers:
+    - kustomize:
+        patches:
+          # The web container runs every migration before it listens, over 450 on
+          # a fresh install, and the chart's probes kill it part way (langfuse-k8s
+          # issues 272 and 427), which leaves a failed migration behind.
+          - patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: langfuse-web
+                namespace: langfuse
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: langfuse-web
+                        startupProbe:
+                          httpGet:
+                            path: /api/public/health
+                            port: http
+                          periodSeconds: 10
+                          failureThreshold: 60
+                        volumeMounts:
+                          - name: next-cache
+                            mountPath: /app/web/.next/cache
+                    volumes:
+                      - name: next-cache
+                        emptyDir: {}

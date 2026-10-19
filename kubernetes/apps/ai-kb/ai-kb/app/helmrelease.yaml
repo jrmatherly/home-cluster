@@ -26,13 +26,40 @@ spec:
     app:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-app
-        tag: v2026.10.17.1@sha256:f394878dae91a6eba33251c37b0ab81126ba1bb4a4197dadf48d87ec8be57b36
+        tag: v2026.10.18@sha256:1118581a26ef807c74f68b9d316d0940bc79daaa27015937a99354c4154d24cf
       # The data-files volume is local-path, which one node mounts at a time.
       strategy:
         type: Recreate
+      # The chart renders STORAGE_TYPE from env, so it is set here and not in
+      # extraEnv, which would make a second variable of the same name.
+      env:
+        STORAGE_TYPE: s3
+      # The app's builtin_models.yaml; BUILTIN_MODELS_CONFIG below names it.
+      extraVolumes:
+        - name: models-config
+          configMap:
+            name: ai-kb-models
+      extraVolumeMounts:
+        - name: models-config
+          mountPath: /config/builtin_models.yaml
+          subPath: builtin_models.yaml
+          readOnly: true
       extraEnv:
+        # invite_only: no password sign-up. New accounts come from a Pocket ID
+        # sign-in or a system administrator; an invitation adds an existing
+        # account to a workspace. Only with the Pocket ID client, because
+        # without it nobody could create the first account. A registration
+        # mode saved in the app's system settings overrides this.
+        - name: DISABLE_REGISTRATION
+          value: "true"
+        - name: AIKB_IM_PLATFORMS
+          value: slack,telegram,mattermost
+        - name: AIKB_AUDIT_RETENTION_DAYS
+          value: "365"
+        - name: STORAGE_ALLOW_LIST
+          value: local,s3,minio
         # Promotes that account at startup while no system administrator
-        # exists, so the first restart after it registers makes it the admin.
+        # exists, so the first restart after that account exists makes it the admin.
         - name: AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL
           value: "jason@matherly.net"
         # The browser extension's OIDC sign-in returns to the store-assigned
@@ -53,8 +80,8 @@ spec:
             secretKeyRef:
               name: ai-kb-secret
               key: OIDC_AUTH_CLIENT_SECRET
-        # The LocalAI models come from the ai-kb-models ConfigMap, mounted by
-        # the postRenderers patch below, with the key filled in from the env.
+        # The LocalAI models come from the ai-kb-models ConfigMap, mounted
+        # above, with the key filled in from the env.
         - name: BUILTIN_MODELS_CONFIG
           value: /config/builtin_models.yaml
         - name: LOCALAI_API_KEY
@@ -62,37 +89,82 @@ spec:
             secretKeyRef:
               name: ai-kb-secret
               key: LOCALAI_API_KEY
+        # Uploads go to the app's RustFS bucket; the key pair is scoped to it.
+        - name: S3_ENDPOINT
+          value: http://rustfs-svc.rustfs.svc.cluster.local:9000
+        - name: S3_REGION
+          value: us-east-1
+        - name: S3_BUCKET_NAME
+          value: ai-kb-files
+        - name: S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: S3_USE_SSL
+          value: "false"
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: S3_ACCESS_KEY
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: S3_SECRET_KEY
+        # Tracing turns on when both keys are set and LANGFUSE_ENABLED is unset.
+        # The exporter is the stock OTLP client, not the SSRF-safe one, so the
+        # host needs no allowlist entry.
+        - name: LANGFUSE_HOST
+          value: http://langfuse-web.langfuse.svc.cluster.local:3000
+        - name: LANGFUSE_ENVIRONMENT
+          value: home
+        - name: LANGFUSE_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: LANGFUSE_PUBLIC_KEY
+        - name: LANGFUSE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-kb-secret
+              key: LANGFUSE_SECRET_KEY
         # The app's SSRF guard refuses private addresses, which is what pods get
-        # for the Pocket ID host (the internal gateway) and the LocalAI Service.
-        - name: SSRF_WHITELIST
-          value: auth.${SECRET_DOMAIN},localai.ai.svc.cluster.local
+        # for the Pocket ID host (the internal gateway) and the LocalAI and
+        # RustFS Services. The EXTRA list is always merged in; an admin's edit
+        # of the SSRF allowlist in the app's settings replaces SSRF_WHITELIST.
+        - name: SSRF_WHITELIST_EXTRA
+          value: auth.${SECRET_DOMAIN},localai.ai.svc.cluster.local,rustfs-svc.rustfs.svc.cluster.local
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui
-        tag: v2026.10.17.1@sha256:537fe6c99a863bda84e5a00a17c0fefc072313ee8d4ba806b421be0f7d0a0557
+        tag: v2026.10.18@sha256:5941508653922a9221fbb1c01e74b571d548986afe54eb68dad86ce0ad345783
     website:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-website
-        tag: v2026.10.17.1@sha256:0d8be151f7f92f1c2a0746bb7157b5d45e79d1a50a6582069b3ff2cc3925b521
+        tag: v2026.10.18@sha256:078a2dea59428b454e00168efa1386a2536bcb35a6a97b588f0d7250e4baa025
     docreader:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-docreader
-        tag: v2026.10.17.1@sha256:de6f6afb9768a48c4a22d0dfdd4c4276e03b2011b9aec228b9057da816df12e4
+        tag: v2026.10.18@sha256:7700dff7f7956057a608753f292b2ac87e300dc3ad207085f7682d1037ef038a
     postgresql:
       enabled: false
-      # The chart builds DB_HOST from this name even with its own Postgres off.
-      service:
-        name: ai-kb-db-rw
+    externalDatabase:
+      host: ai-kb-db-rw
     redis:
       enabled: false
+    externalRedis:
+      addr: redis:6379
+    # GraphRAG. The chart sets NEO4J_ENABLE and NEO4J_URI on the app, and the
+    # password comes from ai-kb-secret's values document.
+    neo4j:
+      enabled: true
     secrets:
       dbUser: app
       dbName: app
   postRenderers:
     - kustomize:
         patches:
-          # Only the app Deployment reads the chart's Secret, and the chart
-          # puts no checksum on its pod template.
+          # The chart's checksum covers its own Secret only; the app also reads
+          # ai-kb-secret through secretKeyRef.
           - patch: |
               apiVersion: apps/v1
               kind: Deployment
@@ -101,17 +173,3 @@ spec:
                 namespace: ai-kb
                 annotations:
                   reloader.stakater.com/auto: "true"
-              spec:
-                template:
-                  spec:
-                    containers:
-                      - name: app
-                        volumeMounts:
-                          - name: models-config
-                            mountPath: /config/builtin_models.yaml
-                            subPath: builtin_models.yaml
-                            readOnly: true
-                    volumes:
-                      - name: models-config
-                        configMap:
-                          name: ai-kb-models

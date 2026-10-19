@@ -1,0 +1,23 @@
+---
+# Clients reach the S3 port from this namespace (the provisioning Job) and from
+# namespaces that opt in with the label below. A standalone server makes no
+# outbound connection, so egress is denied.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rustfs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              rustfs.storage/client: "true"
+      ports:
+        - protocol: TCP
+          port: 9000
+  egress: []
