@@ -78,12 +78,14 @@ spec:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
               capabilities: { drop: ["ALL"] }
+            # Idle RSS is 7.5Gi with the four 16384-token slots, and 8Gi was OOM-killed
+            # three times under AI KB ingestion (measured 2026-10-18).
             resources:
               requests:
                 cpu: 500m
-                memory: 4Gi
-              limits:
                 memory: 8Gi
+              limits:
+                memory: 16Gi
                 nvidia.com/gpu: 1
     defaultPodOptions:
       runtimeClassName: nvidia
