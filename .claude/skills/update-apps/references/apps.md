@@ -95,6 +95,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `enableServiceLinks: false` on both, without which the kubelet's `REDIS_PORT=tcp://...` stops Langfuse
   starting), so check those names on a chart bump. A first install waits for Ready, so a fix pushed while it
   hangs waits out the 15-minute timeout unless the Deployments are patched by hand with the same change.
+  On a chart bump, also check that the top-level `langfuse.additionalEnv` still reaches both web and worker,
+  because `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST` must be on the worker for evaluators to reach LocalAI.
 
 ## Order when several are pending
 
@@ -244,6 +246,15 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   container copies the image's `ping` and `traceroute.db`, and the migrations run at startup on the only copy of
   the SQLite database, so anything other than CreateTable, AddColumn and CreateIndex means Flux's rollback needs
   a backup first.
+- **searxng (image)** tags are `<year>.<month>.<day>-<commit>`, with no releases, and up to four builds can
+  share a day (four on 2026-10-17, only one of them `latest`). The `.renovaterc.json5` rule for
+  `docker.io/searxng/searxng` reads the date as the version with regex versioning, because docker versioning
+  takes the commit as a variant and never offers a newer day. Same-day builds compare equal under that rule, so
+  check that the offered digest is the one `latest` carried that day. Read the commits since the pin for
+  `searx/settings.yml` changes, because the ConfigMap merges over upstream's defaults (engines included). After
+  the deploy, from the ai-kb app pod,
+  `curl -s 'http://searxng.ai-kb.svc.cluster.local:8080/search?q=test&format=json'` returns `results`; some
+  engines under `unresponsive_engines` is normal from one home address.
 - **actual-budget (image)** tags are `<yy>.<m>.<n>` with no `v`. `-alpine` is a variant, and `edge` and `latest`
   are moving tags. Renovate's docker versioning reads the plain tag, so it needs no rule.
 - **sonarr, radarr, prowlarr (images)** are home-operations builds whose tags carry the upstream build number

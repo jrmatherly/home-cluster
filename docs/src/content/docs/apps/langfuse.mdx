@@ -127,6 +127,33 @@ Organization-level connections are an Enterprise feature, so the connection belo
 To prove the path, open any `chat.completion` generation in the traces and open it in the
 Playground. A reply from `qwen-3.5-4b` means the connection works.
 
+## Operations
+
+Done in the templates: the admin default role, the onboarding step off, the LocalAI client label and
+the LLM connection host allowlist. The rest of the first steps from the feature review are in the
+UI, in this order:
+
+1. Add model definitions in Project Settings, Models, for `qwen-3.5-4b` and `nomic-embed-text-v1.5`,
+   with the usage keys `input`, `output` and `total` and a price of 0. Without them every generation
+   lands in the Unknown cost bucket. Whether a zero price saves is not yet checked.
+2. Create the LLM connection above and prove it in the Playground. Then try a trivial boolean
+   evaluator on `chat.completion` with sampling 1 and record whether its save test passes. A 4B
+   judge with grammar off may fail it, and judge runs create traces of their own.
+3. Create two score configs (`answer_quality` from 1 to 5, `grounded` as a boolean) and an
+   annotation queue, and review ten real answers. That is the baseline any judge is checked against.
+4. Add the MCP server to Claude Code from a LAN machine, with the project's key pair:
+
+    ```sh
+    claude mcp add --transport http langfuse https://langfuse.${SECRET_DOMAIN}/api/public/mcp \
+      --header "Authorization: Basic <base64 of public_key:secret_key>"
+    ```
+
+5. Set up one alert (generation errors, chat p95 latency, or no data for an hour) once a webhook
+   receiver the pods can reach exists.
+
+Not built yet: `LANGFUSE_RELEASE` on AI KB, set to its image tag, for before-and-after comparisons
+per deploy. Retention is an Enterprise feature, so trace growth is controlled by hand.
+
 ## Verify
 
 ```sh

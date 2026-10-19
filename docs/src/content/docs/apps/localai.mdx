@@ -1,11 +1,11 @@
 ---
 title: LocalAI
-description: Run LocalAI on the GPU node with its API key, its three client apps, a pinned model image, and the checks that prove it is serving.
+description: Run LocalAI on the GPU node with its API key, its client apps, a pinned model image, and the checks that prove it is serving.
 sidebar:
   order: 7
 ---
 
-This guide covers `ai/localai`: the API key, the three apps that call it, changing the model, the model settings, and how to check it. The deployment is in Git: the `[localai]` section of `cluster.toml` and `kubernetes/apps/ai/localai/`.
+This guide covers `ai/localai`: the API key, the apps that call it, changing the model, the model settings, and how to check it. The deployment is in Git: the `[localai]` section of `cluster.toml` and `kubernetes/apps/ai/localai/`.
 
 LocalAI runs on `k8s-gpu-1`, the worker on the GPU host that holds the GTX 1080 (8 GiB). Pods reach the API at `http://localai.ai.svc.cluster.local:8080`. The only route is the WebUI at `https://localai.${SECRET_DOMAIN}` on the internal gateway, which exists only when the WebUI's OIDC client is set in `[localai]` (see [The WebUI](#the-webui)).
 
@@ -18,6 +18,7 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
 - Two models (source, `configmap.yaml.j2`): the chat model Qwen3.5-4B Q4_K_M, named `qwen-3.5-4b`, and since 2026-10-18 the embedding model nomic-embed-text-v1.5 Q8_0, named `nomic-embed-text-v1.5`, 768 dimensions, `embeddings: true` on the same llama-cpp backend. nomic-embed expects the task prefixes `search_document: ` and `search_query: ` in the text.
 - The whole `ai` namespace renders only when a node loads the nvidia kernel module (`nvidia_enabled`).
 - The pod runs as uid 65534 on a read-only root. `/data` and `/tmp` are emptyDirs capped at 1Gi. The NetworkPolicy admits the `ai` namespace and namespaces labelled `localai.ai/client: "true"`, plus the `network` namespace when the WebUI is on, and denies all egress (source, `networkpolicy.yaml.j2`).
+- The container requests 8Gi of memory and is limited to 16Gi (source, `helmrelease.yaml.j2`). Its idle RSS is 7.5Gi with the four 16384-token slots, and at the earlier 8Gi limit it was OOM-killed three times on 2026-10-18 under AI KB ingestion bursts (measured: `kubectl top` 7492Mi, `lastState` OOMKilled).
 - Every gallery is off (`LOCALAI_GALLERIES`, `LOCALAI_BACKEND_GALLERIES` and both autoload switches), because the image defaults them on and would reach `index.localai.io` and Quay, which the NetworkPolicy drops. The gallery endpoint and runtime settings are always off. The WebUI is off unless its OIDC client is set (source, `helmrelease.yaml.j2`).
 
 ## Generate the key
@@ -35,7 +36,7 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
 
 The key is a legacy LocalAI API key. It grants full admin to whoever holds it, and it closes every route but `/healthz`, `/readyz` and discovery to everyone else (measured). That is why the gallery endpoint and runtime settings are disabled as well. Treat it like a root credential.
 
-## The three consumers
+## The consumers
 
 Each client sends the key as a bearer token. One `just configure` writes it into four Secrets: `localai-secret` for LocalAI itself, and one per consumer (source, the templates named below).
 
@@ -45,8 +46,9 @@ Each client sends the key as a bearer token. One `just configure` writes it into
 | Grafana's LLM app | `[observability]` | `LOCALAI_API_KEY` in `grafana-secret`, an env var on Grafana, expanded into the app's `secureJsonData.openAIKey` in the `grafana-llm-app` ConfigMap | `openAI.url` in that ConfigMap, with both abstract models mapped to `qwen-3.5-4b` |
 | matherlynet's playground | `matherlynet.playground = true` | `playground_model_key` in the values document of `matherlynet-secret` | `playground_model_url` in the HelmRelease, the base URL without `/v1` |
 | AI KB | `[ai_kb]` | `LOCALAI_API_KEY` in `ai-kb-secret`, filled into the `${LOCALAI_API_KEY}` placeholders of the `ai-kb-models` ConfigMap, the app's `builtin_models.yaml` | The namespace carries the `localai.ai/client` label and the app's `SSRF_WHITELIST_EXTRA` names `localai.ai.svc.cluster.local`, because its SSRF guard refuses cluster addresses otherwise. Base URL `http://localai.ai.svc.cluster.local:8080/v1`, chat `qwen-3.5-4b`, embeddings `nomic-embed-text-v1.5`. |
+| Langfuse | `[langfuse]` | No Secret. The key is typed into a project LLM connection in Langfuse's UI (see the Langfuse page) | The namespace carries the `localai.ai/client` label, and the web and worker pods put `localai.ai.svc.cluster.local` on Langfuse's LLM connection host allowlist, because self-hosted Langfuse refuses an LLM connection to a private address otherwise. |
 
-Each consumer's namespace carries the `localai.ai/client: "true"` label under the same gate, which is what the NetworkPolicy admits. The three reached LocalAI with their keys on 2026-10-12 (measured).
+Each consumer's namespace carries the `localai.ai/client: "true"` label under the same gate, which is what the NetworkPolicy admits. The first three reached LocalAI with their keys on 2026-10-12 (measured).
 
 ## Change the model
 
