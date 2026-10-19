@@ -148,6 +148,7 @@ spec:
               spec:
                 template:
                   spec:
+                    enableServiceLinks: false
                     containers:
                       - name: langfuse-web
                         startupProbe:
@@ -162,3 +163,16 @@ spec:
                     volumes:
                       - name: next-cache
                         emptyDir: {}
+          # The namespace's redis and clickhouse Services make the kubelet inject
+          # REDIS_PORT=tcp://... into every pod, which Langfuse parses as a number
+          # and refuses to start (measured 2026-10-18); the chart has no switch.
+          - patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: langfuse-worker
+                namespace: langfuse
+              spec:
+                template:
+                  spec:
+                    enableServiceLinks: false
