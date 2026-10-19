@@ -54,6 +54,10 @@ drain node:
     for p in $primaries; do
         ns="${p%%/*}"
         cluster="${p#*/}"
+        if [[ "$(kubectl get clusters.postgresql.cnpg.io -n "$ns" "$cluster" -o jsonpath='{.spec.instances}')" == 1 ]]; then
+            just log warn "One-instance cluster has no replica; it goes down with the node" cluster "$cluster" namespace "$ns"
+            continue
+        fi
         just --yes kube switchover "$cluster" "$ns"
     done
     just log info "Draining" node "{{ node }}"
