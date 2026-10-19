@@ -354,15 +354,15 @@ Each VM has a fixed MAC and address. The last octet of both is the number in the
 | `k8s-cp-3`     | Media host   | 123 | 4     | 5 GB   | 50 GB       | 23         |
 | `k8s-gpu-1`    | GPU host     | 131 | 6     | 40 GB  | 200 GB      | 31         |
 
-Revised 2026-10-10: one control plane per host, each at 5 GB (measured use 2.0 to 2.2 GB). cp-2 moved to the GPU host and cp-3 to the media host by rebuilding the VM there with the same ID, MAC and address; [node maintenance](/operations/node-maintenance/) section 8 is the procedure. The `mkvm` calls below are the 2026-10-03 originals.
+Revised 2026-10-10: one control plane per host, each at 5 GB (measured use 2.0 to 2.2 GB). cp-2 moved to the GPU host and cp-3 to the media host by rebuilding the VM there with the same ID, MAC and address; the "One control plane per host" section of [node maintenance](/operations/node-maintenance/) is the procedure. The `mkvm` calls below are the 2026-10-03 originals.
 
 The control-plane nodes keep their `NoSchedule` taint and run only the control plane and CoreDNS. The template removes the taint only for a cluster with no workers. Every other workload runs on the workers.
 
-The non-GPU host's VMs use 26 of its 28 threads and 106 GB of its 128 GB. The GPU host's VMs use 10 virtual cores on 8 threads and 48 GB of its 64 GB. The rest is for the host and the ZFS cache. `cat /sys/module/zfs/parameters/zfs_arc_max` on a host prints the cache limit in bytes. The GPU worker's memory is reserved in full when it starts, because passthrough pins it.
+Since 2026-10-10 the non-GPU host's VMs use 22 of its 28 threads and 95 GB of its 128 GB. The GPU host's VMs use 10 virtual cores on 8 threads and 45 GB of its 64 GB. The rest is for the host and the ZFS cache. `cat /sys/module/zfs/parameters/zfs_arc_max` on a host prints the cache limit in bytes. The GPU worker's memory is reserved in full when it starts, because passthrough pins it.
 
 A disk can grow later but cannot shrink. The MAC and address of each VM must match its `[[nodes]]` entry in `cluster.toml`.
 
-1. In the UniFi controller, reserve each address for its MAC before the VM first boots. Talos starts in maintenance mode with a DHCP address, and topf connects to the address in `cluster.toml`. Whether UniFi accepts a fixed address outside the DHCP pool is not confirmed.
+1. In the UniFi controller, reserve each address for its MAC before the VM first boots. Talos starts in maintenance mode with a DHCP address, and topf connects to the address in `cluster.toml`. UniFi accepts a fixed address outside the DHCP pool (confirmed 2026-10-03, see the [gateway](/hosts/gateway/) page).
 2. On each host, download the Talos ISO. It carries the `qemu-guest-agent` extension, and the URL returned 366 MB on 2026-10-03. The schematic ID is the one in the `cluster.toml` node entries.
 
    ```sh

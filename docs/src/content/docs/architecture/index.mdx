@@ -85,7 +85,8 @@ The export squashes every client to uid 1000, and the kubelet never chowns the s
 `cnpg-system` holds the CloudNativePG operator and its barman-cloud backup plugin. An app with a
 database includes `components/postgres`, which adds the `postgres-backup` ObjectStore from
 `[postgres.backup]`, the `postgresql` ImageCatalog and a `postgres` PodMonitor to its namespace.
-Each Cluster has two instances on different nodes, and Cluster names are unique across
+Each Cluster has two instances on different nodes, except `ai-kb-db`, which runs one because the
+community pg_search refuses to start on a standby. Cluster names are unique across
 namespaces because backups land under the Cluster's name in the bucket. A `postgres-backup`
 PrometheusRule alerts on a failed backup, a backup older than 36 hours and failing WAL archiving.
 
@@ -101,11 +102,11 @@ on the internal gateway. Passkeys are bound to that hostname, so it must not cha
 created by hand in Pocket ID and its ID and secret go in `cluster.toml`. Apps sign in one of
 three ways.
 
-- Their own OIDC: Grafana, Radar, Reactive Resume, Actual Budget, Network Optimizer and AI
-  Workspace take the client from `cluster.toml`. Kener and PegaProx are set up in their own UI and keep the client
+- Their own OIDC: Grafana, Radar, Reactive Resume, Actual Budget, Network Optimizer, AI
+  Workspace, AI KB and Langfuse take the client from `cluster.toml`. Kener and PegaProx are set up in their own UI and keep the client
   in their database. Radar binds the Pocket ID group `cluster_admins` to `cluster-admin`.
-- An Envoy Gateway `SecurityPolicy` on the route, for apps with no login of their own: Hubble UI
-  and the media stack (one shared policy selects every route labelled `media.sign-in: pocket-id`).
+- An Envoy Gateway `SecurityPolicy` on the route, for apps with no login of their own: Hubble UI,
+  the LocalAI WebUI (when its OIDC pair is set) and the media stack (one shared policy selects every route labelled `media.sign-in: pocket-id`).
   The policy verifies the ID token from a cookie and admits only `cluster_admins`.
 - An API key: each arr's `/api` route is served on the internal gateway without the policy, as
   upstream, so mobile clients work. Seerr keeps its own Plex sign-in, because it has no OpenID
@@ -138,9 +139,10 @@ section or field that renders it; "always" means it renders for every config.
 | Namespace           | App                      | Gate                                                   | Gateway                                                     | Purpose                                                                |
 | --- | --- | --- | --- | --- |
 | `actual-budget`     | `actual-budget`          | `[actual_budget]`                                      | internal, external with `public`                            | Budgeting app, SQLite on a `local-path` volume                         |
-| `ai`                | `localai`                | `nvidia_enabled`                                       | none                                                        | LocalAI on the GPU behind an API key; the llama-cpp backend and the chat and embedding models are image volumes |
+| `ai`                | `localai`                | `nvidia_enabled`                                       | internal (WebUI, with `localai.oidc_client_id`)             | LocalAI on the GPU behind an API key; the llama-cpp backend and the chat and embedding models are image volumes |
 | `ai-workspace`      | `ai-workspace`           | `[ai_workspace]`                                       | internal, external with `public`                            | Multi-model chat UI with its own Pocket ID login, plus a browserless pod for Browsing |
-| `ai-kb` | `ai-kb` | `[ai_kb]` | internal and external (self-serve sign-up is LAN-only) | Knowledge base with retrieval-augmented chat, its own login plus Pocket ID, LocalAI's models as built-in defaults |
+| `ai-kb`             | `ai-kb`                  | `[ai_kb]`                                              | internal and external (self-serve sign-up is LAN-only)      | Knowledge base with retrieval-augmented chat, its own login plus Pocket ID, LocalAI's models as built-in defaults |
+| `ai-kb`             | `searxng`                | `ai_kb.searxng_secret`                                 | none                                                        | SearXNG, JSON-only web search for AI KB                                |
 | `cert-manager`      | `cert-manager`           | always                                                 | none                                                        | Wildcard certificate for `${SECRET_DOMAIN}`                            |
 | `cnpg-system`       | `cloudnative-pg`         | always                                                 | none                                                        | CloudNativePG operator and the `postgres-backup` alert rules           |
 | `cnpg-system`       | `plugin-barman-cloud`    | always                                                 | none                                                        | Object-store backups for every Postgres cluster                        |
@@ -149,6 +151,7 @@ section or field that renders it; "always" means it renders for every config.
 | `flux-system`       | `flux-operator`          | always                                                 | none                                                        | Installs and manages Flux                                              |
 | `flux-system`       | `flux-instance`          | always                                                 | external, internal when `ingress.mode` is `none`            | Flux itself, with the Git webhook route                                |
 | `kener`             | `kener`                  | `[kener]`                                              | internal, external for the status page only                 | Status page with uptime monitoring, Redis job queue                    |
+| `langfuse`          | `langfuse`               | `[langfuse]`                                           | internal                                                    | LLM tracing for AI KB, own ClickHouse, events in RustFS                |
 | `kube-system`       | `cilium`                 | always                                                 | internal (Hubble UI, with `[cilium.hubble]`)                | CNI, load-balancer IPAM, Hubble                                        |
 | `kube-system`       | `coredns`                | always                                                 | none                                                        | Cluster DNS, forwards `${SECRET_DOMAIN}` to the UniFi console          |
 | `kube-system`       | `metrics-server`         | always                                                 | none                                                        | Resource metrics for `kubectl top` and autoscaling                     |
@@ -178,6 +181,7 @@ section or field that renders it; "always" means it renders for every config.
 | `pegaprox`          | `pegaprox`               | `[pegaprox]`                                           | internal                                                    | Web UI for Proxmox, SQLite on a `local-path` volume                    |
 | `radar`             | `radar`                  | `[radar]`                                              | internal                                                    | Kubernetes UI, acts as the signed-in user through impersonation        |
 | `reactive-resume`   | `reactive-resume`        | `[reactive_resume]`                                    | external                                                    | Resume builder, uploads to an S3 bucket                                |
+| `rustfs`            | `rustfs`                 | `[rustfs]`                                             | none                                                        | S3 store for the cluster's apps, one bucket and scoped key per consumer, provisioned by the `rustfs-provision` Job |
 | `security`          | `pocket-id`              | `[pocket_id]`                                          | internal, external with `public`                            | Passkey OpenID Connect provider                                        |
 | `storage`           | `local-path-provisioner` | always                                                 | none                                                        | Default StorageClass, directories on one node                          |
 | `storage`           | `csi-driver-nfs`         | `[media]`                                              | none                                                        | NFS CSI driver for the media export                                    |

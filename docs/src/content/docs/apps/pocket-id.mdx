@@ -53,7 +53,9 @@ These read the group from the token's `groups` claim (repo, each file named):
 - The Hubble UI SecurityPolicy admits only `cluster_admins` (`kube-system/cilium/app/hubble-securitypolicy.yaml.j2`).
 - The media SecurityPolicy admits only `cluster_admins` on every media UI route labelled `media.sign-in: pocket-id` (`media/shared/app/securitypolicy.yaml.j2`).
 - Grafana gives `cluster_admins` the Grafana server admin role and refuses everyone else (`observability/kube-prometheus-stack/app/helmrelease.yaml.j2`).
+- The LocalAI WebUI SecurityPolicy admits only `cluster_admins` (`ai/localai/app/securitypolicy.yaml.j2`).
 - [PegaProx](/apps/pegaprox/), Network Optimizer and Kener map the group to their admin role in their own UI.
+- Langfuse has no group check of its own; its client is restricted to `cluster_admins` in Pocket ID.
 
 The name is written into those files, so renaming the group breaks all of them.
 
@@ -85,6 +87,8 @@ The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 | Actual Budget | `https://budget.${SECRET_DOMAIN}/openid/callback` |
 | AI Workspace | `https://ai.${SECRET_DOMAIN}/api/auth/callback/oidc`, logout callback `https://ai.${SECRET_DOMAIN}/signin` |
 | PegaProx | `https://pegaprox.${SECRET_DOMAIN}/oidc/callback` |
+| AI KB | `https://ai-kb.${SECRET_DOMAIN}/api/v1/auth/oidc/callback` |
+| Langfuse | `https://langfuse.${SECRET_DOMAIN}/api/auth/callback/custom` (restricted to `cluster_admins`) |
 
 `ALLOW_INSECURE_CALLBACK_URLS` is `"false"` (repo, `app/helmrelease.yaml.j2`), so use `https` callbacks.
 

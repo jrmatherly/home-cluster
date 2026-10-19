@@ -16,7 +16,8 @@ A Claude Code hooks module for this repo. It refuses four things before the tool
   newlines, and quoted text is ignored, so a commit message or a quoted grep pattern may name the
   file. The Read tool is denied `cluster.toml` and the key files by `.claude/settings.json`.
 - **The UniFi window.** Node maintenance is refused from 02:45 to 03:30 local time. That covers
-  `just talos apply` and the drain, stop, reboot, upgrade and reset recipes, `talosctl` with
+  `just talos apply`, `apply-node`, `drain`, `stop-node`, `reboot-node`, `upgrade-node`, `upgrade-k8s` and
+  `reset-node` (not the all-node `upgrade` and `reset` recipes, which run `topf`; measured 2026-10-19), `talosctl` with
   `upgrade`, `reset`, `apply-config`, `reboot` or `shutdown`, `topf` with `apply`, `upgrade` or
   `reset`, and `kubectl drain`.
 - **sops churn.** After `just configure`, `git add`, `git commit`, `git restore`, `git stash` or

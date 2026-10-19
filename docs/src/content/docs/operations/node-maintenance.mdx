@@ -13,7 +13,7 @@ and took the whole cluster down for three minutes.
 
 | Host             | Address                  | Guests                                                                                 | What a reboot costs                                                                                                                                            |
 | --- | --- | --- | --- |
-| The non-GPU host | `<non-GPU host address>` | VM 121 `k8s-cp-1`, VM 132 `k8s-worker-1`, VM 133 `k8s-worker-2`, VM 134 `k8s-worker-3` | Everything on the three workers' local volumes waits, and four of the five Postgres clusters are down (both instances on worker-2 and worker-3). Quorum holds. |
+| The non-GPU host | `<non-GPU host address>` | VM 121 `k8s-cp-1`, VM 132 `k8s-worker-1`, VM 133 `k8s-worker-2`, VM 134 `k8s-worker-3` | Everything on the three workers' local volumes waits, and four Postgres clusters were down when measured on 2026-10-10 (both instances on worker-2 and worker-3; run `just kube primaries` for today's placement). Quorum holds. |
 | The GPU host     | `<GPU host address>`     | VM 122 `k8s-cp-2`, VM 131 `k8s-gpu-1`                                                  | LocalAI (GPU, pinned) and whatever replica sits on gpu-1 wait. Quorum holds.                                                                              |
 | The media host   | `<media host address>`   | VM 123 `k8s-cp-3`, VM 135 `k8s-worker-4`, LXC 200 Plex                                 | The media stack (pinned by nodeSelector) and Plex wait. Quorum holds.                                                                                          |
 
@@ -23,14 +23,20 @@ Every control plane is 5 GB, worker-4 is 16 GB.
 What is pinned to a node and cannot move: anything with a `kubernetes.io/hostname` nodeSelector
 (the media stack on worker-4), anything on a `local-path` volume, which is a directory on one node
 (Prometheus and Network Optimizer on worker-1; Grafana, InfluxDB, PegaProx and Actual Budget on
-worker-3; Alertmanager on gpu-1; Kener, the Redis volumes and every Postgres instance wherever
-they landed), and LocalAI, which needs the GPU only gpu-1 has. `just talos status <node>`
+worker-3; Alertmanager on gpu-1; RustFS on the node in `rustfs.node`; Kener, Langfuse's
+ClickHouse, AI KB's data-files and Neo4j volumes, the Redis volumes and every Postgres instance
+wherever they landed), and LocalAI, which needs the GPU only gpu-1 has. `just talos status <node>`
 lists all three kinds before you touch anything. Pinned pods sit Pending while the node is down
 and schedule by themselves when it is back. That is expected, not a failure.
 
-Postgres: each CloudNativePG cluster has two instances on different nodes. The primary's
-PodDisruptionBudget blocks eviction, so a drain that meets a primary hangs. `just talos drain`
-switches every primary on the node over to its replica first (about 16 s each, measured).
+Postgres: there are eight CloudNativePG clusters (`ai-kb-db`, `ai-workspace-db`, `kener-db`,
+`langfuse-db`, `matherlynet-db`, `pocket-id-db`, `radar-db`, `reactive-resume-db`), and each but
+`ai-kb-db` has two instances on different nodes. The primary's PodDisruptionBudget blocks
+eviction, so a drain that meets a primary hangs. `just talos drain` switches every primary on the
+node over to its replica first (about 16 s each, measured). `ai-kb-db` has one instance, so
+`drain`, `stop-node` and `reboot-node` log a warning and skip its switchover: its pod goes down with
+the node, because its `local-path` volume is pinned there, and comes back when the node does. AI
+KB is down for that time.
 
 ## Cheat sheet
 
@@ -122,7 +128,9 @@ snapraid status | tail -3
 ### Reboot the GPU host (cp-2 and gpu-1)
 
 Quorum holds (cp-1 and cp-3 stay up). LocalAI needs gpu-1's GPU and waits (`status` lists it
-as pinned by `gpu`), so Grafana's LLM panels and the matherlynet playground fail while it is down.
+as pinned by `gpu`), so AI Workspace's LocalAI models, AI KB's chat and embeddings (ingestion
+stalls), Langfuse's LocalAI connection, Grafana's LLM panels and the matherlynet playground fail
+while it is down.
 Alertmanager's volume is on gpu-1 too.
 
 ```sh
@@ -147,8 +155,10 @@ Control plane first on the way back so etcd is at three members before the worke
 Quorum holds (cp-2 and cp-3 stay up), so the API keeps answering throughout. Before 2026-10-10 this
 host also ran cp-2 and every reboot lost quorum; “One control plane per host” below records the move.
 
-Postgres on this host, measured 2026-10-10: four of the six clusters (matherlynet, pocket-id,
-radar, reactive-resume; ai-workspace-db came later and is not placed here yet) have both instances on worker-2 and worker-3, so they are down for the
+Postgres on this host, measured 2026-10-10, before `ai-workspace-db`, `ai-kb-db` and
+`langfuse-db` existed: four clusters (matherlynet, pocket-id, radar, reactive-resume) had both
+instances on worker-2 and worker-3. Run `just kube primaries` for the current placement before
+this reboot. A cluster with both instances on worker-2 and worker-3 is down for the
 reboot whatever you do, and `just talos drain` on those two nodes would only move primaries between
 two nodes that are both about to stop (the second drain then fails with "No replica on another
 node"). Only kener keeps serving, from gpu-1. The data is safe: the instances restart on their

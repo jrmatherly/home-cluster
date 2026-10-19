@@ -82,7 +82,7 @@ order, and the next app starts only when the current one is healthy.
   pre-release, as the Servarr builds are (`references/apps.md`). A pin
   with a variant suffix, such as `2.9.1-alpine` or `v4.11.0-gpu-nvidia-cuda-12-llama-cpp`, is only compared with
   tags of that same variant.
-- **The inventory sees only OCI chart pins.** A chart pinned through a `helmrepository.yaml.j2` (`csi-driver-nfs`)
+- **The inventory sees only OCI chart pins.** A chart pinned through a `helmrepository.yaml.j2` (`csi-driver-nfs`, `rustfs`)
   is absent from the table, not marked `?`, and `scripts/compare-chart.sh` fails on it because it reads
   `ocirepository.yaml`. Check it by hand against the repository's `index.yaml`.
 - **Images it skips.** The docs image (`:latest`, Renovate moves its digest) and the model images under

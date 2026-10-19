@@ -22,7 +22,7 @@ Each step names its source. "Docs" is `docs.maintainerr.info/3.30.0`, read on 20
 
 ## The two guards
 
-1. **The `keep` tag.** Every title to protect carries a tag named `keep` in Radarr (tag id 1) or Sonarr (tag id 1). Every rule group below has a `Tags NOT CONTAINS keep` line from the matching arr. That line also keeps anything the arr does not know out of the collection, because an unknown value never matches. Measured on 2026-10-08: 45 of Radarr's 51 films carry it (every Marvel Studios title and every Deadpool title; the six Sony Spider-Man films do not), and Loki carries it in Sonarr. A new title to protect gets the tag in the arr when it is added, before its first rule run.
+1. **The `keep` tag.** Every title to protect carries a tag named `keep` in Radarr (tag id 1) or Sonarr (tag id 1). Every rule group below has a `Tags NOT CONTAINS keep` line from the matching arr. That line also keeps anything the arr does not know out of the collection, because an unknown value never matches. Measured on 2026-10-08: most of Radarr's films and one Sonarr series carry it. A new title to protect gets the tag in the arr when it is added, before its first rule run.
 2. **Plex "Allow media deletion" off.** Measured off on 2026-10-08 (`allowMediaDeletion = false` in Plex's prefs). Leave it off. It is what blocks the Plex fallback above for anything outside the arrs, which is the guard for the USB tier under `/data/ext` once it holds files.
 
 ## Settings that stay as they are

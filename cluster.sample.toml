@@ -8,7 +8,7 @@
 
 # The CIDR block your nodes' IPs come from. Every node's `address`, the Kube
 # API VIP, and the gateway VIPs (internal/dns/external) must all sit inside
-# this range.
+# this range (the gateway VIPs may sit outside it when [cilium.bgp] is set).
 # REQUIRED. Example: "192.168.1.0/24"
 node_cidr = ""
 
@@ -72,7 +72,7 @@ node_cidr = ""
 
 # Virtual IP for the Kubernetes API server. kubectl, flux, and every other
 # client connect here on port 6443. Must be an unused IP inside
-# network.node_cidr — kube-vip floats it across controller nodes.
+# network.node_cidr; Talos floats it across controller nodes as a Layer 2 VIP.
 # REQUIRED.
 addr = ""
 
@@ -86,8 +86,9 @@ addr = ""
 
 # =============================================================================
 #    LoadBalancer IPs that Cilium hands out to the cluster's edge gateways.
-#    Each must be an unused address inside network.node_cidr, and all four
-#    (these three plus kubernetes.api.addr) must be distinct.
+#    Each must be an unused address inside network.node_cidr (unless
+#    [cilium.bgp] is set), and all four (these three plus kubernetes.api.addr)
+#    must be distinct.
 # =============================================================================
 [gateways]
 
@@ -752,8 +753,9 @@ schematic_id = ""
 # =============================================================================
 #    The media stack: Sonarr, Radarr, Prowlarr, SABnzbd, Bazarr, Tautulli,
 #    Seerr, Maintainerr and Recyclarr, in the media namespace. Every app
-#    mounts one NFS export from a Proxmox host. Seerr is served on the
-#    external gateway; the other apps sit behind a Pocket ID sign-in on the
+#    mounts one NFS export from a Proxmox host. Every app is on the internal
+#    gateway, and on the external one too with public = true. Seerr keeps its
+#    own Plex login; the other apps sit behind a Pocket ID sign-in on the
 #    gateway, which is their only login. Needs [pocket_id]. Set nfs_server to
 #    enable; leaving it blank skips it, and then node, the API keys, the OIDC
 #    client and recyclarr stay unset.
@@ -939,8 +941,8 @@ schematic_id = ""
 # browser then sees those vendors as held by the server. Names are upper case;
 # LOCALAI_API_HOST, LOCALAI_API_KEY, POSTGRES_PRISMA_URL,
 # POSTGRES_URL_NON_POOLING, PORT, NODE_ENV, BROWSERLESS_TOKEN,
-# PUPPETEER_WSS_ENDPOINT and the AUTH_* variables set from the fields above
-# belong to the templates and are refused; AUTH_OIDC_NAME, the sign-in button label, is
+# PUPPETEER_WSS_ENDPOINT and every AUTH_* variable the templates set (AUTH_URL
+# and AUTH_OIDC_ISSUER included) belong to the templates and are refused; AUTH_OIDC_NAME, the sign-in button label, is
 # allowed. Needs the client fields above, and stays the last table in the
 # section, because TOML closes [ai_workspace] at this header.
 # OPTIONAL.
@@ -1090,7 +1092,7 @@ schematic_id = ""
 #    Create the client in the Pocket ID admin UI with the callback URL
 #    https://langfuse.<domain.name>/api/auth/callback/custom and restrict it
 #    to the cluster_admins group: every Pocket ID user the client admits
-#    becomes an owner of the Home organization on first sign-in.
+#    joins the Home organization as an admin on first sign-in.
 #
 #    On its first start Langfuse creates the Home organization, the AI KB
 #    project and that project's key pair from public_key and secret_key.
@@ -1176,7 +1178,7 @@ schematic_id = ""
 # =============================================================================
 
 # [[nodes]]
-# name         = "k8s-0"        # Hostname; must match [a-z0-9-]+ (not "global"/"controller"/"worker").
+# name         = "k8s-0"        # Hostname: lowercase letters, digits and inner hyphens, up to 63 (not "global"/"controller"/"worker").
 # address      = "192.168.1.10" # Static IP; must be inside network.node_cidr.
 # controller   = true           # true = control-plane (etcd + API server), false = worker.
 # disk         = "/dev/nvme0n1" # Block device or /dev/disk/by-id/... symlink to install Talos onto.

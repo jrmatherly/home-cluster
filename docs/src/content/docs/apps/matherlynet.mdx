@@ -22,7 +22,7 @@ Each step names its source. "Template" is `template/config/kubernetes/apps/mathe
 
 ## How the release is wired
 
-The chart is `oci://ghcr.io/<github account>/matherlynet/charts/matherlynet`, pinned in `ocirepository.yaml.j2` (0.39.1 on 2026-10-12). CI in the site repository pushes a chart with each image from `main`. The version is `0.<run>.<attempt>`, `appVersion` is the commit, and the chart carries the web image digest, so a chart bump moves the image too (site docs, section 7; apps.md). There are no GitHub releases. The expected rendered diff of a bump is two lines, the `web_image` digest and `SENTRY_RELEASE`; anything more is a chart change to read (apps.md). Check what a version pins with:
+The chart is `oci://ghcr.io/<github account>/matherlynet/charts/matherlynet`, pinned in `ocirepository.yaml.j2` (0.44.1 on 2026-10-19). CI in the site repository pushes a chart with each image from `main`. The version is `0.<run>.<attempt>`, `appVersion` is the commit, and the chart carries the web image digest, so a chart bump moves the image too (site docs, section 7; apps.md). There are no GitHub releases. The expected rendered diff of a bump is two lines, the `web_image` digest and `SENTRY_RELEASE`; anything more is a chart change to read (apps.md). Check what a version pins with:
 
 ```sh
 helm show chart oci://ghcr.io/<github account>/matherlynet/charts/matherlynet --version 0.<run>.<attempt>

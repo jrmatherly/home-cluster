@@ -27,9 +27,9 @@ Only the BGP menu path is confirmed, from a community write-up. For the other st
 | Cluster network   | `<cluster VLAN>`, `<cluster network>`   |
 | Gateway address   | `<router address>`                      |
 | DHCP pool         | `<DHCP pool>`, a range of 21 addresses  |
-| Cluster addresses | Eleven addresses outside the DHCP pool  |
+| Cluster addresses | Twelve addresses outside the DHCP pool  |
 
-The eleven cluster addresses are the four the cluster announces itself (the API address and the three gateway addresses), the three control planes, and the four workers. All eleven answered no ping on 2026-10-03.
+The twelve cluster addresses are the four the cluster announces itself (the API address and the three gateway addresses), the three control planes and the five workers (eleven until `k8s-worker-4` joined on 2026-10-08). The original eleven answered no ping on 2026-10-03.
 
 ## Reserve the node addresses
 
@@ -128,7 +128,7 @@ vtysh -c 'show ip bgp'
 A neighbor is up when its `State/PfxRcd` column shows a number. Neither fix below has been tried on this gateway.
 
 - If `vtysh` reports that `bgpd` is not running, the upload did not start the service. One community write-up for an older release set `bgpd=yes` in `/etc/frr/daemons` and ran `/usr/sbin/frrinit.sh start`.
-- If the neighbors stay in `Active` or `Connect`, the sessions are not reaching the gateway. The nodes connect from the cluster VLAN to `<router address>` on TCP port 179. Check the firewall rules for traffic from HomeLab to the gateway.
+- If the neighbors stay in `Active` or `Connect`, the sessions are not reaching the gateway. The nodes connect from the cluster VLAN to `<router address>` on TCP port 179. Check the firewall rules for traffic from `<cluster VLAN>` to the gateway.
 
 On the cluster side, `cilium bgp peers` shows the same sessions from each node.
 
@@ -138,11 +138,13 @@ On the cluster side, `cilium bgp peers` shows the same sessions from each node.
 
 ## Forward the domain for split DNS
 
+With `[unifi]` set, `unifi-dns` writes the internal names to the console, so this forward is not needed; see [UniFi DNS](/apps/unifi-dns/).
+
 This step is optional, and it can break names you use today.
 
 The cluster runs a DNS server at `<cluster DNS address>` that answers for apps on its internal gateway. To use it, the gateway has to forward queries for `${SECRET_DOMAIN}` to that address. The server has no fallthrough. Once the whole domain is forwarded, a `${SECRET_DOMAIN}` name the cluster does not know stops resolving inside the network.
 
-On 2026-10-03 the public zone held twelve such names, among them `docs`, `link`, `llms`, `mcp`, `sonarr`, `radarr`, and `requests`. Mail is not affected, because mail servers on the internet look up the MX records, not machines on this network.
+On 2026-10-03 the public zone held twelve such names, some unrelated to the cluster. Mail is not affected, because mail servers on the internet look up the MX records, not machines on this network.
 
 A narrower forward, for the individual names the cluster serves, avoids the problem. Whether UniFi can forward single names was not checked.
 

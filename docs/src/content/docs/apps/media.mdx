@@ -74,13 +74,13 @@ settings below are never typed into a UI. A failed job fails the release, and
 
 ## The two carry-overs, typed once
 
-Only these come from the 2026-10-06 backups in `~/Downloads`. Printed only in the terminal.
+Only these come from the 2026-10-06 backups in `<backup dir>`. Printed only in the terminal.
 
 The Usenet server, entered at `https://sabnzbd.${SECRET_DOMAIN}`, Config, Servers:
 
 ```sh
-cd ~/Downloads
-unzip -p sabnzbd_backup_5.1.3_2026.10.06_19.08.56.zip sabnzbd.ini | sed -n '/^\[servers\]/,/^\[[a-z]/p'
+cd <backup dir>
+unzip -p <sabnzbd backup>.zip sabnzbd.ini | sed -n '/^\[servers\]/,/^\[[a-z]/p'
 ```
 
 The indexers, entered at `https://prowlarr.${SECRET_DOMAIN}`, Indexers, Add Indexer (the name, URL
@@ -88,8 +88,8 @@ and API key of each; Prowlarr pushes them to Sonarr and Radarr at once, with the
 profile):
 
 ```sh
-cd ~/Downloads
-unzip -p sonarr_backup_v4.0.20.3014_2026.10.06_19.07.54.zip sonarr.db > "$TMPDIR/sonarr.db"
+cd <backup dir>
+unzip -p <sonarr backup>.zip sonarr.db > "$TMPDIR/sonarr.db"
 sqlite3 "$TMPDIR/sonarr.db" 'select Name, Settings from Indexers'
 rm "$TMPDIR/sonarr.db"
 ```

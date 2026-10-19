@@ -38,7 +38,7 @@ The key is a legacy LocalAI API key. It grants full admin to whoever holds it, a
 
 ## The consumers
 
-Each client sends the key as a bearer token. One `just configure` writes it into four Secrets: `localai-secret` for LocalAI itself, and one per consumer (source, the templates named below).
+Each client sends the key as a bearer token. One `just configure` writes it into five Secrets: `localai-secret` for LocalAI itself, and one for each of the four consumers that hold it (source, the templates named below).
 
 | Consumer | Gate | How it gets the key | How it reaches LocalAI |
 | --- | --- | --- | --- |

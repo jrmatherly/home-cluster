@@ -13,7 +13,7 @@ Fork of onedr0p/cluster-template (origin jrmatherly/home-cluster). Talos + Kuber
 - `template/scripts/validate.py` — pydantic schema for `cluster.toml` (defaults, cross-field checks); `plugin.py` — makejinja `Plugin` (data = validated config + secrets/key helpers); `check_layout.py` — section order vs the sample; `test_validate.py` — pytest.
 - `template/mod.just` — `just template …` recipes (configure/doctor/init/schema/check-layout/reset/tidy/test-helmfile).
 - `cluster.sample.toml` (documented config, layout of record) → `just init` copies to the gitignored config; `cluster.schema.json` generated from validate.py.
-- `.github/template-tests/{valid,invalid,e2e}` — fixtures; `.github/workflows/` — template CI (gated to `onedr0p/cluster-template`, skips on this fork), plus model-images, docs-image, label sync.
+- `.github/template-tests/{valid,invalid,e2e}` — fixtures; `.github/workflows/` — template-e2e and template-e2e-cluster (gated to `onedr0p/cluster-template`, skip on this fork), template-release (unguarded, monthly), plus flate, model-images, docs-image, label sync.
 - `images/<model>/Dockerfile` — model image recipes (GGUF in a scratch image) that `ai/localai` mounts as image volumes.
 - `docs/` — public Nimbus (Astro) docs site; pages are scrubbed copies of the gitignored `private/` guides.
 - Apps and their `cluster.toml` sections: the "Detected Patterns" section of `CLAUDE.md` is the one list; do not copy it here.

@@ -55,7 +55,7 @@ The chart column is what the template pins. The releases column is where the not
 | kener                     | kener              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | kener (image)             | kener              | `ghcr.io/rajnandan1/kener`                                                                        | <https://github.com/rajnandan1/kener/releases>                    |
 | reactive-resume           | reactive-resume    | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
-| reactive-resume (image)   | reactive-resume    | `ghcr.io/reactive-resume/reactive-resume`                                                         | <https://github.com/AmruthPillai/Reactive-Resume/releases>        |
+| reactive-resume (image)   | reactive-resume    | `ghcr.io/reactive-resume/reactive-resume`                                                         | <https://github.com/reactive-resume/reactive-resume/releases>     |
 | media apps (9 charts)     | media              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | sonarr (image)            | media              | `ghcr.io/home-operations/sonarr`                                                                  | <https://github.com/Sonarr/Sonarr/releases>                       |
 | radarr (image)            | media              | `ghcr.io/home-operations/radarr`                                                                  | <https://github.com/Radarr/Radarr/releases>                       |
@@ -65,7 +65,7 @@ The chart column is what the template pins. The releases column is where the not
 | bazarr (image)            | media              | `ghcr.io/home-operations/bazarr`                                                                  | <https://github.com/morpheus65535/bazarr/releases>                |
 | tautulli (image)          | media              | `ghcr.io/home-operations/tautulli`                                                                | <https://github.com/Tautulli/Tautulli/releases>                   |
 | seerr (image)             | media              | `ghcr.io/seerr-team/seerr`                                                                        | <https://github.com/seerr-team/seerr/releases>                    |
-| maintainerr (image)       | media              | `ghcr.io/maintainerr/maintainerr`                                                                 | <https://github.com/jorenn92/Maintainerr/releases>                |
+| maintainerr (image)       | media              | `ghcr.io/maintainerr/maintainerr`                                                                 | <https://github.com/Maintainerr/Maintainerr/releases>             |
 | hook jobs (image)         | media, kube-system | `docker.io/alpine/k8s` (media configure Jobs, `restart-reset`)                                    | <https://github.com/alpine-docker/k8s>                            |
 | wait init (image)         | five apps          | `docker.io/library/busybox` (ai-workspace, kener, radar, reactive-resume, local-path-provisioner) | <https://hub.docker.com/_/busybox>                                |
 | csi-driver-nfs            | storage            | classic `HelmRepository`, one of two; the inventory cannot see it                                 | <https://github.com/kubernetes-csi/csi-driver-nfs/releases>       |
@@ -78,7 +78,7 @@ The chart column is what the template pins. The releases column is where the not
 | docs (image)              | docs               | `ghcr.io/jrmatherly/home-cluster/docs` (`:latest`, Renovate pins it)                              | this repo's Docs Image workflow                                   |
 | redis (component image)   | per consumer       | `docker.io/library/redis`                                                                         | <https://github.com/redis/redis/releases>                         |
 | postgres (ImageCatalog)   | per consumer       | `ghcr.io/cloudnative-pg/postgresql`                                                               | <https://github.com/cloudnative-pg/postgres-containers/releases>  |
-| echo                      | default            | `ghcr.io/home-operations/charts/echo`                                                             | not identified; ask the user or search before a non-patch bump    |
+| echo                      | default            | `ghcr.io/home-operations/charts/echo`                                                             | <https://github.com/home-operations/echo/releases>                |
 | prometheus-operator-crds  | bootstrap only     | `ghcr.io/prometheus-community/charts/prometheus-operator-crds`                                    | <https://github.com/prometheus-community/helm-charts/releases>    |
 
 The charts under `charts-mirror` are copies of the upstream chart, so the upstream project's notes apply.
@@ -102,7 +102,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 
 1. flux-operator with flux-instance, so the tool doing the deploying is current first.
 2. cert-manager.
-3. The network apps: envoy-gateway, cloudflare-dns, k8s-gateway, cloudflare-tunnel.
+3. The network apps: envoy-gateway, cloudflare-dns with unifi-dns (same chart), k8s-gateway, cloudflare-tunnel.
 4. Everything else in kube-system except cilium.
 5. cilium last, on its own, when nothing else is in flight.
 
@@ -214,7 +214,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `LOCALAI_API_KEY`, the `LANGFUSE_*` tracing settings and the `S3_*` storage settings through
   `app.extraEnv`, sets `app.env.STORAGE_TYPE` and `neo4j.enabled`, mounts the `ai-kb-models`
   ConfigMap through `app.extraVolumes` and `app.extraVolumeMounts`, and sets `externalDatabase.host` and
-  `externalRedis.addr`, which chart 0.4.1 requires when its own Postgres and Redis are off; check
+  `externalRedis.addr`, which the chart requires (checked at 0.4.2) when its own Postgres and Redis are off; check
   each key against the new chart's `values.yaml`. Both NetworkPolicies select the chart's pods by
   `app.kubernetes.io/component` (`app`, `docreader`, and `graph` for Neo4j), so check those labels too. Its database runs one CNPG instance (the community pg_search refuses to start
   on a standby) and loads `pg_search` from `paradedb/paradedb-extension`, whose Postgres major and Debian
@@ -349,7 +349,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | actual-budget                | `curl -s https://budget.<domain>/health` and `kubectl -n actual-budget get pods`                                                | `{"status":"UP"}`, and the pod Running                           |
 | localai                      | `kubectl -n ai exec deploy/localai -- curl -fsS localhost:8080/readyz` (curl is in the image, measured 2026-10-12)              | `200` once both models are loaded                                |
 | ai-workspace                 | `kubectl -n ai-workspace get pods`, then `curl -s https://ai.<domain>/api/trpc/backend.listCapabilities`                        | migrate Job Completed, app Running, a JSON body                  |
-| ai-kb                        | `kubectl -n ai-kb get pods`, then `curl -s https://ai-kb.<domain>/api/v1/auth/oidc/config` and the app log's migration block    | seven pods Running, `enabled: true`, a `Database migrated` line  |
+| ai-kb                        | `kubectl -n ai-kb get pods`, then `curl -s https://ai-kb.<domain>/api/v1/auth/oidc/config` and the app log's migration block    | every pod Running (eight), `enabled: true`, a migration line     |
 | rustfs                       | `kubectl -n rustfs get pods,jobs` and `kubectl -n rustfs logs job/rustfs-provision`                                             | pod Running, Job Completed, a `provisioned` line per consumer    |
 | langfuse                     | `kubectl -n langfuse get pods` and `kubectl -n rustfs logs job/rustfs-provision`                                                | every pod Ready, `provisioned langfuse in langfuse-events`       |
 | kener                        | `curl -s https://status.<domain>/healthcheck`                                                                                   | ok                                                               |
@@ -358,3 +358,5 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | docs                         | `kubectl -n docs exec deploy/docs -- wget -qO- localhost:8080/healthz`                                                          | `ok`                                                             |
 | echo                         | `curl -s -o /dev/null -w '%{http_code}' https://echo.<domain>/`                                                                 | `200`                                                            |
 | reloader, spegel             | the common checks                                                                                                               | pods Running                                                     |
+| csi-driver-nfs               | `kubectl -n storage get pods` and `kubectl -n media get pvc media`                                                              | controller and node pods Running, claim `Bound`                  |
+| searxng                      | the curl from the cautions above, run from the ai-kb app pod                                                                    | `results` present                                                |
