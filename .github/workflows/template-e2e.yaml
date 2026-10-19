@@ -109,6 +109,7 @@ jobs:
           - langfuse-bad-encryption-key
           - rustfs-duplicate-key
           - ai-kb-tracing-without-langfuse
+          - ai-kb-neo4j-without-section
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

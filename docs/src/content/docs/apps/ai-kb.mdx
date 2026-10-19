@@ -1,6 +1,6 @@
 ---
 title: AI KB
-description: Take AI KB from the templates in Git to a knowledge base with its first system administrator, the pg_search extension owned by the app role, and password sign-up off.
+description: Take AI KB from the templates in Git to a knowledge base with its first system administrator, the pg_search extension owned by the app role, and sign-up closed to the internet.
 sidebar:
   order: 16
 ---
@@ -68,7 +68,7 @@ no `SSRF_WHITELIST_EXTRA` entry (read in the app's source at the pinned tag). Th
 
 ### GraphRAG with Neo4j
 
-With `neo4j_password` set (letters and digits, at least 32, from `openssl rand -hex 16`), the chart's own Neo4j runs in the namespace (image `neo4j:2026.09.0` from the chart, a Deployment with `Recreate` on a 10Gi `local-path` claim, `ai-kb-neo4j`), and the chart sets `NEO4J_ENABLE`, `NEO4J_URI` (`bolt://neo4j:7687`) and the `neo4j` user's credentials on the app. The password reaches the chart through the values document in `ai-kb-secret`. A knowledge base with graph extraction on makes extra LocalAI calls for every document it imports. Neo4j stores the password on its first start, so a later change must also be made inside Neo4j, or the app cannot sign in. The app tries Neo4j 30 times, two seconds apart, then exits (read in the app's source at the pinned tag), so on a fresh enable it restarts until Neo4j answers. The ingress NetworkPolicy admits the app's own pods on 7687.
+With `neo4j_password` set (letters and digits, at least 32, from `openssl rand -hex 16`), the chart's own Neo4j runs in the namespace (image `neo4j:2026.09.0` from the chart, a Deployment with `Recreate` on a 10Gi `local-path` claim, `ai-kb-neo4j`), and the chart sets `NEO4J_ENABLE`, `NEO4J_URI` (`bolt://neo4j:7687`) and the `neo4j` user's credentials on the app. The password reaches the chart through the values document in `ai-kb-secret`. A knowledge base with graph extraction on makes extra LocalAI calls for every document it imports. Neo4j stores the password on its first start, so a later change must also be made inside Neo4j, or the app cannot sign in. The app tries Neo4j 30 times, two seconds apart, then exits (read in the app's source at the pinned tag), so on a fresh enable it restarts until Neo4j answers. The ingress NetworkPolicy admits the app pod on 7687.
 
 ## Watch it come up
 
@@ -85,11 +85,13 @@ kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -d app -c 'select version, 
 
 ## Sign-up and the first admin
 
-Password sign-up is off. `DISABLE_REGISTRATION=true` puts the app in `invite_only` mode: the register form is hidden, and `POST /api/v1/auth/register` and registration by invitation are both refused. A new account comes from a first Pocket ID sign-in, which creates it, or from a system administrator in the UI; an invitation only adds an account that exists to a workspace. The external gateway still answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, as defence in depth. A registration mode saved in the UI (`auth.registration_mode` in the system settings, stored in the database) takes precedence over the env var (read in the app's source at the pinned tag).
+Password sign-up stays open until the Pocket ID pair (`oidc_client_id` and `oidc_client_secret`) is set, because before that it is the only way to create an account. Anyone who can reach the form then gets a workspace (tenant) of their own, so the external gateway answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, and accounts are created from the LAN, where `ai-kb.${SECRET_DOMAIN}` resolves to the internal gateway through UniFi DNS.
+
+With the pair set, `DISABLE_REGISTRATION=true` puts the app in `invite_only` mode: the register form is hidden, and `POST /api/v1/auth/register` and registration by invitation are both refused. A new account then comes from a first Pocket ID sign-in, which creates it, or from a system administrator in the UI; an invitation only adds an account that exists to a workspace. The gateway's 404 stays as defence in depth. A registration mode saved in the UI (`auth.registration_mode` in the system settings, stored in the database) takes precedence over the env var (read in the app's source at the pinned tag).
 
 The bootstrap only promotes an account that already exists, and it runs at startup, so the order is:
 
-1. Sign in at `https://ai-kb.${SECRET_DOMAIN}` with Pocket ID as `admin_email`. This needs `oidc_client_id`; without it a fresh install has no way to create its first account.
+1. Create the `admin_email` account: from the LAN with the register form, or, once the Pocket ID pair is set, by signing in with Pocket ID as that address.
 2. `kubectl -n ai-kb rollout restart deployment ai-kb-app`. The log then reads `[bootstrap] promoted user ... to system admin`.
 
 Once a system administrator exists the env var grants nothing more, so a later revoke in the UI is not undone by a restart.
@@ -117,7 +119,18 @@ The ai-kb namespace carries the `localai.ai/client` label that LocalAI's Network
 
 ## Network
 
-A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the app's own pods on 8080 and 50051 (frontend to app for `/files` and the embed-frame policy, app to docreader), plus 7687 when Neo4j is on (app to Neo4j). The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path. A second NetworkPolicy, `ai-kb-egress`, fences the app pod's egress: DNS in `kube-system`, its Postgres (`cnpg.io/cluster: ai-kb-db`) on 5432, Redis on 6379, docreader on 50051, and, when each is on, Neo4j on 7687, LocalAI in `ai` on 8080, the `network` namespace for Pocket ID (pods resolve its host to the internal gateway), RustFS on 9000 and Langfuse on 3000; everything else is TCP 80 and 443 to public addresses only, never the RFC 1918 ranges, link-local, CGNAT or the pod, service and node CIDRs. Endpoints a workspace configures (web search, IM, MCP servers, connectors) must be on the internet, and the app's SSRF allowlist is the app-side gate for them.
+A NetworkPolicy admits the `network` namespace on 8080 (the three web containers) and the chart's own pods on 8080 (frontend to app for `/files` and the embed-frame policy), and only the app pod on 50051 (docreader) and, when Neo4j is on, 7687. The HTTPRoute mirrors the chart's Ingress: `/api` to `app`, `/docs` to `website`, everything else to `frontend`. The app trusts the forwarded client address, so the gateway must stay the only path. A second NetworkPolicy, `ai-kb-egress`, fences the app pod's egress: DNS in `kube-system`, its Postgres (`cnpg.io/cluster: ai-kb-db`) on 5432, Redis on 6379, docreader on 50051, and, when each is on, Neo4j on 7687, LocalAI in `ai` on 8080, the `network` namespace and the internal gateway's own address on 443 for Pocket ID (pods resolve its host to the gateway; the address rule covers the case where the policy sees the packet before Cilium translates it to an Envoy pod), RustFS on 9000 and Langfuse on 3000; everything else is TCP 80 and 443 to public addresses only, never the RFC 1918 ranges, link-local, CGNAT or the pod, service and node CIDRs. Endpoints a workspace configures (web search, IM, MCP servers, connectors) must be on the internet, and the app's SSRF allowlist is the app-side gate for them.
+
+## Verify
+
+After a rollout that changes the NetworkPolicies, check that the app still reaches Pocket ID through the egress fence, and that nothing the app needs is dropped:
+
+```sh
+kubectl -n ai-kb exec deploy/ai-kb-app -- wget -qO- https://auth.<domain>/.well-known/openid-configuration
+hubble observe -n ai-kb --verdict DROPPED
+```
+
+The first prints Pocket ID's discovery document. The second should show no drops from the `ai-kb-app` pod to a dependency it needs.
 
 ## Updates
 

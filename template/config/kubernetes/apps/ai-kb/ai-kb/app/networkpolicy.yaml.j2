@@ -1,8 +1,9 @@
 #% if ai_kb_enabled %#
 ---
 # The gateway is the only intended path, and the app trusts the client address
-# the gateway forwards. The three web containers listen on 8080; only the
-# app's own pods reach docreader's gRPC port and Neo4j's Bolt port.
+# the gateway forwards. The three web containers listen on 8080, and the
+# chart's pods reach each other there; only the app pod reaches docreader's
+# gRPC port and Neo4j's Bolt port.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -27,6 +28,11 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: app
+      ports:
         - protocol: TCP
           port: 50051
         #% if ai_kb_neo4j %#

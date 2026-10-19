@@ -1020,6 +1020,22 @@ class Config(Model):
             return "letsencrypt-production"
         return "internal-ca"
 
+    # Never a destination for an egress fence that admits only public addresses: the
+    # RFC 1918, CGNAT and link-local ranges plus the cluster's own pod, service and node ranges.
+    @computed_field
+    @property
+    def private_cidrs(self) -> list[str]:
+        return [
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "100.64.0.0/10",
+            "169.254.0.0/16",
+            str(self.kubernetes.pod_cidr),
+            str(self.kubernetes.svc_cidr),
+            str(self.network.node_cidr),
+        ]
+
     # Single source for the machine and apiServer certificate SAN lists,
     # which live in separate patch files.
     @computed_field

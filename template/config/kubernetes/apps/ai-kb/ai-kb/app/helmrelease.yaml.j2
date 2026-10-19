@@ -50,12 +50,15 @@ spec:
           readOnly: true
       #% endif %#
       extraEnv:
+        #% if ai_kb_oidc %#
         # invite_only: no password sign-up. New accounts come from a Pocket ID
         # sign-in or a system administrator; an invitation adds an existing
-        # account to a workspace. A registration mode saved in the app's
-        # system settings overrides this.
+        # account to a workspace. Only with the Pocket ID client, because
+        # without it nobody could create the first account. A registration
+        # mode saved in the app's system settings overrides this.
         - name: DISABLE_REGISTRATION
           value: "true"
+        #% endif %#
         - name: AIKB_IM_PLATFORMS
           value: slack,telegram,mattermost
         - name: AIKB_AUDIT_RETENTION_DAYS
@@ -63,7 +66,7 @@ spec:
         - name: STORAGE_ALLOW_LIST
           value: local,s3,minio
         # Promotes that account at startup while no system administrator
-        # exists, so the first restart after it signs in makes it the admin.
+        # exists, so the first restart after that account exists makes it the admin.
         - name: AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL
           value: "#{ ai_kb.admin_email }#"
         # The browser extension's OIDC sign-in returns to the store-assigned

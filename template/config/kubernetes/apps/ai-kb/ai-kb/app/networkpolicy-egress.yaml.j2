@@ -69,6 +69,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: network
+    # The gateway's own address too, in case the policy sees the packet before
+    # Cilium translates it to an Envoy pod; node_cidr is excluded below.
+    - to:
+        - ipBlock:
+            cidr: #{ gateways.internal }#/32
+      ports:
+        - protocol: TCP
+          port: 443
     #% endif %#
     #% if ai_kb_rustfs %#
     - to:
@@ -92,7 +100,7 @@ spec:
         - ipBlock:
             cidr: 0.0.0.0/0
             except:
-#% for cidr in ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16", kubernetes.pod_cidr, kubernetes.svc_cidr, network.node_cidr] %#
+#% for cidr in private_cidrs %#
               - #{ cidr }#
 #% endfor %#
       ports:
