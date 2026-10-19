@@ -20,10 +20,11 @@ provision() {
   policy=/tmp/$name-policy.json
   printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::%s","arn:aws:s3:::%s/*"]}]}' "$bucket" "$bucket" > "$policy"
   rc bucket create --ignore-existing "root/$bucket"
+  # rc prints the secret key on success, which would land in the Job log.
   if rc admin service-account info root "$access_key" >/dev/null 2>&1; then
-    rc admin service-account update root "$access_key" --secret-key "$secret_key" --policy "$policy"
+    rc admin service-account update root "$access_key" --secret-key "$secret_key" --policy "$policy" >/dev/null
   else
-    rc admin service-account create root "$access_key" "$secret_key" --name "$name" --policy "$policy"
+    rc admin service-account create root "$access_key" "$secret_key" --name "$name" --policy "$policy" >/dev/null
   fi
   echo "provisioned $name in $bucket"
 }
