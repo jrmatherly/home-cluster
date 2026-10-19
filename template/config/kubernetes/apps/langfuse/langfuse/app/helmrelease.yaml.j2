@@ -33,6 +33,13 @@ spec:
             name: Pocket ID
       features:
         telemetryEnabled: false
+      #% if nvidia_enabled %#
+      # The chart adds this list to both web and worker; the worker runs evaluators.
+      # Self-hosted Langfuse refuses an LLM connection to a private address otherwise.
+      additionalEnv:
+        - name: LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST
+          value: localai.ai.svc.cluster.local
+      #% endif %#
       serviceAccount:
         automountServiceAccountToken: false
       # The chart puts no checksum of langfuse-secret on its pod templates.
@@ -65,8 +72,12 @@ spec:
           additionalEnv:
             - name: LANGFUSE_DEFAULT_ORG_ID
               value: home
+            # Applied to every new user; OWNER could delete the organization.
             - name: LANGFUSE_DEFAULT_ORG_ROLE
-              value: OWNER
+              value: ADMIN
+            # The sign-up onboarding step calls langfuse.com from the browser.
+            - name: LANGFUSE_DISABLE_SIGNUP_ONBOARDING
+              value: "true"
             # Created on the first start only, when absent.
             - name: LANGFUSE_INIT_ORG_ID
               value: home

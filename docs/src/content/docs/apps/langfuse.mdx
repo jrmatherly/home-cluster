@@ -39,8 +39,11 @@ In the Pocket ID admin UI, create an OIDC client:
 - Callback URL: `https://langfuse.${SECRET_DOMAIN}/api/auth/callback/custom`.
 - Allowed user groups: `cluster_admins`.
 
-Every user the client admits becomes an owner of the Home organization on first sign-in, so the
-group restriction is the access control. The password form is off.
+Every user the client admits joins the Home organization as an admin on first sign-in, so the
+group restriction is the access control. Admin is the default role (`LANGFUSE_DEFAULT_ORG_ROLE`)
+rather than owner, because an owner can delete the organization; a membership that exists keeps its
+role. The sign-up onboarding step is off (`LANGFUSE_DISABLE_SIGNUP_ONBOARDING`), because it calls
+langfuse.com from the browser. The password form is off.
 
 ## Keys
 
@@ -102,8 +105,27 @@ is how both pods failed on the first rollout.
 ## Sign in
 
 Open `https://langfuse.${SECRET_DOMAIN}` from the LAN and pick Pocket ID. The first sign-in creates
-the account and makes it an owner of Home. Open the AI KB project and check Settings, API keys: the
+the account and makes it an admin of Home. Open the AI KB project and check Settings, API keys: the
 public key matches `public_key`.
+
+## LLM connection
+
+With NVIDIA on, the `langfuse` namespace carries the `localai.ai/client` label, so LocalAI's
+NetworkPolicy admits it. Both the web and worker pods put `localai.ai.svc.cluster.local` on
+Langfuse's LLM connection host allowlist, because self-hosted Langfuse refuses a connection whose
+base URL resolves to a private address, and the worker runs the evaluators.
+
+In the AI KB project, open Project Settings, LLM Connections, and add a project connection:
+
+- Adapter: OpenAI.
+- API key: the LocalAI API key, `api_key` in `[localai]`.
+- Base URL, under Advanced Settings: `http://localai.ai.svc.cluster.local:8080/v1`.
+- Custom model names: `qwen-3.5-4b`, because the Playground otherwise offers only the adapter's
+  default models.
+
+Organization-level connections are an Enterprise feature, so the connection belongs to the project.
+To prove the path, open any `chat.completion` generation in the traces and open it in the
+Playground. A reply from `qwen-3.5-4b` means the connection works.
 
 ## Verify
 

@@ -6,6 +6,9 @@ metadata:
   name: langfuse
   labels:
     pod-security.kubernetes.io/enforce: restricted
+    #% if nvidia_enabled %#
+    localai.ai/client: "true"
+    #% endif %#
     rustfs.storage/client: "true"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
