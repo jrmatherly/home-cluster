@@ -33,6 +33,16 @@ spec:
                   periodSeconds: 10
                   timeoutSeconds: 5
               readiness: *probe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: *port
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 30
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -40,16 +50,20 @@ spec:
             resources:
               requests:
                 cpu: 50m
-                memory: 128Mi
+                memory: 192Mi
               limits:
-                memory: 512Mi
+                memory: 1Gi
     defaultPodOptions:
+      # The Service named searxng would inject SEARXNG_PORT=tcp://..., which the
+      # entrypoint drops, but the env stays clean without it.
+      enableServiceLinks: false
       # The image's user is the name searxng, which restricted cannot check. As
       # non-root the entrypoint skips its chown and only warns.
       securityContext:
         runAsNonRoot: true
         runAsUser: 977
         runAsGroup: 977
+        fsGroup: 977
         seccompProfile: { type: RuntimeDefault }
     service:
       app:
@@ -57,14 +71,20 @@ spec:
           http:
             port: *port
     persistence:
-      # The app's default settings folder; the entrypoint only writes a
-      # settings.yml there when none exists.
+      # By subPath, so /etc/searxng stays the image's directory, which the
+      # entrypoint checks; it writes settings.yml only when none exists.
       settings:
         type: configMap
         name: searxng-settings
         globalMounts:
-          - path: /etc/searxng
+          - path: /etc/searxng/settings.yml
+            subPath: settings.yml
             readOnly: true
+      # The entrypoint checks that the data directory exists.
+      cache:
+        type: emptyDir
+        globalMounts:
+          - path: /var/cache/searxng
       # The engine and data caches are SQLite files in the temp directory.
       tmp:
         type: emptyDir
