@@ -8,7 +8,8 @@ sidebar:
 The steps outside the repo that `[rustfs]` in `cluster.toml` needs, in order. The deployment itself
 is in Git: the `[rustfs]` section and `kubernetes/apps/rustfs/`. "Measured" below was run in Docker
 against `rustfs/rustfs:1.0.3` and `rustfs/rc:v0.1.36` on 2026-10-18, under the pod's restrictions
-(read-only root, every capability dropped, the pod's uid). Nothing here has run on the cluster yet.
+(read-only root, every capability dropped, the pod's uid). It went live on 2026-10-18, and its first
+provisioning run created the `ai-kb-files` and `langfuse-events` buckets with a scoped key for each.
 
 ## What it holds
 
@@ -56,12 +57,18 @@ The `rustfs` pod Running, the `rustfs-data` claim Bound, and the `rustfs-provisi
 With no consumer yet, the Job only checks that the server answers and signs in as root. With
 consumers, its log ends with one `provisioned <app> in <bucket>` line each.
 
+The log carries no keys. `rc` prints the secret key when it creates or updates a service account, so
+the script sends that output to `/dev/null`. The first run on the cluster predates that change and
+printed both consumers' secret keys into the Job log. Those keys are the ones in `cluster.toml` and
+were not rotated, and the Job that the change recreated logs none.
+
 ## Add a consumer
 
 An app that stores files in RustFS gets its own bucket and its own key pair, never the root pair.
 
-1. Add the key pair fields to the app's section in `cluster.toml` (AI KB has `rustfs_access_key`
-   and `rustfs_secret_key`; generate them with `openssl rand -hex 16` and `openssl rand -hex 32`).
+1. Add the key pair fields to the app's section in `cluster.toml` (AI KB and Langfuse each have
+   `rustfs_access_key` and `rustfs_secret_key`; generate them with `openssl rand -hex 16` and
+   `openssl rand -hex 32`). The validator refuses a pair whose access key another pair already uses.
 2. `just configure`, commit and push.
 3. The app's entry in `rustfs_consumers` changes the checksum on the Job's pod template, so Flux
    replaces the Job and it runs again. It creates the bucket if it is missing, then creates a
@@ -87,7 +94,8 @@ admits only labelled namespaces. The app's template sets it.
 
 Renovate offers the chart, the server image and the `rc` image. Read the release notes for scanner
 and single-disk memory changes (issues 8121 and 8015 upstream). `rc` is pre-1.0, so after bumping it
-run the provisioning script against the new image before merging.
+run the provisioning script against the new image before merging, and check that its log still
+carries no secret key.
 
 ## If something breaks
 

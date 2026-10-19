@@ -88,7 +88,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   Update them in separate commits so a failure points at one of them.
 - **langfuse web and worker** share a version and a schema, which the web pod migrates on start. Update both
   images in one commit; the chart is independent and pins neither. The ai-kb HelmRelease names the chart's web
-  Service (`langfuse-web`) in `LANGFUSE_HOST`, so check that name on a chart bump.
+  Service (`langfuse-web`) in `LANGFUSE_HOST`, and the HelmRelease's `postRenderers` patches find the
+  `langfuse-web` and `langfuse-worker` Deployments by name (the web startup probe, and
+  `enableServiceLinks: false` on both, without which the kubelet's `REDIS_PORT=tcp://...` stops Langfuse
+  starting), so check those names on a chart bump. A first install waits for Ready, so a fix pushed while it
+  hangs waits out the 15-minute timeout unless the Deployments are patched by hand with the same change.
 
 ## Order when several are pending
 
@@ -200,10 +204,13 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change, and read the
   release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG`,
   `SSRF_WHITELIST_EXTRA`, `DISABLE_REGISTRATION`, `AIKB_IM_PLATFORMS`, `AIKB_AUDIT_RETENTION_DAYS`,
-  `STORAGE_ALLOW_LIST` and the `S3_*` storage settings through `app.extraEnv`, mounts the `ai-kb-models`
+  `STORAGE_ALLOW_LIST`, `AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL`, `OIDC_AUTH_EXTENSION_RETURN_URLS`,
+  `LOCALAI_API_KEY`, the `LANGFUSE_*` tracing settings and the `S3_*` storage settings through
+  `app.extraEnv`, sets `app.env.STORAGE_TYPE` and `neo4j.enabled`, mounts the `ai-kb-models`
   ConfigMap through `app.extraVolumes` and `app.extraVolumeMounts`, and sets `externalDatabase.host` and
   `externalRedis.addr`, which chart 0.4.1 requires when its own Postgres and Redis are off; check
-  each key against the new chart's `values.yaml`. Its database runs one CNPG instance (the community pg_search refuses to start
+  each key against the new chart's `values.yaml`. Both NetworkPolicies select the chart's pods by
+  `app.kubernetes.io/component` (`app`, `docreader`, and `graph` for Neo4j), so check those labels too. Its database runs one CNPG instance (the community pg_search refuses to start
   on a standby) and loads `pg_search` from `paradedb/paradedb-extension`, whose Postgres major and Debian
   release must match the catalog image in `components/postgres`; Renovate offers it through a
   `customManagers` rule, and Docker versioning keeps it on `-18-trixie` tags. The app's migrations run
@@ -216,7 +223,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `helm.sh/resource-policy: keep`). Check the notes for scanner and single-disk memory changes
   (rustfs/rustfs#8121, #8015), which is why `scanner.cycle_secs` is set. `rc` is pre-1.0; after bumping it, run
   the provisioning Job's script against the new image, because it depends on `bucket create --ignore-existing`
-  and `admin service-account info`, `create` and `update`.
+  and `admin service-account info`, `create` and `update`, and check its log for a secret key: `rc` prints
+  one on success, so the script sends that output to `/dev/null`.
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
@@ -328,6 +336,7 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | ai-workspace                 | `kubectl -n ai-workspace get pods`, then `curl -s https://ai.<domain>/api/trpc/backend.listCapabilities`                        | migrate Job Completed, app Running, a JSON body                  |
 | ai-kb                        | `kubectl -n ai-kb get pods`, then `curl -s https://ai-kb.<domain>/api/v1/auth/oidc/config` and the app log's migration block    | seven pods Running, `enabled: true`, a `Database migrated` line  |
 | rustfs                       | `kubectl -n rustfs get pods,jobs` and `kubectl -n rustfs logs job/rustfs-provision`                                             | pod Running, Job Completed, a `provisioned` line per consumer    |
+| langfuse                     | `kubectl -n langfuse get pods` and `kubectl -n rustfs logs job/rustfs-provision`                                                | every pod Ready, `provisioned langfuse in langfuse-events`       |
 | kener                        | `curl -s https://status.<domain>/healthcheck`                                                                                   | ok                                                               |
 | reactive-resume              | `curl -s -o /dev/null -w '%{http_code}' https://resume.<domain>/`                                                               | `200`                                                            |
 | media stack                  | `kubectl -n media get pods,jobs`, then open each UI once                                                                        | every pod Running, every configure Job Completed                 |

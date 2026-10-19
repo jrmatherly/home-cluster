@@ -7,7 +7,9 @@ sidebar:
 
 The steps outside the repo that `[ai_kb]` in `cluster.toml` needs, in order. The deployment itself is in Git: the `[ai_kb]` section and `kubernetes/apps/ai-kb/`. The app's own repository is `<github account>/ai-kb`, which publishes the chart `oci://ghcr.io/<github account>/ai-kb/charts/ai-kb` and the four images (`ai-kb-app`, `ai-kb-ui`, `ai-kb-website`, `ai-kb-docreader`).
 
-AI KB is served at `https://ai-kb.${SECRET_DOMAIN}` on both gateways. It has its own login, so the route carries no gateway `SecurityPolicy`. "Measured" below was run on the first deploy, 2026-10-17, against chart 0.3.0 and product v2026.10.17.1.
+AI KB is served at `https://ai-kb.${SECRET_DOMAIN}` on both gateways. It has its own login, so the route carries no gateway `SecurityPolicy`. "Measured" below was run on the first deploy, 2026-10-17, against chart 0.3.0 and product v2026.10.17.1. Chart 0.4.1 with product v2026.10.18 went live on
+2026-10-18 with files on RustFS, traces to Langfuse, Neo4j connected, registration in `invite_only`
+mode and the egress fence.
 
 ## What the app holds
 
@@ -57,7 +59,8 @@ startup.
 With `tracing = true` (it needs `[langfuse]`), AI KB sends traces to [Langfuse](/apps/langfuse/) in the AI KB project. AI
 KB wraps its chat, embedding, rerank, VLM and ASR models and its knowledge ingest and post-process
 paths in Langfuse tracers, so traces carry full prompts and answers and the chunk text of every
-ingested document. It stays off until AI KB's tracer has a metadata-only mode. Langfuse creates the
+ingested document. It is off by default and on in this cluster since 2026-10-18, so Langfuse holds the same content
+as AI KB, which is why it stays on the internal gateway behind the `cluster_admins` group. Langfuse creates the
 project keys on its first start only, so a later change to the pair in `cluster.toml` must also be
 made in Langfuse's project settings, or every export gets 401 silently. The app reads `LANGFUSE_HOST`, set to
 `http://langfuse-web.langfuse.svc.cluster.local:3000`, `LANGFUSE_ENVIRONMENT` `home`, and the
@@ -131,6 +134,9 @@ hubble observe -n ai-kb --verdict DROPPED
 ```
 
 The first prints Pocket ID's discovery document. The second should show no drops from the `ai-kb-app` pod to a dependency it needs.
+
+Measured from the app pod on 2026-10-18, once the fence was live: Pocket ID, LocalAI, RustFS and an
+internet host answered, and a LAN address was blocked.
 
 ## Updates
 

@@ -9,7 +9,8 @@ The steps outside the repo that `[langfuse]` in `cluster.toml` needs, in order. 
 itself is in Git: the `[langfuse]` section and `kubernetes/apps/langfuse/`. "Measured" below was
 run in Docker against `langfuse/langfuse:4.63.0`, `langfuse/langfuse-worker:4.63.0` and
 `clickhouse/clickhouse-server:26.4.5.143` on 2026-10-18, under the pods' restrictions (read-only
-root, every capability dropped, the pods' uids). Nothing here has run on the cluster yet.
+root, every capability dropped, the pods' uids). It went live on 2026-10-18, with the web and worker
+pods Ready at `langfuse.${SECRET_DOMAIN}`.
 
 ## What it holds
 
@@ -92,18 +93,45 @@ On that first start Langfuse also creates the Home organization, the AI KB proje
 project's key pair from `public_key` and `secret_key`. It creates them only when they are absent, so
 a later change to the pair in `cluster.toml` must also be made in the project's settings.
 
+The web and worker pods run with `enableServiceLinks: false`, set by a `postRenderers` patch
+because the chart has no switch for it. Without it the kubelet injects a Docker-link variable set
+for every Service in the namespace, among them `REDIS_PORT=tcp://<address>:6379` from the `redis`
+Service. Langfuse's env schema reads `REDIS_PORT` as a number, gets NaN and refuses to start. That
+is how both pods failed on the first rollout.
+
 ## Sign in
 
 Open `https://langfuse.${SECRET_DOMAIN}` from the LAN and pick Pocket ID. The first sign-in creates
 the account and makes it an owner of Home. Open the AI KB project and check Settings, API keys: the
 public key matches `public_key`.
 
+## Verify
+
+```sh
+kubectl -n langfuse get pods
+kubectl -n langfuse get deploy langfuse-web langfuse-worker -o jsonpath='{range .items[*]}{.metadata.name} {.spec.template.spec.enableServiceLinks}{"\n"}{end}'
+```
+
+Every pod Running and Ready, and both Deployments print `false`.
+
+Measured on the first rollout, 2026-10-18: the chart's first install waits until its pods are
+ready, so a fix pushed to the HelmRelease while that install hangs is not applied until the
+HelmRelease's 15-minute timeout runs out. To skip the wait, patch the Deployments by hand with the
+same change. The pods then come up and the install finishes, and the HelmRelease already carries
+the change, so nothing drifts:
+
+```sh
+kubectl -n langfuse patch deployment langfuse-web --type merge -p '{"spec":{"template":{"spec":{"enableServiceLinks":false}}}}'
+kubectl -n langfuse patch deployment langfuse-worker --type merge -p '{"spec":{"template":{"spec":{"enableServiceLinks":false}}}}'
+```
+
 ## Updates
 
 Renovate offers the chart, the two Langfuse images (keep them on the same version) and the
 ClickHouse image. The web pod runs the migrations, and on v4 they are not all additive, so a
 rollback needs more than an image swap. ClickHouse must stay on a version Langfuse supports
-(25.12 or later, 26.4 recommended).
+(25.12 or later, 26.4 recommended). The `postRenderers` patches find the `langfuse-web` and
+`langfuse-worker` Deployments by name, so check those names on a chart bump.
 
 ## If something breaks
 
