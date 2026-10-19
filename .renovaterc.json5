@@ -66,6 +66,18 @@
       groupName: "Langfuse",
     },
     {
+      description: "AI KB's chart and four images are released together under one CalVer tag",
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "ghcr.io/jrmatherly/ai-kb/charts/ai-kb",
+        "ghcr.io/jrmatherly/ai-kb-app",
+        "ghcr.io/jrmatherly/ai-kb-ui",
+        "ghcr.io/jrmatherly/ai-kb-website",
+        "ghcr.io/jrmatherly/ai-kb-docreader",
+      ],
+      groupName: "AI KB",
+    },
+    {
       description: "Network Optimizer previews are <semver>-preview<n>; read them as pre-releases, not a variant, so the stable release is offered",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/ozark-connect/network-optimizer"],

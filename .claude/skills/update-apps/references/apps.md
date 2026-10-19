@@ -205,7 +205,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   model (`images/nomic-embed-text-v1.5`) produces the 768-dimension vectors AI KB stores, so a replacement
   must keep that dimension or every knowledge base is re-embedded.
 - **ai-kb** is Jason's own product (`jrmatherly/ai-kb`): the chart and its four images are released together
-  under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change, and read the
+  under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change (a Renovate rule groups
+  the five as "AI KB"; the digest to pin is the image index digest, not the linux/amd64 child, which is what
+  `crane digest --platform` returns), and read the
   release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG`,
   `SSRF_WHITELIST_EXTRA`, `DISABLE_REGISTRATION`, `AIKB_IM_PLATFORMS`, `AIKB_AUDIT_RETENTION_DAYS`,
   `STORAGE_ALLOW_LIST`, `AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL`, `OIDC_AUTH_EXTENSION_RETURN_URLS`,
