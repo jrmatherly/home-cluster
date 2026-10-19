@@ -1,0 +1,73 @@
+#% if ai_kb_searxng %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: searxng
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: searxng
+  interval: 1h
+  values:
+    controllers:
+      searxng:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/searxng/searxng
+              tag: 2026.10.15-b00212a83@sha256:ad273460b12390ab1ad9c6ea630dafed39045ab0b9096a85ca31f5246517c670
+            envFrom:
+              - secretRef:
+                  name: searxng-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: &port 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+    defaultPodOptions:
+      # The image's user is the name searxng, which restricted cannot check. As
+      # non-root the entrypoint skips its chown and only warns.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 977
+        runAsGroup: 977
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      # The app's default settings folder; the entrypoint only writes a
+      # settings.yml there when none exists.
+      settings:
+        type: configMap
+        name: searxng-settings
+        globalMounts:
+          - path: /etc/searxng
+            readOnly: true
+      # The engine and data caches are SQLite files in the temp directory.
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+#% endif %#

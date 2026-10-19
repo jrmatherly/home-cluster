@@ -1303,6 +1303,13 @@ def test_ai_kb_neo4j_requires_the_rest_of_the_section():
     assert config.ai_kb_neo4j
 
 
+def test_ai_kb_searxng_requires_the_rest_of_the_section():
+    with pytest.raises(ConfigError, match=r"ai_kb\.searxng_secret requires the rest of \[ai_kb\]"):
+        _load_raw(config_from("private.toml", **{"ai_kb.searxng_secret": "s" * 64}))
+    config = _load_raw(config_from("private.toml", **AI_KB | {"ai_kb.searxng_secret": "s" * 64}))
+    assert config.ai_kb_searxng
+
+
 def test_langfuse_is_all_or_none():
     raw = POCKET_ID | REDIS | RUSTFS | {"langfuse.public_key": "pk-lf-" + "p" * 32}
     with pytest.raises(ConfigError, match=r"langfuse is partially configured"):

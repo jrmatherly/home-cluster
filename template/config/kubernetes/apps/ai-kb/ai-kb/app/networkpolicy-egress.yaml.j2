@@ -87,6 +87,15 @@ spec:
         - protocol: TCP
           port: 9000
     #% endif %#
+    #% if ai_kb_searxng %#
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080
+    #% endif %#
     #% if ai_kb_tracing %#
     - to:
         - namespaceSelector:

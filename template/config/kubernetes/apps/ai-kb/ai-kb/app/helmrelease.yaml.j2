@@ -142,11 +142,11 @@ spec:
               name: ai-kb-secret
               key: LANGFUSE_SECRET_KEY
         #% endif %#
-        #% set ssrf_hosts = (["auth.${SECRET_DOMAIN}"] if ai_kb_oidc else []) + (["localai.ai.svc.cluster.local"] if nvidia_enabled else []) + (["rustfs-svc.rustfs.svc.cluster.local"] if ai_kb_rustfs else []) %#
+        #% set ssrf_hosts = (["auth.${SECRET_DOMAIN}"] if ai_kb_oidc else []) + (["localai.ai.svc.cluster.local"] if nvidia_enabled else []) + (["rustfs-svc.rustfs.svc.cluster.local"] if ai_kb_rustfs else []) + (["searxng.ai-kb.svc.cluster.local"] if ai_kb_searxng else []) %#
         #% if ssrf_hosts %#
         # The app's SSRF guard refuses private addresses, which is what pods get
-        # for the Pocket ID host (the internal gateway) and the LocalAI and
-        # RustFS Services. The EXTRA list is always merged in; an admin's edit
+        # for the Pocket ID host (the internal gateway) and the LocalAI, RustFS
+        # and SearXNG Services. The EXTRA list is always merged in; an admin's edit
         # of the SSRF allowlist in the app's settings replaces SSRF_WHITELIST.
         - name: SSRF_WHITELIST_EXTRA
           value: #{ ssrf_hosts | join(",") }#

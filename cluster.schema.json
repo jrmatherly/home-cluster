@@ -66,6 +66,10 @@
         "neo4j_password": {
           "$ref": "#/$defs/ApiKey",
           "default": ""
+        },
+        "searxng_secret": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
         }
       },
       "title": "AiKb",
@@ -1310,7 +1314,8 @@
         "rustfs_access_key": "",
         "rustfs_secret_key": "",
         "tracing": false,
-        "neo4j_password": ""
+        "neo4j_password": "",
+        "searxng_secret": ""
       }
     },
     "rustfs": {

@@ -1034,6 +1034,18 @@ schematic_id = ""
 
 # neo4j_password = ""
 
+# Turns on SearXNG, a metasearch engine in the ai-kb namespace that AI KB uses
+# for web search. It is internal only, with no route and the rate limiter off,
+# and only the AI KB app pod can reach it. This is its secret key, which signs
+# its image-proxy URLs, letters and digits, at least 32. After the next
+# reconcile, add the provider in AI KB under Settings > Web Search, type
+# SearXNG, with the Instance URL
+# http://searxng.ai-kb.svc.cluster.local:8080.
+# It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# searxng_secret = ""
+
 
 # =============================================================================
 #    RustFS, an S3-compatible object store for the cluster's own apps, at

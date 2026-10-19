@@ -167,6 +167,7 @@ rustfs_access_key = "aikbfakefakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 tracing = true
 neo4j_password = "fakefakefakefakefakefakefakefake"
+searxng_secret = "fakefakefakefakefakefakefakefake"
 
 [rustfs]
 access_key = "fakefakefakefake"

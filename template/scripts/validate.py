@@ -657,13 +657,21 @@ class AiKb(Model):
     tracing: bool = False
     # Turns on the chart's Neo4j for GraphRAG; it is the password of its neo4j user.
     neo4j_password: ApiKey = ""
+    # Turns on the internal SearXNG instance for web search; it signs its image-proxy URLs.
+    searxng_secret: ApiKey = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
         _all_or_none(self, "ai_kb", ("jwt_secret", "aes_key", "admin_email"))
         _all_or_none(self, "ai_kb", ("oidc_client_id", "oidc_client_secret"))
         _all_or_none(self, "ai_kb", ("rustfs_access_key", "rustfs_secret_key"))
-        for field in ("oidc_client_id", "rustfs_access_key", "tracing", "neo4j_password"):
+        for field in (
+            "oidc_client_id",
+            "rustfs_access_key",
+            "tracing",
+            "neo4j_password",
+            "searxng_secret",
+        ):
             if getattr(self, field) and not self.jwt_secret:
                 raise ValueError(f"ai_kb.{field} requires the rest of [ai_kb]")
         return self
@@ -954,6 +962,11 @@ class Config(Model):
     @property
     def ai_kb_neo4j(self) -> bool:
         return self.ai_kb.neo4j_password != ""
+
+    @computed_field
+    @property
+    def ai_kb_searxng(self) -> bool:
+        return self.ai_kb.searxng_secret != ""
 
     @computed_field
     @property
