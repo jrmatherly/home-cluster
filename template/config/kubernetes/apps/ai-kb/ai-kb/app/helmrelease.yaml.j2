@@ -27,7 +27,7 @@ spec:
     app:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-app
-        tag: v2026.10.21.2@sha256:b68020a3557716014ba09c932d94231bedbe6b716aee176314cfd22df6118f90
+        tag: v2026.10.21.3@sha256:33c45d1b33f8da3f144f108fa539a13c134c20868d4daafe66434d45598dd948
       # The data-files volume is local-path, which one node mounts at a time.
       strategy:
         type: Recreate
@@ -160,15 +160,15 @@ spec:
     frontend:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-ui
-        tag: v2026.10.21.2@sha256:e9a09fedf98715723ca26c15b66500787bb53dfe34693022ecaa5610b1cbba59
+        tag: v2026.10.21.3@sha256:1be06d815789482c814a11953f684e6b267385c637dff9d8f84df17ec68d39a3
     website:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-website
-        tag: v2026.10.21.2@sha256:aef8065d5c752b61181890c43153f2739d8efe0e3077752771a4288f2d8df269
+        tag: v2026.10.21.3@sha256:4cf83947b1be1f31e1af3e95e8b3621300db70583e8043c998880404bd2db7a9
     docreader:
       image:
         repository: ghcr.io/jrmatherly/ai-kb-docreader
-        tag: v2026.10.21.2@sha256:fd32a19b5af1e4842142147efe1a0e73de2e552dd9e3845c508744a77362a5d1
+        tag: v2026.10.21.3@sha256:6b224e074a76bef5d855ef09736bf6f6ac103b87e61f188052b728c6ac62dd20
     postgresql:
       enabled: false
     externalDatabase:
