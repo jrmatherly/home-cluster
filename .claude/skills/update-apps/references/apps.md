@@ -214,7 +214,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `LOCALAI_API_KEY`, the `LANGFUSE_*` tracing settings and the `S3_*` storage settings through
   `app.extraEnv`, sets `app.env.STORAGE_TYPE` and `neo4j.enabled`, mounts the `ai-kb-models`
   ConfigMap through `app.extraVolumes` and `app.extraVolumeMounts`, and sets `externalDatabase.host` and
-  `externalRedis.addr`, which the chart requires (checked at 0.4.2) when its own Postgres and Redis are off; check
+  `externalRedis.addr`, which the chart requires (checked at 0.5.4) when its own Postgres and Redis are off; check
   each key against the new chart's `values.yaml`. Both NetworkPolicies select the chart's pods by
   `app.kubernetes.io/component` (`app`, `docreader`, and `graph` for Neo4j), so check those labels too. Its database runs one CNPG instance (the community pg_search refuses to start
   on a standby) and loads `pg_search` from `paradedb/paradedb-extension`, whose Postgres major and Debian
