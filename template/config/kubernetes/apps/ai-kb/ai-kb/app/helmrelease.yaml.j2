@@ -31,6 +31,9 @@ spec:
       # The data-files volume is local-path, which one node mounts at a time.
       strategy:
         type: Recreate
+      # The base of every docs link in the UI. The chart derives it only with its
+      # own ingress on, which this cluster keeps off.
+      docsUrl: https://ai-kb.${SECRET_DOMAIN}/docs/
       #% if ai_kb_rustfs %#
       # The chart renders STORAGE_TYPE from env, so it is set here and not in
       # extraEnv, which would make a second variable of the same name.
@@ -65,6 +68,9 @@ spec:
           value: "365"
         - name: STORAGE_ALLOW_LIST
           value: local,s3,minio
+        # Shows the links to the GitHub repository, which the app hides by default.
+        - name: AIKB_GITHUB_LINK_ENABLED
+          value: "true"
         # Promotes that account at startup while no system administrator
         # exists, so the first restart after that account exists makes it the admin.
         - name: AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL

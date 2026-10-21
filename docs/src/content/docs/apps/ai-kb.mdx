@@ -112,6 +112,8 @@ Once a system administrator exists the env var grants nothing more, so a later r
 - `AIKB_IM_PLATFORMS` is `slack,telegram,mattermost`: a workspace can connect only those IM platforms, and the others get no adapter.
 - `AIKB_AUDIT_RETENTION_DAYS` is `365`: audit log entries older than a year are deleted (the app's default is 90).
 - `STORAGE_ALLOW_LIST` is `local,s3,minio`: the storage backends a workspace may pick.
+- `AIKB_DOCS_URL` is `https://ai-kb.${SECRET_DOMAIN}/docs/`, set through the chart value `app.docsUrl`: the base of every docs link in the UI. The chart derives it only with its own ingress on, which stays off.
+- `AIKB_GITHUB_LINK_ENABLED` is `true`: the UI shows links to the GitHub repository, which the app hides by default.
 
 ## Pocket ID sign-in
 

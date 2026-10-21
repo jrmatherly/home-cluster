@@ -210,9 +210,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `crane digest --platform` returns), and read the
   release's chart notes, because the HelmRelease passes `OIDC_AUTH_*`, `BUILTIN_MODELS_CONFIG`,
   `SSRF_WHITELIST_EXTRA`, `DISABLE_REGISTRATION`, `AIKB_IM_PLATFORMS`, `AIKB_AUDIT_RETENTION_DAYS`,
-  `STORAGE_ALLOW_LIST`, `AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL`, `OIDC_AUTH_EXTENSION_RETURN_URLS`,
+  `STORAGE_ALLOW_LIST`, `AIKB_GITHUB_LINK_ENABLED`, `AIKB_BOOTSTRAP_SYSTEM_ADMIN_EMAIL`, `OIDC_AUTH_EXTENSION_RETURN_URLS`,
   `LOCALAI_API_KEY`, the `LANGFUSE_*` tracing settings and the `S3_*` storage settings through
-  `app.extraEnv`, sets `app.env.STORAGE_TYPE` and `neo4j.enabled`, mounts the `ai-kb-models`
+  `app.extraEnv`, sets `app.env.STORAGE_TYPE`, `app.docsUrl` and `neo4j.enabled`, mounts the `ai-kb-models`
   ConfigMap through `app.extraVolumes` and `app.extraVolumeMounts`, and sets `externalDatabase.host` and
   `externalRedis.addr`, which the chart requires (checked at 0.5.4) when its own Postgres and Redis are off; check
   each key against the new chart's `values.yaml`. Both NetworkPolicies select the chart's pods by
