@@ -95,7 +95,7 @@ PegaProx reads groups from the ID token and compares them as lowercase strings (
 
 ## Install a plugin
 
-PegaProx has no installer. Plugins are auto-discovered from the `plugins/` directory, which here is a volume seeded from the four plugins bundled in the image. A plugin is a folder with a `manifest.json` and an `__init__.py` (docs, Plugin System). Copy it in, then rescan:
+PegaProx has no installer. Plugins are auto-discovered from the `plugins/` directory, which here is a volume seeded from the five plugins bundled in the 1.3.0 image. A plugin is a folder with a `manifest.json` and an `__init__.py` (docs, Plugin System). Copy it in, then rescan:
 
 ```sh
 kubectl -n pegaprox cp <plugin-dir> deploy/pegaprox:/app/plugins/

@@ -20,9 +20,9 @@ Written from that incident; every number below was measured that day.
 | Restarts within one or two minutes on the leader-electing controllers only, any hour, no node NotReady | The API hung: an etcd leader stalled on its disk, or a control plane VM froze                                                                 | This page                                                                   |
 | Counts still there two hours after the burst                                                           | `kube-system/restart-reset` runs hourly and only clears restarts older than an hour; the pod was not Ready, a PodDisruptionBudget held it, or it is a CloudNativePG primary, which it never evicts (use `just kube switchover`, then delete the old primary) | `kubectl -n kube-system get jobs`, then `logs job/<name>`                   |
 
-The leader-electing set is the fingerprint of an API outage: the three Flux controllers,
-cert-manager, cilium-operator, envoy-gateway, cloudnative-pg, plugin-barman-cloud, external-dns
-(both instances). pocket-id and pegaprox join the list because their liveness probes fail while
+The leader-electing set is the fingerprint of an API outage: the four Flux controllers,
+flux-operator, cert-manager, cilium-operator, envoy-gateway, cloudnative-pg, plugin-barman-cloud
+and the NFS CSI driver (`kubectl get leases -A`, 2026-10-23; external-dns takes no lease). pocket-id and pegaprox join the list because their liveness probes fail while
 their database or the API is away. None of them is at fault.
 
 ## Read the event from Prometheus

@@ -73,7 +73,7 @@ sentry_token = "<token>"
 
 The LLM app (`grafana-llm-app`) is installed whenever the cluster has an NVIDIA GPU, which is when LocalAI runs. It needs no field of its own. The ConfigMap `grafana-llm-app` holds its provisioning file, and the chart's plugins sidecar loads it into `/etc/grafana/provisioning/plugins` and asks Grafana to reload it. The file sets the `custom` provider, which uses the OpenAI client against `http://localai.ai.svc.cluster.local:8080` with the API path `/v1` and LocalAI's API key, read from Grafana's environment (`LOCALAI_API_KEY` in `grafana-secret`, from `[localai] api_key`). It maps the app's two abstract models, `base` and `large`, to `qwen-3.5-4b`, the model named in LocalAI's ConfigMap (source, `packages/grafana-llm-app/pkg/plugin/settings.go` and `llm_provider.go`, commit `ef243ce`). The `observability` namespace carries the label `localai.ai/client: "true"`, which LocalAI's NetworkPolicy requires.
 
-In Grafana 13.2.3 OSS, the app unlocks four generate buttons: a title and a description for a panel, and a title and a description for a dashboard. The panel buttons fit in a LocalAI slot.
+In Grafana 13.2 OSS, the app unlocks four generate buttons: a title and a description for a panel, and a title and a description for a dashboard. The panel buttons fit in a LocalAI slot.
 
 Each LocalAI slot holds 16384 tokens (four slots; llama-server held 8192 from 2026-10-11 and 2048 before). A longer request gets HTTP 400 (measured on LocalAI 2026-10-12: "request (20012 tokens) exceeds the available context size (16384 tokens)", the same shape llama-server gave on its 2048-token slot). The model config's `max_tokens` is 4096, which caps the length of each answer when the request sets no `max_tokens`, as llama-server's `LLAMA_ARG_N_PREDICT` of 200 did. On the 2048-token slot the dashboard description button failed with that error on a dashboard whose JSON was over about 2000 tokens (measured); with 16384 it has room for all but the largest dashboards, not re-measured.
 
@@ -151,7 +151,7 @@ To check it:
 
 The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and raises an alert when a ZFS pool there is not online (a page needs `discord_webhook`). Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs the three required `[observability]` fields (source, `template/scripts/validate.py`).
 
-As of 2026-10-12 the templates are built, and the host install below is not done yet.
+As of 2026-10-23 the templates are built, but `proxmox_hosts` is empty, so nothing scrapes the hosts and no ZFS alert can fire.
 
 What it renders (source, `kube-prometheus-stack/app/`):
 

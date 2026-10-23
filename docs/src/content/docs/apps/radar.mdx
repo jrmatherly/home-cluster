@@ -24,7 +24,7 @@ Follow the recipe in [Pocket ID](/apps/pocket-id/), the "Register another app as
 - Name `Radar`.
 - Callback URL `https://radar.${SECRET_DOMAIN}/auth/callback` (repo, `redirectURL` in `app/helmrelease.yaml.j2`).
 - Confidential client with a secret.
-- Allowed user groups: `cluster_admins` is optional. Without it, anyone in Pocket ID can sign in, but only `cluster_admins` is bound to a role (inferred from the RBAC, not tested).
+- Allowed user groups: `cluster_admins` is optional. Without it, anyone in Pocket ID can sign in, but only `cluster_admins` is bound to a role.
 
 Copy the client ID and the secret. Pocket ID shows the secret once.
 
@@ -55,7 +55,7 @@ Radar adds the prefix `oidc:` to every username and group it reads from the toke
 `clusterrolebinding.yaml` binds the group `oidc:cluster_admins`, the Pocket ID group `cluster_admins` with that prefix, to the ClusterRole `cluster-admin` (repo, `app/clusterrolebinding.yaml.j2`). That binding is the only one, so:
 
 - A member of `cluster_admins` can do anything in the UI.
-- Anyone else who signs in gets only what Kubernetes grants every authenticated user (inferred from the RBAC, not tested).
+- Anyone else who signs in gets only what Kubernetes grants every authenticated user: API discovery and nothing else (`kubectl auth can-i --list --as=oidc:someone --as-group=system:authenticated`, 2026-10-23).
 
 To give someone less, add a binding from `oidc:<group>` to a narrower ClusterRole such as `view`, in the same file.
 
