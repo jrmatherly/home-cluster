@@ -97,6 +97,14 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   hangs waits out the 15-minute timeout unless the Deployments are patched by hand with the same change.
   On a chart bump, also check that the top-level `langfuse.additionalEnv` still reaches both web and worker,
   because `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST` must be on the worker for evaluators to reach LocalAI.
+  The ClickHouse image in `clickhouse.yaml.j2` moves on its own, last: pick the newest line Langfuse's
+  `.github/workflows` deploy matrix tests against (26.4, 25.12 and 26.9 at 4.69.0), read every "Backward
+  Incompatible Change" entry in ClickHouse's CHANGELOG.md for the lines crossed against the `config.d` file
+  (the logger, the `query_log` TTL and the removed system log tables) and the `users.d` entrypoint, and
+  know that the volume has no backup and a newer line writes parts an older one may not read. Langfuse
+  caches the ClickHouse version at start, so `kubectl -n langfuse rollout restart deploy/langfuse-web
+  deploy/langfuse-worker` after the StatefulSet rolls, and check the "Resolved ClickHouse compatibility"
+  log line. After a line change, list `system.tables` and add a `<remove>` for any new log table that grows.
 
 ## Order when several are pending
 
@@ -112,7 +120,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   and read the upgrade guide for the target minor at <https://docs.cilium.io/en/stable/operations/upgrade/>. This
   cluster uses kube-proxy replacement, L2 announcements and BGP, so check the notes for those three features. The
   inventory shows only the newest tag. When that is more than one minor ahead, pick the newest patch of the next
-  minor from `gh release list -R cilium/cilium` and update to that first.
+  minor from `gh release list -R cilium/cilium` and update to that first. Chart 1.20.4 stopped rendering
+  `envoy-xds-mode: ads` into `cilium-config`, so the agent runs Envoy in `split` mode from then on (upstream
+  removed the ADS default because it saturated agent CPU under identity churn, cilium/cilium#48548). Envoy is
+  embedded here (`envoy.enabled: false`) with no L7 policy, so nothing depends on the mode; do not pin
+  `envoy.xdsMode: ads` back.
 - **coredns** overrides the image repository to `mirror.gcr.io/coredns/coredns` and sets no tag, so the chart's
   `appVersion` decides the image. Confirm that tag exists on the mirror before updating the chart.
 - **envoy-gateway** ships the Gateway API and Envoy CRDs. Follow the CRD section of `breaking-changes.md`. It
@@ -184,7 +196,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   version migrated, so a rollback after a migration means restoring `pocket-id-db` from its backup: read the notes
   for a migration before updating, and confirm a recent backup with `kubectl -n security get backup`. Its hostname
   must never change, because passkeys are bound to it. Recovery after losing every passkey is
-  `kubectl -n security exec deploy/pocket-id -- /app/pocket-id one-time-access-token <user>`.
+  `kubectl -n security exec deploy/pocket-id -- /app/pocket-id one-time-access-token <user>`. Since v2.19
+  an outbound SSRF policy blocks private targets for SCIM, backchannel logout, federated JWKS and LDAP
+  pictures unless `OUTBOUND_ALLOWED_HOSTS_<PURPOSE>` allows them (`outbound/clients.go`); those are set per
+  client in the UI, so a client pointing one of them at a LAN or in-cluster address needs the matching env var.
+  The image's `env_config.go` lists every env var it reads; diff it between tags.
 - **radar** releases about once a week, and its chart and image share a version. It runs with its own OIDC login,
   so its ServiceAccount can read every Secret and impersonate any user: read the notes for changes to `auth`, to
   the chart's ClusterRole, and to the timeline's database migrations before updating. It does not start without
@@ -222,7 +238,15 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `customManagers` rule, and Docker versioning keeps it on `-18-trixie` tags. The app's migrations run
   `ALTER EXTENSION pg_search UPDATE`, so the extensions must stay owned by the `app` role (the Cluster's
   initdb SQL does that on a fresh install). After an update, the app log's migration block must end with
-  `Database migrated from version N to M`, not `Continuing with application startup`.
+  `Database migrated from version N to M`, not `Continuing with application startup`. A bump of the
+  `paradedb-extension` image alone restarts the one Postgres pod (CNPG does that for any extension image
+  change; 3.5 minutes from push to the restart and 11 seconds down on 2026-10-24, with AI KB reconnecting
+  on its own), and the app's migrations only target the pg_search versions they pin (0.25.11 at
+  v2026.10.23), so when the new image is past that, run the catalog step by hand:
+  `kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -U postgres -d app -c "SET ROLE app; ALTER EXTENSION pg_search UPDATE TO '<version>'"`
+  (peer auth refuses `-U app` on the socket), then check `SELECT extversion FROM pg_extension WHERE extname='pg_search'`
+  equals `SELECT * FROM paradedb.version_info()`. ParadeDB's upgrade page calls the step required even when
+  the `pg_search--<old>--<new>.sql` script is empty.
 - **rustfs** released 1.0.0 to 1.0.3 in a month, and its chart and image share a version. The chart's `main`
   runs ahead of the published tarball, so read `values.yaml` from the tarball of the new version, not from Git.
   It runs standalone on one `local-path` volume, which an upgrade keeps (the chart marks the claim
@@ -235,7 +259,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
   1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
   `app/dashboards/pegaprox-overview.json` is upstream's `misc/grafana/` JSON with only `refresh` changed from 10s to 1m to match the scrape interval, so refresh it
-  when a release changes that file.
+  when a release changes that file. Since 1.4.0 plugins live under `/app/config/plugins` on the config volume:
+  the image sets `PEGAPROX_PLUGINS_DIR` and `PEGAPROX_PLUGINS_SEED`, and the app runs `sync_plugins.py` on
+  every start, which copies the bundled plugins in and refreshes their files while keeping each plugin's
+  `config.json`. The seed init container and the second volume were dropped on 2026-10-24 for that reason
+  (the sync would have copied the stale 1.3.0 files from the old volume over the new code); do not bring
+  them back. OIDC refuses 100.64.0.0/10 unless "Allow private IPs" is on, which the setup guide already sets.
 - **network-optimizer** ran pre-release tags until 2026-10-10, while the stable release's Performance Tweaks page
   refused the UDM-SE's UniFi OS; 2.9.2 carries the same cap as the last preview, so it is on the stable tag. That page caps the gateway firmware at `MaxSupportedFirmware` in
   `src/NetworkOptimizer.Web/Services/PerfTweaksDeploymentService.cs` and shows the firmware red above it, so after
@@ -256,7 +285,14 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `searx/settings.yml` changes, because the ConfigMap merges over upstream's defaults (engines included). After
   the deploy, from the ai-kb app pod,
   `curl -s 'http://searxng.ai-kb.svc.cluster.local:8080/search?q=test&format=json'` returns `results`; some
-  engines under `unresponsive_engines` is normal from one home address.
+  engines under `unresponsive_engines` is normal from one home address. Renovate picked the earlier of two
+  same-day builds on 2026-10-24; `curl -s https://hub.docker.com/v2/repositories/searxng/searxng/tags/latest | jq -r .digest`
+  names the right one, and the PR is closed in favour of a hand commit when they differ.
+- **reactive-resume (image)** v6.0.5 and later refuse to start in production when `AUTH_SECRET` is under 32
+  characters or either secret still starts with `change-me-to-a-secure-` (`packages/env/src/server.ts`), so
+  `auth_secret` is a `LongSecret` in the validator since 2026-10-24. Upstream asks for a database backup
+  before each upgrade; the daily one runs at 04:00, and `kubectl -n reactive-resume get backup` shows it.
+  Startup runs the migrations before the app listens; the log says "Database migrations completed".
 - **actual-budget (image)** tags are `<yy>.<m>.<n>` with no `v`. `-alpine` is a variant, and `edge` and `latest`
   are moving tags. Renovate's docker versioning reads the plain tag, so it needs no rule.
 - **sonarr, radarr, prowlarr (images)** are home-operations builds whose tags carry the upstream build number

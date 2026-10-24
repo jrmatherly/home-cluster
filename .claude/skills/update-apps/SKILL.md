@@ -16,6 +16,11 @@ safe.
   `helmrelease.yaml.j2` values, and explicit chart versions in `template/config/bootstrap/helmfile/*.yaml.j2`.
 - **Out of scope:** the Talos and Kubernetes versions in `template/config/talos/topf.yaml.j2`. Those are node
   upgrades (`just talos upgrade-node`, `just talos upgrade-k8s`), not app updates. Say so and stop.
+- **Not this skill, reviewed by hand from their Renovate PRs:** mise tools (`.mise/`), GitHub Actions, the
+  docs site's npm dependencies (`docs/package.json`, including `@cloudflare/nimbus-docs`, which has its own
+  migrate step in CLAUDE.md), the `home-operations/renovate-presets` pin in `.renovaterc.json5`, and the
+  docs Dockerfile's base images. Name them in the report when they are open, so they are not forgotten,
+  and leave them.
 
 ## Arguments
 
@@ -82,11 +87,21 @@ order, and the next app starts only when the current one is healthy.
   pre-release, as the Servarr builds are (`references/apps.md`). A pin
   with a variant suffix, such as `2.9.1-alpine` or `v4.11.0-gpu-nvidia-cuda-12-llama-cpp`, is only compared with
   tags of that same variant.
-- **The inventory sees only OCI chart pins.** A chart pinned through a `helmrepository.yaml.j2` (`csi-driver-nfs`, `rustfs`)
-  is absent from the table, not marked `?`, and `scripts/compare-chart.sh` fails on it because it reads
-  `ocirepository.yaml`. Check it by hand against the repository's `index.yaml`.
+- **A `helmrepo` row is a classic HelmRepository chart** (`csi-driver-nfs`, `rustfs`), read from the
+  repository's `index.yaml`. `scripts/compare-chart.sh` fails on it because it reads `ocirepository.yaml`:
+  fetch both chart tarballs from the index and `helm template` them with the rendered HelmRelease values.
+- **Bump `digest` means the tag did not move but its digest did.** Renovate opens a PR for it (a rebuilt
+  base image, usually), and nothing automerges it: the home-operations preset sets `:automergeBranch`
+  with no `automerge: true` rule, so only this repo's docs-digest rule merges on its own (measured
+  2026-10-24). A digest-only PR needs no research beyond reading what the rebuild changed; merge it by hand
+  with `gh pr merge --rebase`.
+- **A date tag with a commit suffix compares by date.** `2026.10.23-68647d080` reads as a build of that day,
+  so SearXNG's row shows a newer day. Same-day builds tie, and the table cannot tell which one `latest`
+  carried; `references/apps.md` says how to pick.
 - **Images it skips.** The docs image (`:latest`, Renovate moves its digest) and the model images under
   `ghcr.io/jrmatherly/models/` (hand-bumped, see `references/apps.md`).
+- **quay.io answers the tag list with 503 at times** (both LocalAI backend runs on 2026-10-24). The row reads
+  `?` with a stderr line; check the one tag by hand with a HEAD on `/v2/<name>/manifests/<tag>`.
 
 ## Resources
 
