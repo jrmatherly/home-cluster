@@ -20,7 +20,7 @@ Each step names its source. "Docs" is [the Reactive Resume environment variable 
 ## The two secrets that never change
 
 - `auth_secret` signs sessions and encrypts two-factor secrets. Changing it signs everyone out and breaks every two-factor secret (`cluster.sample.toml`; docs: keep it the same for the life of the instance).
-- `encryption_secret` encrypts the AI keys people save. It must be at least 32 characters and differ from `auth_secret`, and the server refuses to start on fewer (the length is checked by `ReactiveResume` in `validate.py`; the rest is `cluster.sample.toml` and the docs). Changing it makes every saved key unreadable.
+- `encryption_secret` encrypts the AI keys people save. It must be at least 32 characters and differ from `auth_secret`, and the server refuses to start on fewer (both lengths are checked by `ReactiveResume` in `validate.py`, since v6.0.5 applies the same minimum to `auth_secret`; the rest is `cluster.sample.toml` and the docs). Changing it makes every saved key unreadable.
 
 Keep a copy of both outside the repo. `auth_secret` is also the field that turns the section on (`reactive_resume_enabled` in `validate.py`).
 

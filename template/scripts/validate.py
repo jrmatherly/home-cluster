@@ -423,7 +423,8 @@ class Matherlynet(Model):
 
 class ReactiveResume(Model):
     # Signs sessions and encrypts two-factor secrets; changing it signs everyone out.
-    auth_secret: Secret = ""
+    # v6.0.5 refuses to start on fewer than 32 characters.
+    auth_secret: LongSecret = ""
     # Encrypts users' saved AI keys. The server refuses to start on fewer than 32 characters.
     encryption_secret: LongSecret = ""
     # The OIDC client created for Reactive Resume in the Pocket ID admin UI.

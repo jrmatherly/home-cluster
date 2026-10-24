@@ -559,8 +559,9 @@ schematic_id = ""
 # =============================================================================
 [reactive_resume]
 
-# Signs sessions and encrypts two-factor secrets. Never change it once people
-# use the app: that signs everyone out and breaks their two-factor secrets.
+# Signs sessions and encrypts two-factor secrets, at least 32 characters. Never
+# change it once people use the app: that signs everyone out and breaks their
+# two-factor secrets.
 # OPTIONAL. Example: the output of `openssl rand -hex 32`
 
 # auth_secret = ""

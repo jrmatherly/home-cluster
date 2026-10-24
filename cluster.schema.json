@@ -929,7 +929,7 @@
       "additionalProperties": false,
       "properties": {
         "auth_secret": {
-          "$ref": "#/$defs/Secret",
+          "$ref": "#/$defs/LongSecret",
           "default": ""
         },
         "encryption_secret": {

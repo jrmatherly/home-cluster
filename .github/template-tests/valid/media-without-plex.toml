@@ -91,7 +91,7 @@ github_client_secret = "fake"
 playground = true
 
 [reactive_resume]
-auth_secret = "fake"
+auth_secret = "fakefakefakefakefakefakefakefake"
 encryption_secret = "fakefakefakefakefakefakefakefake"
 oidc_client_id = "fake-resume-client"
 oidc_client_secret = "fake"

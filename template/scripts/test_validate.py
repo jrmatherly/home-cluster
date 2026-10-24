@@ -658,7 +658,7 @@ def test_localai_key_without_nvidia_is_accepted():
 
 
 REACTIVE_RESUME = POCKET_ID | {
-    "reactive_resume.auth_secret": "fake",
+    "reactive_resume.auth_secret": "x" * 32,
     "reactive_resume.encryption_secret": "x" * 32,
     "reactive_resume.oidc_client_id": "resume",
     "reactive_resume.oidc_client_secret": "fake",

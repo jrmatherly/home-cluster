@@ -69,6 +69,7 @@ jobs:
           - pocket-id-public-without-pocket-id
           - partial-reactive-resume
           - reactive-resume-without-pocket-id
+          - reactive-resume-short-auth-secret
           - kener-without-backup
           - kener-without-redis
           - partial-kener

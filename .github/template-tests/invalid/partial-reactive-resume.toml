@@ -31,7 +31,7 @@ secret_access_key = "fake"
 encryption_key = "fakefakefakefake"
 
 [reactive_resume]
-auth_secret = "fake"
+auth_secret = "fakefakefakefakefakefakefakefake"
 encryption_secret = "fakefakefakefakefakefakefakefake"
 oidc_client_id = "fake"
 oidc_client_secret = "fake"
