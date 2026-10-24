@@ -22,7 +22,7 @@ spec:
           seed-plugins:
             image: &image
               repository: ghcr.io/pegaprox/pegaprox
-              tag: 1.3.0@sha256:325da9bb2082b668c44ab09a2f2e30bb4df0435eca88d3776f52fc35ea2850a5
+              tag: 1.4.0@sha256:a2599f9581b8504e4b61180b0ec55eb116d7a0254fa6a726228eef4fc27189d1
             command: ["cp", "-rn", "/app/plugins/.", "/plugins/"]
             securityContext: &securityContext
               allowPrivilegeEscalation: false
