@@ -95,13 +95,13 @@ PegaProx reads groups from the ID token and compares them as lowercase strings (
 
 ## Install a plugin
 
-PegaProx has no installer. Plugins are auto-discovered from the `plugins/` directory, which here is a volume seeded from the five plugins bundled in the 1.3.0 image. A plugin is a folder with a `manifest.json` and an `__init__.py` (docs, Plugin System). Copy it in, then rescan:
+PegaProx has no installer. Plugins are auto-discovered from `/app/config/plugins`, on the config volume since 1.4.0; the app copies the five bundled plugins there on every start and refreshes their files while keeping each plugin's `config.json`. A plugin is a folder with a `manifest.json` and an `__init__.py` (docs, Plugin System). Copy it in, then rescan:
 
 ```sh
-kubectl -n pegaprox cp <plugin-dir> deploy/pegaprox:/app/plugins/
+kubectl -n pegaprox cp <plugin-dir> deploy/pegaprox:/app/config/plugins/
 ```
 
-Then Settings, Server, Plugins, press Rescan and toggle the plugin on. Review the plugin's code first; upstream takes no responsibility for community plugins. Plugin config written from the UI lands in the plugin's own directory on the same volume, so it survives restarts and updates. A bundled plugin that upstream changes is not refreshed on update, because the seed never overwrites. Delete it with the trash icon, which removes the folder, then restart the pod to get the new version.
+Then Settings, Server, Plugins, press Rescan and toggle the plugin on. Review the plugin's code first; upstream takes no responsibility for community plugins. Plugin config written from the UI lands in the plugin's own `config.json` on the same volume, which the start-up sync keeps, so it survives restarts and updates, and a bundled plugin picks up upstream's changes on the next start.
 
 ## Optional: metrics
 

@@ -16,22 +16,11 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
-        initContainers:
-          # PegaProx has no plugin installer: a plugin is a directory placed under
-          # its plugins path, which the read-only root would freeze. The bundled
-          # plugins are copied onto the plugins volume once, so added ones persist.
-          seed-plugins:
-            image: &image
-              repository: ghcr.io/pegaprox/pegaprox
-              tag: 1.3.0@sha256:325da9bb2082b668c44ab09a2f2e30bb4df0435eca88d3776f52fc35ea2850a5
-            command: ["cp", "-rn", "/app/plugins/.", "/plugins/"]
-            securityContext: &securityContext
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
         containers:
           app:
-            image: *image
+            image:
+              repository: ghcr.io/pegaprox/pegaprox
+              tag: 1.4.0@sha256:a2599f9581b8504e4b61180b0ec55eb116d7a0254fa6a726228eef4fc27189d1
             env:
               # The gateway terminates TLS.
               PEGAPROX_BEHIND_PROXY: "true"
@@ -67,7 +56,10 @@ spec:
                   periodSeconds: 5
                   timeoutSeconds: 5
                   failureThreshold: 30
-            securityContext: *securityContext
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
             resources:
               requests:
                 cpu: 100m
@@ -111,7 +103,10 @@ spec:
 #% endif %#
     persistence:
       # The database here is the only copy of the stored Proxmox credentials, and
-      # the key in the Secret is the only way to read it.
+      # the key in the Secret is the only way to read it. Since 1.4.0 plugins live
+      # under it too (/app/config/plugins): the app syncs the bundled ones in at
+      # every start, keeping each plugin's config.json, so a hand-added plugin is
+      # copied there and picked up with Rescan.
       config:
         type: persistentVolumeClaim
         storageClass: local-path
@@ -121,17 +116,6 @@ spec:
           pegaprox:
             app:
               - path: /app/config
-      plugins:
-        type: persistentVolumeClaim
-        storageClass: local-path
-        accessMode: ReadWriteOnce
-        size: 1Gi
-        advancedMounts:
-          pegaprox:
-            seed-plugins:
-              - path: /plugins
-            app:
-              - path: /app/plugins
       tmp:
         type: emptyDir
         advancedMounts:
