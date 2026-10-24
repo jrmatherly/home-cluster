@@ -124,7 +124,15 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `envoy-xds-mode: ads` into `cilium-config`, so the agent runs Envoy in `split` mode from then on (upstream
   removed the ADS default because it saturated agent CPU under identity churn, cilium/cilium#48548). Envoy is
   embedded here (`envoy.enabled: false`) with no L7 policy, so nothing depends on the mode; do not pin
-  `envoy.xdsMode: ads` back.
+  `envoy.xdsMode: ads` back. The live `cilium-config` kept the key after the 1.20.4 upgrade anyway, because
+  the bootstrap's `helm` field manager owned it and helm-controller's server-side apply cannot prune a field
+  another manager owns (measured 2026-10-24: `kubectl diff --server-side --field-manager=helm-controller`
+  showed nothing, `--field-manager=helm` showed the removal). Every chart from `just bootstrap apps`
+  (cilium, coredns, spegel, cert-manager, flux-operator, flux-instance) carries that manager, so after any
+  of them drops a key run `scripts/bootstrap-drift.sh` (read-only dry diff) and, when it lists stale
+  fields, `scripts/bootstrap-drift.sh --apply`, then restart the workload that reads the ConfigMap
+  (`kubectl -n kube-system rollout restart ds/cilium`; Cilium reads its config at start). The agents log
+  the mode as `--envoy-xds-mode='split'`.
 - **coredns** overrides the image repository to `mirror.gcr.io/coredns/coredns` and sets no tag, so the chart's
   `appVersion` decides the image. Confirm that tag exists on the mirror before updating the chart.
 - **envoy-gateway** ships the Gateway API and Envoy CRDs. Follow the CRD section of `breaking-changes.md`. It

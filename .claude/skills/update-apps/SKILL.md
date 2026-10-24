@@ -108,6 +108,9 @@ order, and the next app starts only when the current one is healthy.
 - `scripts/inventory.py` — lists every pinned chart and image with its newest stable tag. Run it, do not read it.
 - `scripts/compare-chart.sh` — renders two chart versions with this cluster's values and diffs them. Run it, do
   not read it.
+- `scripts/bootstrap-drift.sh` — lists live fields the bootstrap's `helm` field manager still owns that the
+  current release manifest dropped, for the six charts `just bootstrap apps` installed; `--apply` releases
+  them. Run it after any of those charts drops a key (step 7), because helm-controller cannot prune them.
 - `references/breaking-changes.md` — how to research an update and what counts as a finding. Read in step 3.
 - `references/apps.md` — per-app upstream sources, coupling, update order, the post-push wait, and the health
   checks. Read in steps 2 and 7.
