@@ -67,7 +67,7 @@ spec:
       web:
         image:
           repository: docker.io/langfuse/langfuse
-          tag: 4.63.0@sha256:67f48d12a190e4ad585249c75ae1ce172b449de3dbbe7486b8179cd28e21408e
+          tag: 4.69.0@sha256:e4cc4bfd0f77285d7454135e1bd14020abdd5c4217a2f0e824b8abcbf3e3cc0f
         pod:
           additionalEnv:
             - name: LANGFUSE_DEFAULT_ORG_ID
@@ -101,7 +101,7 @@ spec:
       worker:
         image:
           repository: docker.io/langfuse/langfuse-worker
-          tag: 4.63.0@sha256:ca32a8fb2a214c7b5f42dd9c540c8072e41db659cb621f317911ce695ad6bca2
+          tag: 4.69.0@sha256:48f8af2c4b6bbf929380f301ade18cf99e7b31331fd26dfaf253ce670e5b39a2
         resources:
           requests: { memory: 512Mi }
           limits: { memory: 2Gi }
