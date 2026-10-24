@@ -12,7 +12,10 @@ kubeconform_args=(
     "-strict"
     "-ignore-missing-schemas"
     "-skip"
-    "Gateway,HTTPRoute,Secret"
+    # DNSEndpoint joins Gateway and HTTPRoute: its hostnames hold Flux placeholders
+    # such as the external gateway name, which the hostname pattern the schema gained
+    # on 2026-10-24 rejects. Flux substitutes them before the API server validates.
+    "DNSEndpoint,Gateway,HTTPRoute,Secret"
     "-schema-location"
     "default"
     "-schema-location"
