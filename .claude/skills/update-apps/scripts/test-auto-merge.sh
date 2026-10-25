@@ -67,7 +67,8 @@ pr_fixture() {
     cat >"$FIX/pr-$pr.json" <<EOF
 {"state":"$state","headRefOid":"$oid","mergeCommit":{"oid":"$merged"},
  "statusCheckRollup":[{"name":"Flate","conclusion":"$check"},{"name":null,"conclusion":null}],
- "comments":[]}
+ "author":{"is_bot":true,"login":"${author:-app/renovate}"},"isCrossRepository":${cross:-false},
+ "headRefName":"${branch:-renovate/$app}","comments":[]}
 EOF
     for file in kubernetes/apps/$app/$app/app/helmrelease.yaml template/config/kubernetes/apps/$app/$app/app/helmrelease.yaml.j2; do
         cat <<EOF
@@ -147,6 +148,44 @@ sed -i.bak 's#kubernetes/apps/kener/kener/app/helmrelease.yaml#bootstrap/helmfil
 echo "[$(verdict 68 kener 32.0.1 32.0.2 "$oid_a" safe)]" >"$FIX/verdicts.json"
 status=$(run "$FIX/verdicts.json")
 assert "a file outside kubernetes/ is commented, not merged" "logged 'gh pr comment 68' && ! logged 'gh pr merge'"
+
+case_start other-app-dir
+pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+touch "$FIX/on-main-$oid_a"
+sed -i.bak 's#kubernetes/apps/kener/kener/#kubernetes/apps/kener/sidecar/#' "$FIX/pr-69.diff"
+echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+status=$(run "$FIX/verdicts.json")
+assert "a version line in another app's directory is commented, not merged" "logged 'gh pr comment 69' && ! logged 'gh pr merge'"
+
+case_start shared-app-dir
+pr_fixture 90 clickhouse 26.9.25.15 26.10.2.103 "$oid_a" OPEN
+touch "$FIX/on-main-$oid_a"
+sed -i.bak 's#apps/clickhouse/clickhouse/#apps/langfuse/langfuse/#' "$FIX/pr-90.diff"
+printf '[%s]' "$(verdict 90 clickhouse 26.9.25.15 26.10.2.103 "$oid_a" safe | sed 's/"namespace":"clickhouse"/"namespace":"langfuse"/')" >"$FIX/verdicts.json"
+status=$(run "$FIX/verdicts.json")
+assert "an app living in another app's directory (dir:) merges" "logged 'gh pr merge 90 --rebase'"
+assert "an app living in another app's directory waits on its StatefulSet" "logged 'rollout status sts/clickhouse'"
+
+case_start foreign-author
+author=someone pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+touch "$FIX/on-main-$oid_a"
+echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+status=$(run "$FIX/verdicts.json")
+assert "a PR not opened by the Renovate app is commented, not merged" "logged 'gh pr comment 69' && ! logged 'gh pr merge' && ! logged 'gh pr diff'"
+
+case_start cross-repository
+cross=true pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+touch "$FIX/on-main-$oid_a"
+echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+status=$(run "$FIX/verdicts.json")
+assert "a fork PR is commented, not merged" "logged 'gh pr comment 69' && ! logged 'gh pr merge'"
+
+case_start foreign-branch
+branch=feature/x pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+touch "$FIX/on-main-$oid_a"
+echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+status=$(run "$FIX/verdicts.json")
+assert "a branch outside renovate/ is commented, not merged" "logged 'gh pr comment 69' && ! logged 'gh pr merge'"
 
 case_start head-off-main
 pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN

@@ -83,9 +83,11 @@ order, and the next app starts only when the current one is healthy.
 The weekly workflow (`.github/workflows/update-apps.yaml`) has two jobs. `research` runs this skill with
 `--auto` through the Claude Code action on a GitHub-hosted runner with a read-only token, so it can read PRs
 and release notes and write nothing. `apply` runs `scripts/auto-merge.sh verdicts.json` on the self-hosted
-runner in the cluster with no model: it merges a `safe` verdict only when the PR head is the one researched,
-the diff changes version strings alone, the app is in `references/auto-checks.yaml` and not marked `Tier 1:
-never` in `references/apps.md`, and Flate passes when the head is behind `main`; then it waits for Flux to
+runner in the cluster with no model: it merges a `safe` verdict only when the PR was opened by the Renovate
+app from a same-repository `renovate/` branch (the repo is public, so a verdict alone is never enough), the
+PR head is the one researched, the diff changes version strings alone and only under the app's own directory,
+the app is in `references/auto-checks.yaml` and not marked `Tier 1: never` in `references/apps.md`, and Flate
+passes when the head is behind `main`; then it waits for Flux to
 apply the merge commit and runs the app's checks. A failed check reverts that merge and stops, a check that
 cannot run stops with no revert, and every other verdict gets one comment opening with
 `<!-- update-apps verdict -->`. `cluster.toml` is absent there, so the domain comes from `CLUSTER_DOMAIN`.

@@ -17,7 +17,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 checks_file=$here/../references/auto-checks.yaml
 apps_file=$here/../references/apps.md
 timeout=20m
-pr_fields=state,headRefOid,mergeCommit,statusCheckRollup,comments
+pr_fields=state,headRefOid,mergeCommit,statusCheckRollup,comments,author,isCrossRepository,headRefName
 
 # Boundary: the arguments, the verdicts file and the tools, before anything touches gh.
 verdicts=${1:-}
@@ -72,11 +72,19 @@ never_automerged() {
     awk -v app="$1" '/^- \*\*/ { p = ($0 ~ "^- \\*\\*" app "[ ,*(]") } p' "$apps_file" | grep -q 'Tier 1: never'
 }
 
-# version_only <diff>: every changed line is a tag, version, image or reference value under
-# kubernetes/ or template/config/kubernetes/, and each pair differs in the version alone.
+# renovate_pr <pr json>: a same-repository branch opened by the Renovate app. The repo is public,
+# so anyone can open a PR, and a verdict alone must never be enough to merge one.
+renovate_pr() {
+    jq -e '.author.login == "app/renovate" and .isCrossRepository == false
+        and (.headRefName | startswith("renovate/"))' "$1" >/dev/null
+}
+
+# version_only <diff> <namespace> <app>: every changed file is under the app's own directory in
+# kubernetes/apps or template/config/kubernetes/apps, every changed line is a tag, version, image
+# or reference value, and each pair differs in the version alone.
 version_only() {
-    local diff=$1
-    grep -E '^(\+\+\+|---) ' "$diff" | grep -qvE '^(\+\+\+ b|--- a)/(kubernetes|template/config/kubernetes)/' && return 1
+    local diff=$1 dir="apps/$2/$3/"
+    grep -E '^(\+\+\+|---) ' "$diff" | grep -qvE "^(\+\+\+ b|--- a)/(kubernetes|template/config/kubernetes)/$dir" && return 1
     grep -E '^[-+]' "$diff" | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[-+] *(- )?(tag|version|image|reference): \S+$' && return 1
     local key='s/^[-+]//; s/@sha256:[0-9a-f]{64}//; s/:[^:]*$//' removed added
     removed=$(grep -E '^-' "$diff" | grep -vE '^--- ' | sed -E "$key")
@@ -143,13 +151,17 @@ merge_app() {
         outcome="skipped, head moved since the research"
         return
     fi
+    if ! renovate_pr "$tmp/pr-$pr.json"; then
+        outcome=$(comment "$pr" "safe by research, but not a same-repository Renovate PR, so not merged")
+        return
+    fi
     if jq -e '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length > 0' "$tmp/pr-$pr.json" >/dev/null; then
         outcome=$(comment "$pr" "safe by research, but a PR check failed, so not merged")
         return
     fi
     gh pr diff "$pr" >"$tmp/pr-$pr.diff"
-    if ! version_only "$tmp/pr-$pr.diff" >/dev/null; then
-        outcome=$(comment "$pr" "safe by research, but the diff changes more than version strings under kubernetes/, so not merged")
+    if ! version_only "$tmp/pr-$pr.diff" "$ns" "$(jq -r --arg a "$(jq -r .app <<<"$v")" '.dir // $a' <<<"$app")" >/dev/null; then
+        outcome=$(comment "$pr" "safe by research, but the diff changes more than version strings under the app's own directory, so not merged")
         return
     fi
     git fetch origin "refs/pull/$pr/head" >/dev/null 2>&1

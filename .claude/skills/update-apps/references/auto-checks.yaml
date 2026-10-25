@@ -5,7 +5,9 @@
 # kind is the Flux or workload object the script waits on after the merge: HelmRelease (Ready),
 # Deployment or StatefulSet (rollout status). wait is the seconds to sleep after the cluster
 # Kustomization has applied the merge commit, so helm-controller has started the upgrade before the
-# Ready wait. checks run with bash -c after that; CLUSTER_DOMAIN is exported. Only commands the
+# Ready wait. dir is the app directory under kubernetes/apps/<namespace>/ that a PR may touch, when it
+# is not the app's own key (browserless and clickhouse live in another app's directory).
+# checks run with bash -c after that; CLUSTER_DOMAIN is exported. Only commands the
 # runner's RBAC allows: kubectl get, wait, rollout status, logs, flux get, and curl through the
 # internal gateway. No kubectl exec, no kubectl run.
 #
@@ -135,6 +137,7 @@ apps:
       - curl -fsS https://ai.$CLUSTER_DOMAIN/api/trpc/backend.listCapabilities | jq -e . >/dev/null
   browserless:
     namespace: ai-workspace
+    dir: ai-workspace
     kind: Deployment
     name: browserless
     wait: 0
@@ -164,6 +167,7 @@ apps:
       - kubectl -n langfuse rollout status deploy/langfuse-worker --timeout=10m
   clickhouse:
     namespace: langfuse
+    dir: langfuse
     kind: StatefulSet
     name: clickhouse
     wait: 0
