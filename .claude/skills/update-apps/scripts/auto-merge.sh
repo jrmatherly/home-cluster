@@ -182,7 +182,8 @@ merge_app() {
     git pull --ff-only
     gh pr view "$pr" --json "$pr_fields" >"$tmp/pr-$pr.json"
     merge_commit=$(jq -r '.mergeCommit.oid' "$tmp/pr-$pr.json")
-    flux reconcile source git flux-system >/dev/null
+    # The push reaches Flux through the flux-webhook Receiver, or its one-minute poll; the runner
+    # has no write on Flux objects, so nothing nudges it.
     kubectl -n flux-system wait kustomization/flux-system \
         "--for=jsonpath={.status.lastAppliedRevision}=refs/heads/main@sha1:$merge_commit" --timeout=10m
     if app_checks "$app" >&2; then

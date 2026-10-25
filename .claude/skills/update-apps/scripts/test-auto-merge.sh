@@ -117,7 +117,7 @@ assert "safe listed app merges the researched head" "logged 'gh pr merge 69 --re
 assert "safe listed app waits for the merge commit on the cluster" "logged 'kustomization/flux-system --for=jsonpath={.status.lastAppliedRevision}=refs/heads/main@sha1:$merged'"
 assert "safe listed app waits for the HelmRelease" "logged 'wait helmrelease/kener --for=condition=Ready'"
 assert "safe listed app runs its own checks" "logged 'curl -fsS https://status.example.test/healthcheck'"
-assert "safe listed app reconciles the source" "logged 'flux reconcile source git flux-system'"
+assert "safe listed app writes nothing to Flux objects" "! logged 'flux reconcile' && ! logged 'kubectl annotate' && ! logged 'kubectl patch'"
 assert "safe listed app exits 0" "[[ $status == 0 ]]"
 assert "safe listed app reports merged and passed" "grep -q '^#69 kener 4.1.8 -> 4.1.9: merged, checks passed' '$FIX/out'"
 assert "safe listed app does not run flate when the head is on main" "! logged 'flate '"

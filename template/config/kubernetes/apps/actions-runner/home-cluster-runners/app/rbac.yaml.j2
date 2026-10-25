@@ -1,35 +1,29 @@
 #% if github_runner_enabled %#
 ---
-# The weekly apply job reads the cluster and nudges Flux. `view` covers the
-# namespaced reads, Flux's objects and metrics.k8s.io, and no Secrets.
+# The weekly apply job only reads the cluster: it waits on Flux objects and workloads and runs the
+# checks in update-apps/references/auto-checks.yaml. Every rule is a read the checks make, with no
+# Secrets, no ConfigMaps (Flux substitutes keys into some) and no writes; Flux picks the merge
+# commit up through the flux-webhook Receiver and its one-minute poll, so nothing is patched.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: home-cluster-runner
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: home-cluster-runner-view
-subjects:
-  - kind: ServiceAccount
-    name: home-cluster-runner
-    namespace: actions-runner
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: view
----
-# What `view` leaves out that the health checks read, plus the annotation
-# `flux reconcile` writes.
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: home-cluster-runner
 rules:
   - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list"]
+    resources:
+      ["namespaces", "nodes", "pods", "services", "endpoints", "events", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
     verbs: ["get", "list"]
@@ -39,21 +33,27 @@ rules:
   - apiGroups: ["metrics.k8s.io"]
     resources: ["nodes", "pods"]
     verbs: ["get", "list"]
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["gitrepositories", "ocirepositories", "helmcharts", "helmrepositories"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["gateway.networking.k8s.io"]
-    resources: ["gateways"]
+    resources: ["gateways", "httproutes"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["monitoring.coreos.com"]
     resources: ["prometheuses", "alertmanagers"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["clusters"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["source.toolkit.fluxcd.io"]
-    resources: ["gitrepositories"]
-    verbs: ["patch"]
-  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
-    resources: ["kustomizations"]
-    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -67,4 +67,29 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: home-cluster-runner
+---
+# The ExternalDNS checks grep the last five minutes of their logs, and only those two.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: home-cluster-runner-logs
+  namespace: network
+rules:
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: home-cluster-runner-logs
+  namespace: network
+subjects:
+  - kind: ServiceAccount
+    name: home-cluster-runner
+    namespace: actions-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: home-cluster-runner-logs
 #% endif %#
