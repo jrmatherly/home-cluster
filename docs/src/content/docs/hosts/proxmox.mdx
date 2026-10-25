@@ -232,6 +232,8 @@ The Samsung 870 EVO holds large data that is cheap to lose, such as model files 
 
 `zpool status` then lists `bulk` as `ONLINE` with the one Samsung drive. A single disk has no redundancy. ZFS detects corruption on it but cannot repair it.
 
+Since 2026-10-25 the control plane VM's system disk is on `bulk` as well, against the rule above. The two Toshiba NVMe drives in the mirror stall their cache flush for three to four seconds every few minutes, each on its own schedule, and a mirror's sync write waits for both, so etcd on that pool logged about 570 fsyncs over one second a day and the kube-apiserver was once killed by its liveness probe (measured on the host with timed flushes per drive; the Samsung flushes in 0.1 ms with a 5 ms worst case). The move was `qm disk move 122 scsi0 bulk --delete 1`, online. The other two etcd members cover the lost redundancy: if the Samsung fails, rebuild the control plane VM on `bulk` again, not on the mirror. The GPU worker stays on the mirror, because it barely writes.
+
 ## Set up GPU passthrough on the GPU host
 
 Run on the GPU host on 2026-10-03. The GTX 1080 works in a VM with no ROM file and no framebuffer option.
