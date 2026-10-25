@@ -130,6 +130,11 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
   merges at once as a branch. A PR still open on Monday is one Flate failed, one no tier 1 rule covers, or
   one under three days old. A digest-only PR needs no research beyond reading what the rebuild changed; merge
   it by hand with `gh pr merge --rebase`.
+- **A hand merge passes the researched head, never a fresh one.** Renovate rebases a PR whenever a newer
+  build appears, so `gh pr merge --rebase --match-head-commit <headRefOid from the verdict>` refuses a PR
+  that moved since the research. Refetching the head first defeats the gate: the SearXNG PR picked up an
+  unresearched same-day build four minutes before its merge on 2026-10-25 (measured). The full 40-character
+  SHA is required; GitHub rejects a short one.
 - **A date tag with a commit suffix compares by date.** `2026.10.23-68647d080` reads as a build of that day,
   so SearXNG's row shows a newer day. Same-day builds tie, and the table cannot tell which one `latest`
   carried; `references/apps.md` says how to pick.
