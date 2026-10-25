@@ -91,10 +91,12 @@ order, and the next app starts only when the current one is healthy.
   repository's `index.yaml`. `scripts/compare-chart.sh` fails on it because it reads `ocirepository.yaml`:
   fetch both chart tarballs from the index and `helm template` them with the rendered HelmRelease values.
 - **Bump `digest` means the tag did not move but its digest did.** Renovate opens a PR for it (a rebuilt
-  base image, usually), and nothing automerges it: the home-operations preset sets `:automergeBranch`
-  with no `automerge: true` rule, so only this repo's docs-digest rule merges on its own (measured
-  2026-10-24). A digest-only PR needs no research beyond reading what the rebuild changed; merge it by hand
-  with `gh pr merge --rebase`.
+  base image, usually). The tier 1 rules in `.renovaterc.json5` merge it on their own on the weekend once
+  Flate passes, unless it is a LocalAI, rustfs rc, pegaprox or Servarr image (stated, the digest rule). They
+  merge patch PRs the same way for the apps in the "Tier 1 automerge, patch" allowlist, and the docs digest
+  merges at once as a branch. A PR still open on Monday is one Flate failed, one no tier 1 rule covers, or
+  one under three days old. A digest-only PR needs no research beyond reading what the rebuild changed; merge
+  it by hand with `gh pr merge --rebase`.
 - **A date tag with a commit suffix compares by date.** `2026.10.23-68647d080` reads as a build of that day,
   so SearXNG's row shows a newer day. Same-day builds tie, and the table cannot tell which one `latest`
   carried; `references/apps.md` says how to pick.

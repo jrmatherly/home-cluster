@@ -87,7 +87,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 
 - **flux-operator and flux-instance** share a version. Update both in one commit.
 - **cloudflare-tunnel** has two pins: the `app-template` chart and the `cloudflared` image. They are independent.
-  Update them in separate commits so a failure points at one of them.
+  Update them in separate commits so a failure points at one of them. Tier 1: patch, for the `cloudflared`
+  image.
 - **langfuse web and worker** share a version and a schema, which the web pod migrates on start. Update both
   images in one commit; the chart is independent and pins neither. The ai-kb HelmRelease names the chart's web
   Service (`langfuse-web`) in `LANGFUSE_HOST`, and the HelmRelease's `postRenderers` patches find the
@@ -160,7 +161,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   each provider, and the webhook provider ignores it. Before a chart update, run the old and the new ExternalDNS
   image once each with this app's sources and `--provider=inmemory --inmemory-zone=<domain> --dry-run --once`,
   and compare the `CREATE` lines. The same record set from both means the update changes nothing on the console.
-  cloudflare-dns can use a real `--dry-run --once`, which the Cloudflare provider honors.
+  cloudflare-dns can use a real `--dry-run --once`, which the Cloudflare provider honors. Tier 1: patch, for
+  the webhook image.
 - **nvidia-device-plugin** renders only when a node lists the `nvidia` kernel module. The driver itself comes
   from the Talos extension, not from this chart.
 - **local-path-provisioner** backs every PersistentVolume in the cluster. A volume is a directory under
@@ -227,7 +229,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   ConfigMap. The `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full
   security context. After an update, `/readyz` answers 200 only once the models are preloaded. The embedding
   model (`images/nomic-embed-text-v1.5`) produces the 768-dimension vectors AI KB stores, so a replacement
-  must keep that dimension or every knowledge base is re-embedded.
+  must keep that dimension or every knowledge base is re-embedded. Tier 1: never, for both images.
 - **ai-kb** is Jason's own product (`jrmatherly/ai-kb`): the chart and its four images are released together
   under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change (a Renovate rule groups
   the five as "AI KB"; the digest to pin is the image index digest, not the linux/amd64 child, which is what
@@ -262,10 +264,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   (rustfs/rustfs#8121, #8015), which is why `scanner.cycle_secs` is set. `rc` is pre-1.0; after bumping it, run
   the provisioning Job's script against the new image, because it depends on `bucket create --ignore-existing`
   and `admin service-account info`, `create` and `update`, and check its log for a secret key: `rc` prints
-  one on success, so the script sends that output to `/dev/null`.
+  one on success, so the script sends that output to `/dev/null`. Tier 1: never, for `rc`.
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
-  1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. The Grafana dashboard in
+  1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. Tier 1: never. The Grafana dashboard in
   `app/dashboards/pegaprox-overview.json` is upstream's `misc/grafana/` JSON with only `refresh` changed from 10s to 1m to match the scrape interval, so refresh it
   when a release changes that file. Since 1.4.0 plugins live under `/app/config/plugins` on the config volume:
   the image sets `PEGAPROX_PLUGINS_DIR` and `PEGAPROX_PLUGINS_SEED`, and the app runs `sync_plugins.py` on
@@ -314,7 +316,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   stable-tagged alternatives cost more: `hotio/sonarr` writes to `/etc` and fails on a read-only root, and
   `linuxserver/sonarr` starts under the pod's securityContext with a `/run` emptyDir but calls read-only plus
   non-root unsupported (both measured in Docker). Radarr and Prowlarr pin upstream's latest stable. A Sonarr
-  v5 move also needs Recyclarr 8.8.0 or later.
+  v5 move also needs Recyclarr 8.8.0 or later. Tier 1: never.
+- **kener, seerr, maintainerr, browserless and echo** needed nothing beyond the version bump in their merged
+  history (PRs 33 to 92). Tier 1: patch.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
   version in the template changes nothing on a running cluster, where kube-prometheus-stack replaces the CRDs.
   The pin only decides what a rebuild installs first, so keep it on the chart whose `appVersion` is the operator
