@@ -1,0 +1,140 @@
+---
+title: Automated app updates
+description: What merges on its own, what the Monday run does, what pages when an update fails, and how to hold or admit an app.
+sidebar:
+  order: 4
+---
+
+Renovate opens a pull request for every chart and image pin that moves. Three layers decide what
+happens to it, and most weeks nothing waits for a human. This page is the runbook for that system,
+built 2026-10-25. The research and apply steps live in the `update-apps` skill
+(`.claude/skills/update-apps/`), and this page points at its files rather than repeating them.
+
+## The three layers
+
+1. Renovate merges the low-risk pull requests itself, on the weekend, behind the Flate check
+   (`.renovaterc.json5`, the three rules whose description starts with "Tier 1 automerge").
+2. The Monday workflow (`.github/workflows/update-apps.yaml`) researches every pull request still
+   open, merges the ones it finds safe, waits for Flux to apply each one, runs the app's scripted
+   checks, and reverts a merge that fails them.
+3. Prometheus pages Discord when an update leaves a HelmRelease, a Kustomization or a pod unhealthy,
+   whichever layer merged it.
+
+## What merges on its own and what waits
+
+Renovate merges, on the weekend and only once Flate passes on the pull request:
+
+- Digest updates under `kubernetes/**`. A digest update is a rebuild of the same tag. The rule
+  leaves out LocalAI, the `rustfs/rc` image, PegaProx and the Servarr images.
+- Patch updates for the apps on the allowlist in the patch rule, once the release is three days old:
+  Kener, Seerr, Maintainerr, the browserless Chromium image, cloudflared, echo and the UniFi
+  ExternalDNS webhook. Each earned its place with a merged history that changed nothing but the
+  version.
+- Digest updates in `docs/Dockerfile`, where the Docs Image workflow is the check.
+
+A `0.x` version never automerges, and the `talos/` tree is excluded. A pull request still open on
+Monday is one of three things. Flate failed on it, no rule covers it, or it is under three days old.
+The Monday run takes it from there.
+
+## The Monday run
+
+The workflow runs every Monday at 13:00 UTC, and `workflow_dispatch` runs it by hand with a `dry_run`
+input. It has two jobs.
+
+`research` runs on a GitHub-hosted runner. It runs `/update-apps --auto` through the Claude Code
+action with a read-only token and the `CLAUDE_CODE_OAUTH_TOKEN` secret, so it can read pull
+requests and release notes and write nothing. It ends with one verdict per open Renovate pull
+request, `safe`, `needs template change`, `blocked` or `not ours`, in `verdicts.json`, and a report
+in the run's summary.
+
+`apply` runs on the runner in the cluster (`runs-on: home-cluster`) with no model. It runs
+`scripts/auto-merge.sh` over the verdicts, which merges a `safe` verdict only when all of these hold:
+
+- The Renovate app opened the pull request from a `renovate/` branch in this repository. The
+  repository is public, so a verdict alone is never enough.
+- The pull request head is the one the research read.
+- The diff changes version strings alone, and only under the app's own directory.
+- The app is in `references/auto-checks.yaml` and is not marked `Tier 1: never` in
+  `references/apps.md`.
+
+After a merge the script waits for Flux to apply the merge commit, then runs the app's checks from
+`auto-checks.yaml`. A failed check reverts that merge, with a revert commit pushed to `main`, and
+stops the run. A check that cannot run stops the run with no revert. Every other verdict gets one
+comment on the pull request that opens with `<!-- update-apps verdict -->`, so a pull request with
+that comment was seen and judged, and the comment says why it was left open. The domain the checks
+curl through the internal gateway comes from the repository secret `CLUSTER_DOMAIN`, because
+`cluster.toml` is absent on the runner.
+
+To read a run, open the Actions page of the repository, pick the latest "Update apps" run, and read
+the summary of the `research` job for the verdicts and the log of the `apply` job for what each
+verdict became. The run is a dry run, which prints the action per pull request and touches nothing,
+until the repository variable `UPDATE_APPS_LIVE` is `true`.
+
+## When it pages
+
+Two alerts cover a bad update.
+
+`FluxHelmReleaseNotReady` and `FluxKustomizationNotReady`, from the `flux` PrometheusRule in
+`flux-system`, page Discord when a HelmRelease or Kustomization that is not suspended reports Ready
+False for 15 minutes. That is what an upgrade helm-controller rolled back looks like.
+
+`KubePodCrashLooping`, from kube-prometheus-stack, pages when a pod restarts in a loop. That covers
+a plain Deployment under a Kustomization with `wait: false`, which the Flux alerts cannot see.
+
+When either pages after a weekend or a Monday:
+
+1. Find the object. `flux get hr -n <namespace> <name>` for a HelmRelease,
+   `flux get ks -n flux-system <name>` for a Kustomization, `kubectl -n <namespace> get pods` for the
+   crash loop.
+2. Read the Monday run's summary on the Actions page, if the page came after a Monday. It names
+   every pull request the run merged and the checks it ran.
+3. Look for the revert. `git log origin/main --grep="This reverts commit"` shows one the script
+   pushed. If a revert exists, Flux is already applying it, and what is left is to read why the
+   check failed in the `apply` log before merging that pull request again by hand.
+4. If no revert exists, the merge came from Renovate on the weekend or from a check the run could
+   not see. Revert the merge commit by hand, push, and let Flux apply it. Then research the update as
+   the `update-apps` skill describes before merging it again.
+
+## Hold an app
+
+To keep an app out of the automated path:
+
+- Take it off the allowlist in the patch rule in `.renovaterc.json5`, or add it to the exclusions
+  in the digest rule, and Renovate stops merging it.
+- Take it out of `references/auto-checks.yaml`, and `auto-merge.sh` never merges it, whatever the
+  verdict.
+- Mark it `Tier 1: never` in its entry in `references/apps.md`, and both the skill and the script
+  refuse it.
+
+Do all three for an app that must never move on its own. Each is read by a different layer.
+
+## Let an app earn a place
+
+An app joins the automated path after two things:
+
+1. One patch update merged by hand whose diff changed nothing beyond the version, and whose
+   rollout needed no template change.
+2. A scripted check in `references/auto-checks.yaml`. The entry names the Flux or workload object
+   to wait on and the commands that prove the app works. Only commands the runner's read-only RBAC
+   allows are usable there, so `kubectl get`, `wait`, `rollout status`, `flux get`, `logs` in the
+   `network` namespace and `curl` through the internal gateway. No `kubectl exec` and no
+   `kubectl run`.
+
+Then add it to the patch rule's allowlist in `.renovaterc.json5` for the weekend merge, and run
+`scripts/test-auto-merge.sh` after the registry change.
+
+## Credentials and the live switch
+
+| Item | Where | What it is | Rotate |
+| --- | --- | --- | --- |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Repository secret | The token `claude setup-token` prints, which the `research` job signs in with | One year. Made 2026-10-25, so run `claude setup-token` again and replace the secret by 2027-10-25 |
+| `[github_runner].token` | `cluster.toml`, rendered into a sops Secret | A fine-grained personal access token on this repository with Administration read and write, which registers the runner | No expiry. Revoke it on GitHub's personal access tokens page if the runner is ever removed |
+| `CLUSTER_DOMAIN` | Repository secret | The cluster's domain, which the checks curl | Only when the domain changes |
+| `UPDATE_APPS_LIVE` | Repository variable | `true` lets the `apply` job merge. Anything else is a dry run | Set it to `true` after a dry run reads as expected. Clear it to pause every merge without touching the workflow |
+
+## Sources
+
+- `.renovaterc.json5` for the three Tier 1 rules and their exclusions.
+- `.claude/skills/update-apps/SKILL.md`, "Runs in CI", for the two jobs and the merge conditions,
+  and `references/auto-checks.yaml` for the checks and the apps left out on purpose.
+- `kubernetes/apps/flux-system/flux-operator/app/prometheusrule.yaml` for the two Flux alerts.
