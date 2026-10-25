@@ -1,0 +1,38 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: flux
+spec:
+  groups:
+    # A HelmRelease upgrade waits for its workloads, so a crashing image fails it, Flux rolls
+    # back after its retries, and the release stays not Ready until Git changes. A plain
+    # Deployment under a Kustomization with `wait: false` never turns a Flux object not Ready;
+    # kube-prometheus-stack's KubePodCrashLooping covers those.
+    # 15 minutes: the slowest HelmRelease timeout is 30m and retries hold Ready at False or
+    # Unknown for a while. `for` counts only the False stretch, so a first install swinging
+    # between Unknown and False may not page; a first install is watched by hand.
+    - name: flux
+      rules:
+        - alert: FluxHelmReleaseNotReady
+          expr: flux_resource_info{kind="HelmRelease", ready="False", suspended="False"} == 1
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: HelmRelease {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready
+            description: >-
+              Flux has reported {{ $labels.exported_namespace }}/{{ $labels.name }} not Ready for
+              15 minutes. An upgrade that failed its retries has been rolled back; run
+              flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}.
+        - alert: FluxKustomizationNotReady
+          expr: flux_resource_info{kind="Kustomization", ready="False", suspended="False"} == 1
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready
+            description: >-
+              Flux has reported Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }}
+              not Ready for 15 minutes; run
+              flux get ks -n {{ $labels.exported_namespace }} {{ $labels.name }}.
