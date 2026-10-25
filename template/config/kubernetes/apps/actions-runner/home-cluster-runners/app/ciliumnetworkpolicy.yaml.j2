@@ -1,0 +1,46 @@
+#% if github_runner_enabled %#
+---
+# Every pod in the namespace (controller, listener and runner) reaches DNS, the
+# API server, the internal gateway for the health checks, and public addresses
+# on 443 for GitHub and the tool downloads. Never the rest of the LAN.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: actions-runner-egress
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # A CIDR rule cannot reach the API server under Cilium; the entity can.
+    - toEntities: ["kube-apiserver"]
+    # The checks curl https://<app>.${SECRET_DOMAIN}, which resolves to the
+    # internal gateway. Its Envoy pods run in the network namespace, and the
+    # address itself covers a packet the policy sees before translation.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+    - toCIDR:
+        - #{ gateways.internal }#/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+#% for cidr in private_cidrs %#
+            - #{ cidr }#
+#% endfor %#
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+#% endif %#

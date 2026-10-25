@@ -1,0 +1,26 @@
+#% if github_runner_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: arc-controller
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: arc-controller
+  interval: 1h
+  values:
+    fullnameOverride: arc-controller
+    flags:
+      logLevel: info
+      # Roles in this namespace only, instead of the chart's default ClusterRole.
+      watchSingleNamespace: actions-runner
+    podSecurityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+#% endif %#

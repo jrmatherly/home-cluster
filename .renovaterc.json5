@@ -53,6 +53,16 @@
       minimumGroupSize: 2,
     },
     {
+      description: "Actions Runner Controller Group",
+      groupName: "actions-runner-controller",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["/actions-runner-controller-charts/"],
+      group: {
+        commitMessageTopic: "{{{groupName}}} group",
+      },
+      minimumGroupSize: 2,
+    },
+    {
       description: "LocalAI's main image and its llama-cpp backend image move together",
       matchDatasources: ["docker"],
       matchPackageNames: ["localai/localai", "quay.io/go-skynet/local-ai-backends"],

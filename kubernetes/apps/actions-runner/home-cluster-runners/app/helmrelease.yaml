@@ -1,0 +1,68 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: home-cluster-runners
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: home-cluster-runners
+  interval: 1h
+  values:
+    githubConfigUrl: https://github.com/jrmatherly/home-cluster
+    githubConfigSecret: home-cluster-runners-secret
+    # Workflows select it with `runs-on: home-cluster`.
+    runnerScaleSetName: home-cluster
+    minRunners: 0
+    maxRunners: 1
+    # The controller watches one namespace, so the chart cannot discover it.
+    controllerServiceAccount:
+      namespace: actions-runner
+      name: arc-controller
+    # The listener pod takes its security context from this template only.
+    listenerTemplate:
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+          - name: listener
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+    template:
+      spec:
+        serviceAccountName: home-cluster-runner
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+          - name: runner
+            image: ghcr.io/actions/actions-runner:2.338.1@sha256:e275409999c37162649aa050ca573f03eab2eabcb3a1e7fcc47548de6b4f9690
+            command: ["/home/runner/run.sh"]
+            # The image's user is the name `runner`, which `restricted` cannot verify.
+            # The root stays writable, because run.sh and the tool installers write
+            # under /home/runner.
+            securityContext:
+              runAsUser: 1001
+              runAsGroup: 1001
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              limits:
+                # Claude Code, mise and its tools write about 2.4 GB under /home/runner.
+                ephemeral-storage: 8Gi
+            volumeMounts:
+              - name: work
+                mountPath: /home/runner/_work
+              - name: tmp
+                mountPath: /tmp
+        volumes:
+          - name: work
+            emptyDir: {}
+          - name: tmp
+            emptyDir: {}
