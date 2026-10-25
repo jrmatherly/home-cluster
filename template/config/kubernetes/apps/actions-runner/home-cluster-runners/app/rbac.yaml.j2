@@ -67,29 +67,4 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: home-cluster-runner
----
-# The ExternalDNS checks grep the last five minutes of their logs, and only those two.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: home-cluster-runner-logs
-  namespace: network
-rules:
-  - apiGroups: [""]
-    resources: ["pods/log"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: home-cluster-runner-logs
-  namespace: network
-subjects:
-  - kind: ServiceAccount
-    name: home-cluster-runner
-    namespace: actions-runner
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: home-cluster-runner-logs
 #% endif %#

@@ -1,0 +1,25 @@
+---
+# The weekly apply job's ExternalDNS checks grep the last five minutes of cloudflare-dns and
+# unifi-dns logs, and those are the only pod logs the runner may read. The grant lives here, not in
+# the runner's own tree, because that Kustomization's targetNamespace would move it to actions-runner.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: home-cluster-runner-logs
+rules:
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: home-cluster-runner-logs
+subjects:
+  - kind: ServiceAccount
+    name: home-cluster-runner
+    namespace: actions-runner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: home-cluster-runner-logs

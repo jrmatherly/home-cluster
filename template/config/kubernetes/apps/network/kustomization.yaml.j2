@@ -19,3 +19,6 @@ resources:
   #% if unifi_dns_enabled %#
   - ./unifi-dns/ks.yaml
   #% endif %#
+  #% if github_runner_enabled %#
+  - ./runner-logs-rbac.yaml
+  #% endif %#
