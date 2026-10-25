@@ -334,6 +334,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `just template test-helmfile`. There is nothing to wait for or check on the cluster.
   Renovate tracks the pin through the `# renovate:` comment above it, which must stay on the line directly above
   `version:`.
+- **claude-code-action** runs the research job in `.github/workflows/update-apps.yaml`. It is a GitHub Action,
+  so it is reviewed by hand from its Renovate PR. A bump of its SHA also moves the Claude Code version that job
+  runs, because the action pins that version in `src/entrypoints/run.ts` (measured, 2.1.310 at v1.0.262). Read
+  the Claude Code changelog for permission and headless changes before merging it.
 
 ## Wait for the release
 
