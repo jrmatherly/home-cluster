@@ -66,7 +66,7 @@ template/
   resources/kubeconform.sh validation run by `just configure`
   mod.just                 `just template ...` recipes
 .github/template-tests/    valid/ and invalid/ cluster.toml fixtures, e2e/ helpers
-.github/workflows/         template-e2e, template-e2e-cluster and template-release CI, plus label sync, flate, model-images and docs-image
+.github/workflows/         template-e2e, template-e2e-cluster and template-release CI, plus label sync, flate, model-images, docs-image and update-apps
 images/<model>/Dockerfile  model image recipes, built by the model-images workflow
 docs/                      Nimbus (Astro) documentation site, Dockerfile and nginx.conf; built by docs-image.yaml
 ```
