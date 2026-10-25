@@ -5,7 +5,8 @@
 # stderr says which.
 set -euo pipefail
 
-if [ $# -ne 4 ]; then
+if [ $# -ne 4 ] || ! [[ "$1" =~ ^[a-z0-9-]+$ && "$2" =~ ^[a-z0-9-]+$ ]] \
+    || ! [[ "$3" =~ ^[A-Za-z0-9._-]+$ && "$4" =~ ^[A-Za-z0-9._-]+$ ]]; then
     echo "usage: compare-chart.sh <namespace> <app> <old-version> <new-version>" >&2
     exit 2
 fi
