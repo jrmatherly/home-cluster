@@ -54,6 +54,7 @@ jobs:
             --json-schema '{"type":"object","required":["verdicts","report"],"properties":{"report":{"type":"string"},"verdicts":{"type":"array","items":{"type":"object","required":["pr","app","namespace","kind","from","to","bump","headRefOid","verdict","evidence"],"properties":{"pr":{"type":"integer"},"app":{"type":"string"},"namespace":{"type":"string"},"kind":{"enum":["chart","image"]},"from":{"type":"string"},"to":{"type":"string"},"bump":{"type":"string"},"headRefOid":{"type":"string"},"verdict":{"enum":["safe","needs template change","blocked","not ours"]},"evidence":{"type":"string"}}}}}}'
 
       - name: Write the verdicts and the report
+        shell: bash
         env:
           OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
@@ -114,6 +115,7 @@ jobs:
           path: ${{ runner.temp }}/research
 
       - name: Merge the safe PRs
+        shell: bash
         env:
           CLUSTER_DOMAIN: ${{ secrets.CLUSTER_DOMAIN }}
           DRY_RUN: ${{ needs.research.outputs.dry_run }}
