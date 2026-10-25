@@ -14,6 +14,8 @@ stage_fixed = true
 
 [pre-commit.commands.format-json]
 glob = ["*.json", "*.json5", "*.jsonc"]
+# oxfmt ignores lockfiles and exits 2 when every named file is ignored, so a lockfile-only commit fails.
+exclude = ["docs/package-lock.json"]
 run = "oxfmt {staged_files}"
 stage_fixed = true
 
