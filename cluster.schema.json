@@ -299,6 +299,17 @@
       "title": "Gateways",
       "type": "object"
     },
+    "GithubRunner": {
+      "additionalProperties": false,
+      "properties": {
+        "token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "GithubRunner",
+      "type": "object"
+    },
     "Hubble": {
       "additionalProperties": false,
       "properties": {
@@ -1347,6 +1358,12 @@
         "api_key": "",
         "oidc_client_id": "",
         "oidc_client_secret": ""
+      }
+    },
+    "github_runner": {
+      "$ref": "#/$defs/GithubRunner",
+      "default": {
+        "token": ""
       }
     },
     "nodes": {

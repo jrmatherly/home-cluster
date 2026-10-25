@@ -186,6 +186,9 @@ clickhouse_password = "fakefakefakefakefakefakefake"
 rustfs_access_key = "langfusefakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 
+[github_runner]
+token = "github_pat_fakefakefakefakefakefake"
+
 [[nodes]]
 name = "k8s-0"
 address = "10.10.10.100"

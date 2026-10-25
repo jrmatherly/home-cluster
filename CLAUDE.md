@@ -26,6 +26,7 @@ Template stage:
 - `just template doctor` checks that the required files exist, that `cluster.toml` passes the schema, and that its sections follow the sample's order.
 - `just template check-layout` checks that `cluster.toml` keeps its sections in the order of `cluster.sample.toml`. `just configure` runs it first.
 - `just template schema` regenerates `cluster.schema.json` from the pydantic model.
+- `just template scaffold <section>` copies a section's block from `cluster.sample.toml` into `cluster.toml` in the sample's position, keys left commented, printing line numbers only, then runs `check-layout`.
 - `just template test-helmfile` renders the bootstrap Helm charts. It needs network access.
 - `just template reset` deletes the rendered output.
 - `uv run --locked pytest template/scripts/test_validate.py -q` runs the validator tests.

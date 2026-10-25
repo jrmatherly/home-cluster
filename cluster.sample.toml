@@ -1161,6 +1161,24 @@ schematic_id = ""
 
 
 # =============================================================================
+#    A self-hosted GitHub Actions runner scale set in the cluster, which the
+#    weekly update-apps workflow uses for its apply job (`runs-on: home-cluster`).
+#    The runner registers at repository scope, scales from zero and runs one
+#    job at a time. Set the token to enable; leaving it blank skips it.
+# =============================================================================
+[github_runner]
+
+# A fine-grained personal access token for the repository with the
+# Administration permission at Read and write, the only permission a
+# repository-level runner scale set needs. Give it an expiry and note the
+# date; the runner stops picking up jobs when it lapses. It is written to a
+# SOPS-encrypted Secret.
+# OPTIONAL. Example: "github_pat_..." from https://github.com/settings/personal-access-tokens/new
+
+# token = ""
+
+
+# =============================================================================
 #    One [[nodes]] table per physical machine or VM in the cluster. At least
 #    one controller (controller=true) is required; worker nodes are optional.
 #    For HA, use 3 controllers. Controllers run ordinary workloads only when

@@ -23,9 +23,7 @@ Then run `uv run --locked pytest template/scripts/test_validate.py -q`. The Stop
 
 When a new section lands, add it to `cluster.toml` as well, in the sample's position, with the values left for the user to fill:
 
-- Copy the sample's whole block: the banner, the `[section]` header and the commented-out keys.
-- Insert it after the end of the section that precedes it in the sample. Find that section's header, then the next header or banner after it, and insert there. Never anchor on the next header alone: a banner comment sits above each header, so the block would land inside it. That is how `[pegaprox]` ended up in the Talos block on 2026-10-05.
-- Do it with a script that prints only line numbers, never the file's lines.
-- Run `just template check-layout`, then `taplo check --schema "file://$PWD/cluster.schema.json" ./cluster.toml`.
+- Run `just template scaffold <section>` (`template/scripts/scaffold.py`, added 2026-10-25). It copies the sample's whole block, the banner, the `[section]` header and the commented-out keys, inserts it after the end of the section that precedes it in the sample, and prints line numbers only, never the file's lines. It anchors on the preceding section because a banner comment sits above each header, and anchoring on the next header put `[pegaprox]` inside the Talos block on 2026-10-05. It refuses a section the config already has.
+- Then `taplo check --schema "file://$PWD/cluster.schema.json" ./cluster.toml`, outside the sandbox, where taplo's proxy lookup panics.
 
 Templates read the validated config, so a renamed or removed field also breaks every template that uses it. Search for it with `grep -rn '<field>' template/config`.

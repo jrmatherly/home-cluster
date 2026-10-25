@@ -736,6 +736,12 @@ class Node(Model):
         return self
 
 
+class GithubRunner(Model):
+    # A fine-grained PAT on the repository with Administration read and write,
+    # which registers the in-cluster Actions runner scale set.
+    token: Secret = ""
+
+
 class Config(Model):
     model_config = ConfigDict(extra="forbid", title="cluster.toml")
 
@@ -773,6 +779,7 @@ class Config(Model):
     rustfs: RustFs = RustFs()
     langfuse: Langfuse = Langfuse()
     localai: LocalAi = LocalAi()
+    github_runner: GithubRunner = GithubRunner()
     nodes: list[Node]
 
     @computed_field
@@ -978,6 +985,11 @@ class Config(Model):
     @property
     def langfuse_enabled(self) -> bool:
         return self.langfuse.public_key != ""
+
+    @computed_field
+    @property
+    def github_runner_enabled(self) -> bool:
+        return self.github_runner.token != ""
 
     # One bucket and one key pair scoped to it per app; the provisioning Job creates them.
     @computed_field

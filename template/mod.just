@@ -38,6 +38,12 @@ configure: check-layout render encrypt-secrets validate-kubernetes validate-talo
 check-layout:
     uv run --quiet --locked --no-dev "{{ check_layout_script }}" "{{ sample_config_file }}" "{{ config_file }}"
 
+[doc('Copy a section block from cluster.sample.toml into cluster.toml, in the sample order, keys left commented')]
+[group('template')]
+scaffold section:
+    uv run --quiet --locked --no-dev "{{ template_dir }}/scripts/scaffold.py" "{{ section }}" "{{ sample_config_file }}" "{{ config_file }}"
+    just template check-layout
+
 [doc('Check that all prerequisite files exist and cluster.toml validates against the schema')]
 [group('template')]
 [no-exit-message]
