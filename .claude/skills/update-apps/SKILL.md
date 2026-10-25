@@ -1,7 +1,7 @@
 ---
 name: update-apps
 description: Updates the chart and image versions pinned in this repo's templates, checks each update for breaking changes, makes the template changes the new version needs, re-renders, and verifies the deployment. Use when the user wants to "update our apps", "bump cilium", "update cert-manager to the latest chart", "check for app updates", "is there a new chart version", "what breaks if we update X", or invokes /update-apps. Not for Talos or Kubernetes version upgrades, and not for adding a new app.
-argument-hint: "[app ...] | all | --check"
+argument-hint: "[app ...] | all | --check | --auto"
 ---
 
 # Update Apps
@@ -27,6 +27,11 @@ safe.
 - `<app> ...` updates the named apps.
 - `all` updates every app with a pending version.
 - `--check` runs steps 1 to 4 and stops. It edits nothing and renders nothing.
+- `--auto` is research only, over the open Renovate pull requests instead of the inventory. It runs steps 1
+  to 4, writes a verdict per PR to `verdicts.json` and the report to the summary destination in step 4, and
+  merges nothing and comments nothing. The merge belongs to `scripts/auto-merge.sh`, because the research
+  reads release notes and PR bodies that anyone upstream can write, so its verdicts are data the script
+  re-checks before it touches `main`.
 - With no argument, run the inventory, show the table, and ask which apps to update.
 
 ## Workflow
@@ -38,14 +43,24 @@ order, and the next app starts only when the current one is healthy.
    pin with its newest stable tag and the size of the bump. A non-zero exit means a lookup failed or found no
    stable tag; read stderr and resolve it before trusting the table. Run `gh pr list` as well. When Renovate
    already has a pull request for a target, name it in the report so the user can close it once the update lands.
+   With `--auto`, run `git pull --ff-only` first, then
+   `gh pr list --json number,title,headRefOid,files` instead of the inventory, and take the app, the two
+   versions and the bump from each PR's title and files. A PR whose files are outside the scope above is `not
+   ours`.
 2. **Plan the order.** Read `references/apps.md` for apps that must move together and for the order to take when
    several are pending.
 3. **Research each target.** Read `references/breaking-changes.md` and follow it. With three or more targets, give
    each app's research to its own subagent and keep only the verdicts. End with one verdict per app: `safe`,
-   `needs template change`, or `blocked`.
+   `needs template change`, or `blocked`. With `--auto`, write them to `verdicts.json`, an array of
+   `{pr, app, namespace, kind, from, to, bump, headRefOid, verdict, evidence}`: `app` is the key in
+   `references/auto-checks.yaml` or `references/apps.md`, `kind` is `chart` or `image`, `headRefOid` is the
+   PR head the research read, `verdict` adds `not ours` to the three above, and `evidence` is one sentence
+   with its label (measured or stated). In the action, `--json-schema` makes that array the structured output.
 4. **Report and get approval.** Read `templates/report.md` and report in that shape, then stop and wait. A push to
    `main` deploys, because Flux reconciles from Git. A `blocked` app goes no further, and a `--check` run ends
-   here.
+   here. An `--auto` run ends here too, with the report in the auto-run shape of `templates/report.md`
+   written to `$GITHUB_STEP_SUMMARY` when that is set, else to
+   `private/findings/<date>-auto-updates/README.md`.
 5. **Edit the templates.** Change the tag in the `.j2` source, plus any value the new version renamed, removed, or
    now requires. Never edit the rendered copy under `kubernetes/` or `bootstrap/`. A change that needs a new
    `cluster.toml` field follows `.claude/rules/validator.md`. When the update needed a step that
@@ -62,6 +77,22 @@ order, and the next app starts only when the current one is healthy.
 8. **Roll back on failure.** Flux retries a failed Helm upgrade twice and then rolls the release back itself. Make
    Git match: `git revert` the commit and push. Report the failure with the controller's message from
    `flux get hr -n <namespace> <app>`, and do not start the next app.
+
+## Runs in CI
+
+The weekly workflow (`.github/workflows/update-apps.yaml`) has two jobs. `research` runs this skill with
+`--auto` through the Claude Code action on a GitHub-hosted runner with a read-only token, so it can read PRs
+and release notes and write nothing. `apply` runs `scripts/auto-merge.sh verdicts.json` on the self-hosted
+runner in the cluster with no model: it merges a `safe` verdict only when the PR head is the one researched,
+the diff changes version strings alone, the app is in `references/auto-checks.yaml` and not marked `Tier 1:
+never` in `references/apps.md`, and Flate passes when the head is behind `main`; then it waits for Flux to
+apply the merge commit and runs the app's checks. A failed check reverts that merge and stops, a check that
+cannot run stops with no revert, and every other verdict gets one comment opening with
+`<!-- update-apps verdict -->`. `cluster.toml` is absent there, so the domain comes from `CLUSTER_DOMAIN`.
+`scripts/bootstrap-drift.sh` never runs on the runner, because it reads the Helm release Secrets, which the
+runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-checks.yaml`.
+`scripts/test-auto-merge.sh` is the script's test, with fake `gh`, `kubectl`, `flux`, `git` and `flate` on
+`PATH`; run it after any change to the script or the registry.
 
 ## Gotchas
 
@@ -113,6 +144,12 @@ order, and the next app starts only when the current one is healthy.
 - `scripts/bootstrap-drift.sh` — lists live fields the bootstrap's `helm` field manager still owns that the
   current release manifest dropped, for the six charts `just bootstrap apps` installed; `--apply` releases
   them. Run it after any of those charts drops a key (step 7), because helm-controller cannot prune them.
+  It exits 1 when a release is not readable, which is what happens on the runner.
+- `scripts/auto-merge.sh` — the apply step of the weekly run, described under "Runs in CI". Run it, do not
+  read it; `--dry-run` prints the action per PR and touches nothing.
+- `scripts/test-auto-merge.sh` — its behaviour test.
+- `references/auto-checks.yaml` — the apps the script may merge, each with the Flux object to wait on and the
+  checks to run. An app not in it is only ever merged by hand.
 - `references/breaking-changes.md` — how to research an update and what counts as a finding. Read in step 3.
 - `references/apps.md` — per-app upstream sources, coupling, update order, the post-push wait, and the health
   checks. Read in steps 2 and 7.

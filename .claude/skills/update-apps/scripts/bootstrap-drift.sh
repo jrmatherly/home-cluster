@@ -22,8 +22,8 @@ for release in "${releases[@]}"; do
     name=${release#*/}
     manifest="$tmp/$name.yaml"
     if ! helm -n "$ns" get manifest "$name" >"$manifest" 2>/dev/null; then
-        echo "== $release: no Helm release found" >&2
-        continue
+        echo "== $release: no Helm release found (needs the release Secrets, so not a runner job)" >&2
+        exit 1
     fi
     echo "== $release"
     # A release manifest may hold objects in another namespace (cilium-secrets, cert-manager's

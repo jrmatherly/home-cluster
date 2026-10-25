@@ -1,0 +1,195 @@
+# Scripted health checks for the apps `scripts/auto-merge.sh` may merge on its own. An app missing
+# here is never merged by the script, whatever its verdict. Order is the merge order (`apps.md`,
+# "Order when several are pending", then the rest by namespace).
+#
+# kind is the Flux or workload object the script waits on after the merge: HelmRelease (Ready),
+# Deployment or StatefulSet (rollout status). wait is the seconds to sleep after the cluster
+# Kustomization has applied the merge commit, so helm-controller has started the upgrade before the
+# Ready wait. checks run with bash -c after that; CLUSTER_DOMAIN is exported. Only commands the
+# runner's RBAC allows: kubectl get, wait, rollout status, logs, flux get, and curl through the
+# internal gateway. No kubectl exec, no kubectl run.
+#
+# Left out on purpose (apps.md says why): the six bootstrap charts (cilium, coredns, spegel,
+# cert-manager, flux-operator, flux-instance), whose drift check reads Helm release Secrets;
+# cloudnative-pg, which restarts every database; pocket-id, radar, pegaprox, network-optimizer,
+# searxng, k8s-gateway, localai, the media apps and docs, whose check is a sign-in, an exec, a dig
+# or a UI step.
+apps:
+  envoy-gateway:
+    namespace: network
+    kind: HelmRelease
+    name: envoy-gateway
+    wait: 60
+    checks:
+      - kubectl wait gateway -A --all --for=condition=Programmed --timeout=5m
+      - curl -fsS -o /dev/null https://echo.$CLUSTER_DOMAIN/
+  cloudflare-dns:
+    namespace: network
+    kind: HelmRelease
+    name: cloudflare-dns
+    wait: 60
+    checks:
+      - kubectl -n network rollout status deploy/cloudflare-dns --timeout=10m
+      - "! kubectl -n network logs deploy/cloudflare-dns --since=5m | grep -q level=error"
+  unifi-dns:
+    namespace: network
+    kind: HelmRelease
+    name: unifi-dns
+    wait: 60
+    checks:
+      - kubectl -n network rollout status deploy/unifi-dns --timeout=10m
+      - "! kubectl -n network logs deploy/unifi-dns -c external-dns --since=5m | grep -q level=error"
+  cloudflare-tunnel:
+    namespace: network
+    kind: HelmRelease
+    name: cloudflare-tunnel
+    wait: 60
+    checks:
+      - kubectl -n network rollout status deploy/cloudflare-tunnel --timeout=10m
+      - curl -fsS -o /dev/null https://echo.$CLUSTER_DOMAIN/
+  metrics-server:
+    namespace: kube-system
+    kind: HelmRelease
+    name: metrics-server
+    wait: 60
+    checks:
+      - kubectl -n kube-system rollout status deploy/metrics-server --timeout=10m
+      - kubectl top nodes
+  nvidia-device-plugin:
+    namespace: kube-system
+    kind: HelmRelease
+    name: nvidia-device-plugin
+    wait: 60
+    checks:
+      - kubectl get nodes -o jsonpath="{.items[*].status.allocatable.nvidia\.com/gpu}" | grep -q 1
+  reloader:
+    namespace: kube-system
+    kind: HelmRelease
+    name: reloader
+    wait: 60
+    checks:
+      - kubectl -n kube-system rollout status deploy/reloader --timeout=10m
+  local-path-provisioner:
+    namespace: storage
+    kind: HelmRelease
+    name: local-path-provisioner
+    wait: 60
+    checks:
+      - kubectl get storageclass local-path
+      - "! kubectl get pvc -A --no-headers | grep -v Bound | grep -q ."
+  csi-driver-nfs:
+    namespace: storage
+    kind: HelmRelease
+    name: csi-driver-nfs
+    wait: 60
+    checks:
+      - kubectl -n storage rollout status ds/csi-nfs-node --timeout=10m
+      - kubectl -n storage rollout status deploy/csi-nfs-controller --timeout=10m
+      - kubectl -n media get pvc media -o jsonpath="{.status.phase}" | grep -qx Bound
+  plugin-barman-cloud:
+    namespace: cnpg-system
+    kind: HelmRelease
+    name: plugin-barman-cloud
+    wait: 60
+    checks:
+      - kubectl -n cnpg-system wait certificate --all --for=condition=Ready --timeout=5m
+  kube-prometheus-stack:
+    namespace: observability
+    kind: HelmRelease
+    name: kube-prometheus-stack
+    wait: 120
+    checks:
+      - kubectl -n observability wait prometheus,alertmanager --all --for=condition=Available --timeout=10m
+      - 'curl -fsS https://grafana.$CLUSTER_DOMAIN/api/health | grep -q ''"database": "ok"'''
+  influxdb:
+    namespace: observability
+    kind: HelmRelease
+    name: influxdb
+    wait: 60
+    checks:
+      - curl -fsS https://influxdb.$CLUSTER_DOMAIN/health | grep -q '"status":"pass"'
+  actual-budget:
+    namespace: actual-budget
+    kind: HelmRelease
+    name: actual-budget
+    wait: 60
+    checks:
+      - kubectl -n actual-budget rollout status deploy/actual-budget --timeout=10m
+      - curl -fsS https://budget.$CLUSTER_DOMAIN/health | grep -q '"status":"UP"'
+  ai-kb:
+    namespace: ai-kb
+    kind: HelmRelease
+    name: ai-kb
+    wait: 120
+    checks:
+      - kubectl -n ai-kb rollout status deploy/ai-kb-app --timeout=10m
+      - kubectl -n ai-kb rollout status deploy/ai-kb-frontend --timeout=10m
+      - curl -fsS https://ai-kb.$CLUSTER_DOMAIN/api/v1/auth/oidc/config | grep -q '"enabled":true'
+  ai-workspace:
+    namespace: ai-workspace
+    kind: HelmRelease
+    name: ai-workspace
+    wait: 120
+    checks:
+      - kubectl -n ai-workspace rollout status deploy/ai-workspace --timeout=10m
+      - curl -fsS https://ai.$CLUSTER_DOMAIN/api/trpc/backend.listCapabilities | jq -e . >/dev/null
+  browserless:
+    namespace: ai-workspace
+    kind: Deployment
+    name: browserless
+    wait: 0
+    checks: []
+  echo:
+    namespace: default
+    kind: HelmRelease
+    name: echo
+    wait: 60
+    checks:
+      - curl -fsS -o /dev/null https://echo.$CLUSTER_DOMAIN/
+  kener:
+    namespace: kener
+    kind: HelmRelease
+    name: kener
+    wait: 60
+    checks:
+      - kubectl -n kener rollout status deploy/kener --timeout=10m
+      - curl -fsS https://status.$CLUSTER_DOMAIN/healthcheck | grep -qi ok
+  langfuse:
+    namespace: langfuse
+    kind: HelmRelease
+    name: langfuse
+    wait: 120
+    checks:
+      - kubectl -n langfuse rollout status deploy/langfuse-web --timeout=15m
+      - kubectl -n langfuse rollout status deploy/langfuse-worker --timeout=10m
+  clickhouse:
+    namespace: langfuse
+    kind: StatefulSet
+    name: clickhouse
+    wait: 0
+    checks:
+      - kubectl -n langfuse rollout status deploy/langfuse-web --timeout=10m
+      - kubectl -n langfuse rollout status deploy/langfuse-worker --timeout=10m
+  matherlynet:
+    namespace: matherlynet
+    kind: HelmRelease
+    name: matherlynet
+    wait: 60
+    checks:
+      - kubectl -n matherlynet rollout status deploy/matherlynet-web-deployment --timeout=10m
+      - curl -fsS https://$CLUSTER_DOMAIN/ | grep -q pageswap
+  reactive-resume:
+    namespace: reactive-resume
+    kind: HelmRelease
+    name: reactive-resume
+    wait: 60
+    checks:
+      - kubectl -n reactive-resume rollout status deploy/reactive-resume --timeout=10m
+      - curl -fsS -o /dev/null https://resume.$CLUSTER_DOMAIN/
+  rustfs:
+    namespace: rustfs
+    kind: HelmRelease
+    name: rustfs
+    wait: 60
+    checks:
+      - kubectl -n rustfs rollout status deploy/rustfs --timeout=10m

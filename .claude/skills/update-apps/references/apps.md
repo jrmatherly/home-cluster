@@ -229,7 +229,8 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   ConfigMap. The `ai` namespace enforces the `restricted` pod security level, so a test pod there needs a full
   security context. After an update, `/readyz` answers 200 only once the models are preloaded. The embedding
   model (`images/nomic-embed-text-v1.5`) produces the 768-dimension vectors AI KB stores, so a replacement
-  must keep that dimension or every knowledge base is re-embedded. Tier 1: never, for both images.
+  must keep that dimension or every knowledge base is re-embedded. Tier 1: never, for both images, and
+  `auto-merge.sh` never merges them either.
 - **ai-kb** is Jason's own product (`jrmatherly/ai-kb`): the chart and its four images are released together
   under one CalVer tag, so bump the `OCIRepository` tag and the four digests in one change (a Renovate rule groups
   the five as "AI KB"; the digest to pin is the image index digest, not the linux/amd64 child, which is what
@@ -264,10 +265,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   (rustfs/rustfs#8121, #8015), which is why `scanner.cycle_secs` is set. `rc` is pre-1.0; after bumping it, run
   the provisioning Job's script against the new image, because it depends on `bucket create --ignore-existing`
   and `admin service-account info`, `create` and `update`, and check its log for a secret key: `rc` prints
-  one on success, so the script sends that output to `/dev/null`. Tier 1: never, for `rc`.
+  one on success, so the script sends that output to `/dev/null`. Tier 1: never, for `rc`, and
+  `auto-merge.sh` never merges it either (it has no entry in `auto-checks.yaml`).
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
-  1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. Tier 1: never. The Grafana dashboard in
+  1.2.0. GitHub tags carry a `v` and image tags do not. Never automerge its updates. Tier 1: never, and
+  `auto-merge.sh` refuses it by this marker even with a `safe` verdict. The Grafana dashboard in
   `app/dashboards/pegaprox-overview.json` is upstream's `misc/grafana/` JSON with only `refresh` changed from 10s to 1m to match the scrape interval, so refresh it
   when a release changes that file. Since 1.4.0 plugins live under `/app/config/plugins` on the config volume:
   the image sets `PEGAPROX_PLUGINS_DIR` and `PEGAPROX_PLUGINS_SEED`, and the app runs `sync_plugins.py` on
@@ -316,7 +319,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   stable-tagged alternatives cost more: `hotio/sonarr` writes to `/etc` and fails on a read-only root, and
   `linuxserver/sonarr` starts under the pod's securityContext with a `/run` emptyDir but calls read-only plus
   non-root unsupported (both measured in Docker). Radarr and Prowlarr pin upstream's latest stable. A Sonarr
-  v5 move also needs Recyclarr 8.8.0 or later. Tier 1: never.
+  v5 move also needs Recyclarr 8.8.0 or later. Tier 1: never, and `auto-merge.sh` never merges them either.
 - **kener, seerr, maintainerr, browserless and echo** needed nothing beyond the version bump in their merged
   history (PRs 33 to 92). Tier 1: patch.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
@@ -351,7 +354,11 @@ A timeout is a failure. Go to the rollback step.
 
 ## Post-deploy checks
 
-Run the common checks for every app, then the app's own check.
+Run the common checks for every app, then the app's own check. The subset that `scripts/auto-merge.sh` runs
+on its own is `auto-checks.yaml`: the apps whose checks are `kubectl get`, `wait`, `rollout status`, `logs`,
+`flux get` or a `curl` through the internal gateway. An app whose check is a sign-in, an exec, a dig or a UI
+step is not in it and is only ever merged by hand, as are the six bootstrap charts, whose drift check reads
+Helm release Secrets, and cloudnative-pg, which restarts every database.
 
 Common:
 

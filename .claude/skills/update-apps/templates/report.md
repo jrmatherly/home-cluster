@@ -29,3 +29,24 @@ order, say which app is the riskiest and why, and name any open Renovate pull re
 
 Flux rolls back a failed Helm upgrade by itself. `git revert <commit>` and a push make Git match.
 ```
+
+## Auto run
+
+An `--auto` run writes this table instead, one row per open Renovate PR, to `$GITHUB_STEP_SUMMARY` when set
+and otherwise to `private/findings/<date>-auto-updates/README.md`. The research fills App to PR. The apply
+script's output fills Action and Check, and the "Stopped on" line names the first app that failed or could not be
+checked, or says "nothing".
+
+```markdown
+## Automated update run <date>
+
+| App   | From  | To    | Bump                  | Verdict                                           | PR  | Action                       | Check                               |
+| ----- | ----- | ----- | --------------------- | ------------------------------------------------- | --- | ---------------------------- | ----------------------------------- |
+| <app> | <old> | <new> | patch / minor / major | safe / needs template change / blocked / not ours | #n  | merged / commented / skipped | passed / failed, reverted / not run |
+
+Stopped on: nothing
+
+## <app> <old> to <new>
+
+The evidence behind the verdict, in the shape of the per-app section above.
+```
