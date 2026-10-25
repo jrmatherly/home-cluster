@@ -26,7 +26,7 @@ spec:
               # The CPU build. The llama-cpp backend image below carries its own CUDA 12.8
               # runtime libraries, loader and libc; only the driver comes from the host.
               repository: localai/localai
-              tag: v4.11.0@sha256:f1bc435659b9da49180e868fdd0361915171a740cd947bf081b62a896a7ea8d0
+              tag: v4.12.1@sha256:c8556c4f7b6dd9b76e915d515ab5cfe5a765d8ea8fd3f0cf563f9c690b48a7f4
             env:
               # Closes every API route but /healthz, /readyz and discovery to a request without
               # the key; a legacy key grants full admin, which is why the gallery endpoint and
@@ -109,7 +109,7 @@ spec:
       # is the backend name, so it must be llama-cpp.
       backends-llama-cpp:
         type: image
-        image: quay.io/go-skynet/local-ai-backends:v4.11.0-gpu-nvidia-cuda-12-llama-cpp@sha256:5e54c2dfc490f50ede562f94f44ed5c4c57707b1900f3bf36793624425fb3cdc
+        image: quay.io/go-skynet/local-ai-backends:v4.12.1-gpu-nvidia-cuda-12-llama-cpp@sha256:d1812e2638affbf3d39c64e237fda1a98f3e88d997f681563a40a7af2c888de9
         globalMounts:
           - path: /backends/llama-cpp
             readOnly: true
