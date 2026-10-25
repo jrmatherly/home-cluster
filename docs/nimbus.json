@@ -1,7 +1,7 @@
 {
   "$schema": "https://nimbus-docs.com/schema/nimbus.json",
   "version": "0.7.9",
-  "lastReviewedNimbusVersion": "0.18.1",
+  "lastReviewedNimbusVersion": "0.19.0",
   "templatesTag": "templates-v0.7.9",
   "templatesTagByFile": {
     "src/components/ui/image-zoom/image-zoom.client.ts": "templates-v0.7.13",
