@@ -65,7 +65,7 @@ that comment was seen and judged, and the comment says why it was left open. The
 curl through the internal gateway comes from the repository secret `CLUSTER_DOMAIN`, because
 `cluster.toml` is absent on the runner.
 
-To read a run, open the Actions page of the repository, pick the latest "Update apps" run, and read
+To read a run, open the Actions page of the repository, pick the latest "Update Apps" run, and read
 the summary of the `research` job for the verdicts and the log of the `apply` job for what each
 verdict became. The run is a dry run, which prints the action per pull request and touches nothing,
 until the repository variable `UPDATE_APPS_LIVE` is `true`.

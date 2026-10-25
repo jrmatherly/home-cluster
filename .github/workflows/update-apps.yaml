@@ -49,6 +49,7 @@ jobs:
             array as `verdicts` and the auto-run report from `templates/report.md` as `report` in the
             structured output. The workflow writes verdicts.json and the step summary from them.
           claude_args: |
+            --model claude-opus-5-5
             --max-turns 150
             --allowedTools "Read,Grep,Glob,Agent,Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr list *),Bash(gh release view *),Bash(gh release list *),WebFetch(domain:github.com),WebFetch(domain:api.github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:ghcr.io),WebFetch(domain:quay.io),WebFetch(domain:registry-1.docker.io),WebFetch(domain:hub.docker.com),WebFetch(domain:docs.cilium.io),WebFetch(domain:codeberg.org),WebFetch(domain:charts.rustfs.com),Bash(git log *),Bash(git show *)"
             --json-schema '{"type":"object","required":["verdicts","report"],"properties":{"report":{"type":"string"},"verdicts":{"type":"array","items":{"type":"object","required":["pr","app","namespace","kind","from","to","bump","headRefOid","verdict","evidence"],"properties":{"pr":{"type":"integer"},"app":{"type":"string"},"namespace":{"type":"string"},"kind":{"enum":["chart","image"]},"from":{"type":"string"},"to":{"type":"string"},"bump":{"type":"string"},"headRefOid":{"type":"string"},"verdict":{"enum":["safe","needs template change","blocked","not ours"]},"evidence":{"type":"string"}}}}}}'
