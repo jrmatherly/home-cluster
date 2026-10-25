@@ -50,15 +50,17 @@ jobs:
             when each PR has a verdict with its research done; a verdict is never "unresearched". Return
             the verdict array as `verdicts` and the auto-run report from `templates/report.md` as `report`
             in the structured output. The workflow writes verdicts.json and the step summary from them.
-          # The Bash prefixes are the read-only commands a real research run makes (measured in a local
-          # headless run): upstream clones and diffs, gh reads, the chart compare script with helm, and
-          # file reads. curl, wget, interpreters, git push and every other network tool stay denied, so a
-          # prompt-injected run has nothing that can send the OAuth token or the read-only GitHub token
+          # The Bash prefixes are the read-only commands a research run makes (measured in a local headless
+          # run). Anything that reaches the network or can run a command goes through a repo script with
+          # fixed arguments: compare-chart.sh (helm) and upstream-diff.sh (a shallow clone and git diff with
+          # no external diff or pager). curl, wget, interpreters, find, tar, sed, cat (Read covers it), raw
+          # git fetch and clone, gh api and every other network tool stay denied, so a prompt-injected run
+          # has nothing that can run a command or send the OAuth token or the read-only GitHub token
           # anywhere, and WebFetch is limited to the hosts the research reads.
           claude_args: |
             --model claude-opus-5-5
             --max-turns 150
-            --allowedTools "Read,Grep,Glob,Agent,Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr list *),Bash(gh release view *),Bash(gh release list *),Bash(gh api repos/*),Bash(git diff *),Bash(git clone https://github.com/*),Bash(git clone --depth * https://github.com/*),Bash(git -C * log *),Bash(git -C * diff *),Bash(git -C * show *),Bash(git -C * fetch *),Bash(helm show *),Bash(helm template *),Bash(helm pull *),Bash(.claude/skills/update-apps/scripts/compare-chart.sh *),Bash(cd *),Bash(cat *),Bash(grep *),Bash(sed -n *),Bash(ls *),Bash(wc *),Bash(head *),Bash(tail *),Bash(find *),Bash(diff *),Bash(jq *),Bash(yq *),Bash(mkdir *),Bash(tar *),WebFetch(domain:github.com),WebFetch(domain:api.github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:ghcr.io),WebFetch(domain:quay.io),WebFetch(domain:registry-1.docker.io),WebFetch(domain:hub.docker.com),WebFetch(domain:docs.cilium.io),WebFetch(domain:codeberg.org),WebFetch(domain:charts.rustfs.com),Bash(git log *),Bash(git show *)"
+            --allowedTools "Read,Grep,Glob,Agent,Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr list *),Bash(gh release view *),Bash(gh release list *),Bash(.claude/skills/update-apps/scripts/compare-chart.sh *),Bash(.claude/skills/update-apps/scripts/upstream-diff.sh *),Bash(git log *),Bash(git show *),Bash(git diff *),Bash(cd *),Bash(grep *),Bash(ls *),Bash(wc *),Bash(diff *),Bash(jq *),Bash(yq *),Bash(mkdir *),WebFetch(domain:github.com),WebFetch(domain:api.github.com),WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:ghcr.io),WebFetch(domain:quay.io),WebFetch(domain:registry-1.docker.io),WebFetch(domain:hub.docker.com),WebFetch(domain:docs.cilium.io),WebFetch(domain:codeberg.org),WebFetch(domain:charts.rustfs.com)"
             --json-schema '{"type":"object","required":["verdicts","report"],"properties":{"report":{"type":"string"},"verdicts":{"type":"array","items":{"type":"object","required":["pr","app","namespace","kind","from","to","bump","headRefOid","verdict","evidence"],"properties":{"pr":{"type":"integer"},"app":{"type":"string"},"namespace":{"type":"string"},"kind":{"enum":["chart","image"]},"from":{"type":"string"},"to":{"type":"string"},"bump":{"type":"string"},"headRefOid":{"type":"string"},"verdict":{"enum":["safe","needs template change","blocked","not ours"]},"evidence":{"type":"string"}}}}}}'
 
       - name: Write the verdicts and the report

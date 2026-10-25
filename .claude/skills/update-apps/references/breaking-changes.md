@@ -11,6 +11,10 @@ A jump from 1.4 to 1.7 crosses 1.5, 1.6 and 1.7. Read all three, not only the la
 - Find the upstream repository for the app in `apps.md`.
 - List releases with `gh release list -R <owner>/<repo> --limit 30`, then read each with
   `gh release view <tag> -R <owner>/<repo>`.
+- Read the source change between the two tags with
+  `.claude/skills/update-apps/scripts/upstream-diff.sh <owner>/<repo> <old-tag> <new-tag> [path ...]`,
+  naming the paths that matter (env parsing, migrations, the Dockerfile) so the output stays short. In the
+  weekly run it is the only way to clone, because raw `git clone` and `git fetch` are not allowed there.
 - Many repositories tag the chart and the application separately. The chart tag is the one pinned here.
 - Look for the words upgrade, breaking, migration, deprecated, removed, renamed, requires, and minimum.
 - When the project publishes an upgrade guide, read the section for the target version. `apps.md` lists the ones

@@ -143,6 +143,8 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
 - `scripts/inventory.py` — lists every pinned chart and image with its newest stable tag. Run it, do not read it.
 - `scripts/compare-chart.sh` — renders two chart versions with this cluster's values and diffs them. Run it, do
   not read it.
+- `scripts/upstream-diff.sh` — diffs two tags of an upstream GitHub repository through a shallow clone that
+  can run nothing (no external diff, pager or user config). Run it, do not read it.
 - `scripts/bootstrap-drift.sh` — lists live fields the bootstrap's `helm` field manager still owns that the
   current release manifest dropped, for the six charts `just bootstrap apps` installed; `--apply` releases
   them. Run it after any of those charts drops a key (step 7), because helm-controller cannot prune them.
