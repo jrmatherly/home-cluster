@@ -34,6 +34,10 @@ spec:
   # it when the ConfigMap or Secret changes. maxUnavailable 0 keeps the one
   # pod serving until its replacement is ready, because the chart's default
   # (maxUnavailable 1 on a single replica) takes the site down on every upgrade.
+  # The database URI from the generated -app Secret carries no sslmode and the
+  # chart cannot append one, so PGSSLMODE turns TLS on: node-postgres reads it
+  # when the URI sets none, and "require" verifies the chain against Node's
+  # trust store, which NODE_EXTRA_CA_CERTS extends with the cluster's CA.
   postRenderers:
     - kustomize:
         patches:
@@ -64,3 +68,19 @@ spec:
                         resources:
                           requests: { cpu: 100m, memory: 384Mi }
                           limits: { memory: 768Mi }
+                        env:
+                          - name: PGSSLMODE
+                            value: require
+                          - name: NODE_EXTRA_CA_CERTS
+                            value: /etc/cnpg/ca.crt
+                        volumeMounts:
+                          - name: db-ca
+                            mountPath: /etc/cnpg
+                            readOnly: true
+                    volumes:
+                      - name: db-ca
+                        secret:
+                          secretName: matherlynet-db-ca
+                          items:
+                            - key: ca.crt
+                              path: ca.crt
