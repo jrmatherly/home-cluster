@@ -39,7 +39,9 @@ spec:
   # namespace enforces the restricted pod security level. runAsUser is set
   # because the image's user is a name (node), which the kubelet cannot verify
   # as non-root. The pod reads its config through envFrom, so Reloader restarts
-  # it when the ConfigMap or Secret changes.
+  # it when the ConfigMap or Secret changes. maxUnavailable 0 keeps the one
+  # pod serving until its replacement is ready, because the chart's default
+  # (maxUnavailable 1 on a single replica) takes the site down on every upgrade.
   postRenderers:
     - kustomize:
         patches:
@@ -51,6 +53,9 @@ spec:
                 annotations:
                   reloader.stakater.com/auto: "true"
               spec:
+                strategy:
+                  rollingUpdate:
+                    maxUnavailable: 0
                 template:
                   spec:
                     securityContext:
