@@ -115,8 +115,11 @@ spec:
       # default preinstall list fetch them into the writable plugins directory on the volume.
       shadowBundledPlugins: true
       # Installed before provisioning runs, which fails to start when a provisioned plugin is missing.
+      # canvas: Grafana 13.3 loads it as a standalone plugin and ships it only in the bundled
+      # directory, which shadowBundledPlugins hides, so it is fetched like the datasources.
       plugins:
         - yesoreyeram-infinity-datasource
+        - canvas
         - grafana-github-datasource
         - grafana-sentry-datasource
         - grafana-llm-app

@@ -1,6 +1,7 @@
 #% if observability_enabled %#
 #% set grafana_plugins = {
   "yesoreyeram-infinity-datasource": true,
+  "canvas": true,
   "grafana-github-datasource": observability.github_app_id != "",
   "grafana-sentry-datasource": observability.sentry_org != "",
   "grafana-llm-app": nvidia_enabled,
@@ -126,6 +127,8 @@ spec:
       # default preinstall list fetch them into the writable plugins directory on the volume.
       shadowBundledPlugins: true
       # Installed before provisioning runs, which fails to start when a provisioned plugin is missing.
+      # canvas: Grafana 13.3 loads it as a standalone plugin and ships it only in the bundled
+      # directory, which shadowBundledPlugins hides, so it is fetched like the datasources.
       plugins:
         #% for plugin, enabled in grafana_plugins.items() if enabled %#
         - #{ plugin }#
