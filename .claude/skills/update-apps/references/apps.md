@@ -101,14 +101,24 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   hangs waits out the 15-minute timeout unless the Deployments are patched by hand with the same change.
   On a chart bump, also check that the top-level `langfuse.additionalEnv` still reaches both web and worker,
   because `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST` must be on the worker for evaluators to reach LocalAI.
-  The ClickHouse image in `clickhouse.yaml.j2` moves on its own, last: pick the newest line Langfuse's
-  `.github/workflows` deploy matrix tests against (26.4, 25.12 and 26.9 at 4.69.0), read every "Backward
-  Incompatible Change" entry in ClickHouse's CHANGELOG.md for the lines crossed against the `config.d` file
-  (the logger, the `query_log` TTL and the removed system log tables) and the `users.d` entrypoint, and
-  know that the volume has no backup and a newer line writes parts an older one may not read. Langfuse
-  caches the ClickHouse version at start, so `kubectl -n langfuse rollout restart deploy/langfuse-web
+  The ClickHouse image in `clickhouse.yaml.j2` moves on its own, last. Langfuse states only a floor
+  (`>= 25.12`, 26.4 recommended, at 4.72.0); its compose files pin 25.12 and 26.4 and its untagged build
+  test runs `latest`, so a line Langfuse's CI exercises is admitted (26.10 on 2026-10-30, as 26.9 before
+  it). Read every "Backward Incompatible Change" entry in ClickHouse's CHANGELOG.md for the lines crossed
+  against the `config.d` file (the logger, the `query_log` TTL and the removed system log tables) and the
+  `users.d` entrypoint, and measure in Docker that the pinned line reopens a volume the new line has
+  written and merged, because the volume has no other copy. Before the merge, take a backup to the bucket
+  Langfuse already owns: `BACKUP DATABASE default TO S3('http://rustfs-svc.rustfs.svc.cluster.local:9000/langfuse-events/clickhouse-backup/<date>', '<key>', '<secret>') SETTINGS compression_method='zstd'`
+  through `clickhouse-client` on `clickhouse-0`, with the pair read from `rustfs-provision-secret` into
+  shell variables (3.6 MiB and one second on 2026-10-30; `system.backups` shows `BACKUP_CREATED`), and
+  `RESTORE DATABASE default FROM S3(...)` is the rollback when a `git revert` cannot reopen the volume.
+  Langfuse caches the ClickHouse version at start, so `kubectl -n langfuse rollout restart deploy/langfuse-web
   deploy/langfuse-worker` after the StatefulSet rolls, and check the "Resolved ClickHouse compatibility"
-  log line. After a line change, list `system.tables` and add a `<remove>` for any new log table that grows.
+  log line on both. Wait a minute after `clickhouse-0` is Ready first: the `clickhouse` Service is
+  headless, and a web pod restarted right after the roll dialed the old pod address, exited once, and on
+  its next start logged "Failed to detect ClickHouse version" and ran without the compatibility settings
+  until a further restart (measured 2026-10-30). After a line change, list `system.tables` and add a
+  `<remove>` for any new log table that grows.
 
 ## Order when several are pending
 
