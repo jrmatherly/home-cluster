@@ -1066,6 +1066,13 @@ class Config(Model):
             "192.168.0.0/16",
             "100.64.0.0/10",
             "169.254.0.0/16",
+            # Loopback, "this" network, IETF protocol assignments, benchmarking, multicast, reserved.
+            "127.0.0.0/8",
+            "0.0.0.0/8",
+            "192.0.0.0/24",
+            "198.18.0.0/15",
+            "224.0.0.0/4",
+            "240.0.0.0/4",
             str(self.kubernetes.pod_cidr),
             str(self.kubernetes.svc_cidr),
             str(self.network.node_cidr),

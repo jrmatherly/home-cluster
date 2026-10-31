@@ -1351,3 +1351,23 @@ def test_valid_fixture_follows_sample_layout(fixture):
 def test_misplaced_table_is_named():
     assert check_layout.misplaced(["a", "b", "c"], ["a", "c", "b"]) == ("c", "b")
     assert check_layout.misplaced(["a", "b", "c"], ["a", "c", "nodes"]) is None
+
+
+def test_private_cidrs_cover_reserved_ranges():
+    config = _load_raw(config_from("public.toml"))
+    cidrs = set(config.private_cidrs)
+    for want in (
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "100.64.0.0/10",
+        "169.254.0.0/16",
+        "127.0.0.0/8",
+        "0.0.0.0/8",
+        "192.0.0.0/24",
+        "198.18.0.0/15",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+    ):
+        assert want in cidrs
+    assert str(config.kubernetes.pod_cidr) in cidrs
