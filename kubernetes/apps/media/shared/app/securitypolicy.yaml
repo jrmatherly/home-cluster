@@ -34,6 +34,8 @@ spec:
     providers:
       - name: pocket-id
         issuer: https://auth.${SECRET_DOMAIN}
+        # Without this, an ID token Pocket ID minted for any other app passes as the cookie.
+        audiences: ["7449bc9a-a828-4be6-b12f-7f6602afc51b"]
         remoteJWKS:
           uri: https://auth.${SECRET_DOMAIN}/.well-known/jwks.json
         extractFrom:
