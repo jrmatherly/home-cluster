@@ -134,3 +134,15 @@ spec:
             target:
               kind: Deployment
               name: kustomize-controller
+          - # The operator owns this namespace and marks it ssa: Ignore, so a label in
+            # apps/flux-system/namespace.yaml never reaches it.
+            patch: |-
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: flux-system
+                labels:
+                  pod-security.kubernetes.io/enforce: restricted
+            target:
+              kind: Namespace
+              name: flux-system
