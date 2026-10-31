@@ -13,6 +13,12 @@ spec:
     # Cilium replaces kube-proxy.
     kubeProxy:
       enabled: false
+    defaultRules:
+      # Counts every client-cancelled Watch as Unavailable: 0.6 to 2.0 million per member per
+      # week here against tens of thousands of real Range failures (measured 2026-10-30), so it
+      # fired as critical for six days. etcdMembersDown and etcdHighFsyncDurations stay on.
+      disabled:
+        etcdHighNumberOfFailedGRPCRequests: true
     # Talos runs etcd as a host service, not a pod, so there is nothing to select.
     kubeEtcd:
       endpoints:
