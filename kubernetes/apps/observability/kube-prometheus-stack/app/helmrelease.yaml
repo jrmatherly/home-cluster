@@ -84,7 +84,12 @@ spec:
           routes:
             # Watchdog always fires. With heartbeat_url set, it pings a service that pages when the
             # pings stop, so a dead Prometheus or Alertmanager is noticed.
-            - receiver: "null"
+            - receiver: heartbeat
+              group_wait: 0s
+              # Measured with v0.34.2: 1m gives a ping every 6 minutes, and the chart's 5m gives 10,
+              # so one missed ping would pass the check's 15-minute limit and page.
+              group_interval: 1m
+              repeat_interval: 5m
               matchers:
                 - alertname = "Watchdog"
             # InfoInhibitor only exists to mute info alerts.
@@ -96,6 +101,10 @@ spec:
           - name: discord
             discord_configs:
               - webhook_url_file: /etc/alertmanager/secrets/alertmanager-secret/discord-webhook
+          - name: heartbeat
+            webhook_configs:
+              - url_file: /etc/alertmanager/secrets/alertmanager-secret/heartbeat-url
+                send_resolved: false
       alertmanagerSpec:
         # Mounted at /etc/alertmanager/secrets/alertmanager-secret.
         secrets:
