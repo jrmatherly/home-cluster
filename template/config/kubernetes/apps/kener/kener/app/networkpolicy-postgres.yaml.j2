@@ -1,0 +1,44 @@
+#% if kener_enabled %#
+---
+# The namespace reaches its database, the operator and the primary reach each
+# instance's manager on 8000, and Prometheus scrapes 9187 (measured with Hubble).
+# kubectl cnpg status proxies through the API server to 8000, which arrives as the
+# kube-apiserver entity, so this is a Cilium policy: a NetworkPolicy cannot name it.
+# The kubelet's probes arrive as reserved:host, which Cilium always admits.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/podRole: instance
+  ingress:
+    - fromEndpoints:
+        - {}
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+        - matchLabels:
+            cnpg.io/podRole: instance
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    - fromEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+#% endif %#
