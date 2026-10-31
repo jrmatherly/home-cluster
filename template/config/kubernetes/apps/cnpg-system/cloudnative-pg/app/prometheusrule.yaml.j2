@@ -49,3 +49,44 @@ spec:
             description: >-
               Postgres instance {{ $labels.pod }} in {{ $labels.namespace }} cannot archive WAL,
               so point-in-time recovery is falling behind.
+        # A cluster that is up but reports no backup metric is a broken PodMonitor or plugin,
+        # which the age rule cannot see. radar-db has no backup by design. When every instance
+        # of a cluster is down both sides are absent, and KubePodNotReady is the alert for that.
+        - alert: PostgresBackupMetricMissing
+          expr: |
+            count by (namespace, cnpg_io_cluster) (cnpg_collector_up{cnpg_io_cluster!="radar-db"})
+              unless count by (namespace, cnpg_io_cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)
+          for: 2h
+          labels:
+            severity: critical
+          annotations:
+            summary: Postgres cluster {{ $labels.cnpg_io_cluster }} reports no backup metric
+            description: >-
+              Postgres cluster {{ $labels.cnpg_io_cluster }} in {{ $labels.namespace }} is up but
+              has reported no backup timestamp for two hours, so the backup alerts cannot see it.
+              Check the barman-cloud plugin and the postgres PodMonitor.
+        # Every instance read 0 on 2026-10-31, so five minutes held for 15 is past any burst.
+        - alert: PostgresReplicaLagging
+          expr: cnpg_pg_replication_lag > 300
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Replica {{ $labels.pod }} is over five minutes behind
+            description: >-
+              Postgres replica {{ $labels.pod }} of {{ $labels.cnpg_io_cluster }} in
+              {{ $labels.namespace }} has lagged by over 300 seconds for 15 minutes.
+        # Reads instance count; an instance that is up but not streaming is the lag rule's case.
+        # ai-kb-db is one instance by design.
+        - alert: PostgresClusterDegraded
+          expr: |
+            count by (namespace, cnpg_io_cluster) (cnpg_collector_up{cnpg_io_cluster!="ai-kb-db"} == 1) < 2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Postgres cluster {{ $labels.cnpg_io_cluster }} has one instance up
+            description: >-
+              Postgres cluster {{ $labels.cnpg_io_cluster }} in {{ $labels.namespace }} has had
+              fewer than two instances reporting up for 15 minutes, so it has no replica to fail
+              over to.
