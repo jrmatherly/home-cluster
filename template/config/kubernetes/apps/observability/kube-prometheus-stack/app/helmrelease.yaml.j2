@@ -57,6 +57,11 @@ spec:
     prometheus:
       prometheusSpec:
         retention: 14d
+        # The claim is 20Gi on a local-path directory with no quota, so the claim size is nominal
+        # and this cap is what stops Prometheus filling /var on its node. 30GB is about twice the
+        # measured 14-day footprint (blocks plus WAL 15.6 GB on 2026-10-31), so the time limit
+        # binds first and the cap only catches runaway series growth.
+        retentionSize: 30GB
         # Memory follows the series count, not retention. The limit is three times
         # the measured peak, because replaying the WAL after a restart needs more
         # than steady state and a limit that is too tight ends in a crash loop.
