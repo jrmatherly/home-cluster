@@ -12,6 +12,12 @@ spec:
     # 15 minutes: the slowest HelmRelease timeout is 30m and retries hold Ready at False or
     # Unknown for a while. `for` counts only the False stretch, so a first install swinging
     # between Unknown and False may not page; a first install is watched by hand.
+    # Kustomizations get 30 minutes: one retries on its own interval, and a 40-minute self-healing
+    # ReconciliationFailed during the 2026-10-30 power outage paged as critical. A rolled-back
+    # release does not recover alone, so HelmReleases stay at 15.
+    # A failed source keeps serving its last artifact, so every Kustomization and HelmRelease
+    # stays Ready while commits stop reaching the cluster. A source flaps not Ready for seconds
+    # during a normal reconcile, so it also gets 30 minutes.
     - name: flux
       rules:
         - alert: FluxHelmReleaseNotReady
@@ -27,12 +33,23 @@ spec:
               flux get hr -n {{ $labels.exported_namespace }} {{ $labels.name }}.
         - alert: FluxKustomizationNotReady
           expr: flux_resource_info{kind="Kustomization", ready="False", suspended="False"} == 1
-          for: 15m
+          for: 30m
           labels:
             severity: critical
           annotations:
             summary: Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready
             description: >-
               Flux has reported Kustomization {{ $labels.exported_namespace }}/{{ $labels.name }}
-              not Ready for 15 minutes; run
+              not Ready for 30 minutes; run
               flux get ks -n {{ $labels.exported_namespace }} {{ $labels.name }}.
+        - alert: FluxSourceNotReady
+          expr: flux_resource_info{kind=~"GitRepository|OCIRepository|HelmRepository", ready="False", suspended="False"} == 1
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: Flux source {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready
+            description: >-
+              Flux source {{ $labels.exported_namespace }}/{{ $labels.name }} has not been Ready
+              for 30 minutes, so its consumers keep the last artifact; run
+              flux get sources all -A.
