@@ -28,6 +28,33 @@ url = "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-da
 url_api = "https://api.github.com/repos/FiloSottile/age/releases/assets/535541887"
 provenance = "github-attestations"
 
+[[tools.cilium-hubble]]
+version = "1.20.2"
+backend = "aqua:cilium/hubble"
+
+[tools.cilium-hubble."platforms.linux-arm64"]
+checksum = "sha256:0711ae8bc3100a2c985bf8fb5c7d006ae6e31f4c9f3dc53ebc7d8504d76dc60d"
+checksum_source = "mise-versions"
+url = "https://github.com/cilium/hubble/releases/download/v1.20.2/hubble-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/cilium/hubble/releases/assets/616830259"
+
+[tools.cilium-hubble."platforms.linux-x64"]
+checksum = "sha256:03f248a50cad11e728bf9383382392c57148fd6a19853ad359fb7598dae29312"
+checksum_source = "mise-versions"
+url = "https://github.com/cilium/hubble/releases/download/v1.20.2/hubble-linux-amd64.tar.gz"
+url_api = "https://api.github.com/repos/cilium/hubble/releases/assets/616830266"
+
+[tools.cilium-hubble."platforms.macos-arm64"]
+checksum = "sha256:c335849370f8528a3987fa3810d2972a3ce0182067fb8fb2174bcdfeecda38de"
+url = "https://github.com/cilium/hubble/releases/download/v1.20.2/hubble-darwin-arm64.tar.gz"
+url_api = "https://api.github.com/repos/cilium/hubble/releases/assets/616830269"
+
+[tools.cilium-hubble."platforms.macos-x64"]
+checksum = "sha256:6fd44fe891cedb95c58ea21a46235fae5ee8ce0b8540ab7e39c09937a343c67e"
+checksum_source = "mise-versions"
+url = "https://github.com/cilium/hubble/releases/download/v1.20.2/hubble-darwin-amd64.tar.gz"
+url_api = "https://api.github.com/repos/cilium/hubble/releases/assets/616830270"
+
 [[tools.cloudflared]]
 version = "2026.10.5"
 backend = "aqua:cloudflare/cloudflared"
