@@ -290,7 +290,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   every start, which copies the bundled plugins in and refreshes their files while keeping each plugin's
   `config.json`. The seed init container and the second volume were dropped on 2026-10-24 for that reason
   (the sync would have copied the stale 1.3.0 files from the old volume over the new code); do not bring
-  them back. OIDC refuses 100.64.0.0/10 unless "Allow private IPs" is on, which the setup guide already sets.
+  them back. The 2026-10-24 scrape 401 was data loss: leaving one volume renamed app-template's claim
+  `pegaprox-config` to `pegaprox`, so Helm deleted the old claim and local-path deleted the database (restored
+  2026-10-31 from `private/backups/`), so never add or remove a persistence entry here without a backup and a
+  claim-name check. OIDC refuses 100.64.0.0/10 unless "Allow private IPs" is on, which the setup guide already sets.
 - **network-optimizer** ran pre-release tags until 2026-10-10, while the stable release's Performance Tweaks page
   refused the UDM-SE's UniFi OS; 2.9.2 carries the same cap as the last preview, so it is on the stable tag. That page caps the gateway firmware at `MaxSupportedFirmware` in
   `src/NetworkOptimizer.Web/Services/PerfTweaksDeploymentService.cs` and shows the firmware red above it, so after
