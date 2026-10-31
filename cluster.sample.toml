@@ -342,9 +342,10 @@ schematic_id = ""
 
 # Heartbeat check URL that Alertmanager pings with the always-firing Watchdog
 # alert, so a dead Prometheus, Alertmanager or node is noticed: the service pages
-# when the pings stop. Pings arrive every 5 to 10 minutes, so set the check's
-# period to 10 minutes and its grace to at least 5. It does not detect a broken
-# Discord webhook. It is written to a SOPS-encrypted Secret.
+# when the pings stop. Pings arrive every 6 minutes, so set the check's period to
+# 10 minutes and its grace to 5: one missed ping does not page. A mistyped URL
+# fails silently, so confirm the first ping on the service. It does not detect a
+# broken Discord webhook. It is written to a SOPS-encrypted Secret.
 # OPTIONAL. Needs discord_webhook. Example: "https://hc-ping.com/<uuid>"
 
 # heartbeat_url = ""

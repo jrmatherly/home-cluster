@@ -96,6 +96,9 @@ spec:
             #% if observability.heartbeat_url %#
             - receiver: heartbeat
               group_wait: 0s
+              # Measured with v0.34.2: 1m gives a ping every 6 minutes, and the chart's 5m gives 10,
+              # so one missed ping would pass the check's 15-minute limit and page.
+              group_interval: 1m
               repeat_interval: 5m
               matchers:
                 - alertname = "Watchdog"
