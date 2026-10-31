@@ -288,6 +288,10 @@ class Observability(Model):
     discord_webhook: str = Field(
         default="", pattern=r"^(https://discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$"
     )
+    # An external heartbeat that Alertmanager pings with the Watchdog alert, so a dead
+    # Prometheus, Alertmanager or node is noticed; the service pages when the pings stop. It
+    # does not detect a broken Discord webhook, because the heartbeat is its own receiver.
+    heartbeat_url: str = Field(default="", pattern=r'^(https://[^\s"\\]+)?$')
     # The OIDC client created for Grafana in the Pocket ID admin UI.
     grafana_oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     grafana_oidc_client_secret: Secret = ""
@@ -319,6 +323,11 @@ class Observability(Model):
             raise ValueError(
                 "discord_webhook requires grafana_password, influxdb_password and "
                 "influxdb_token: Alertmanager only runs with the rest of the stack"
+            )
+        if self.heartbeat_url and not self.discord_webhook:
+            raise ValueError(
+                "heartbeat_url requires discord_webhook: the heartbeat is a second receiver "
+                "beside Discord"
             )
         _all_or_none(
             self, "observability", ("grafana_oidc_client_id", "grafana_oidc_client_secret")

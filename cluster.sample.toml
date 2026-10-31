@@ -340,6 +340,15 @@ schematic_id = ""
 
 # discord_webhook = ""
 
+# Heartbeat check URL that Alertmanager pings with the always-firing Watchdog
+# alert, so a dead Prometheus, Alertmanager or node is noticed: the service pages
+# when the pings stop. Pings arrive every 5 to 10 minutes, so set the check's
+# period to 10 minutes and its grace to at least 5. It does not detect a broken
+# Discord webhook. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Needs discord_webhook. Example: "https://hc-ping.com/<uuid>"
+
+# heartbeat_url = ""
+
 # Client ID of the OIDC client created for Grafana in the Pocket ID admin UI,
 # with callback URL "https://grafana.<domain>/login/generic_oauth". Adds a
 # Pocket ID button to the Grafana login page, next to the password form. Only

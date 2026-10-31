@@ -80,15 +80,34 @@ spec:
         route:
           receiver: discord
           routes:
-            # Watchdog always fires, and InfoInhibitor only exists to mute info alerts.
+            # Watchdog always fires. With heartbeat_url set, it pings a service that pages when the
+            # pings stop, so a dead Prometheus or Alertmanager is noticed.
+            #% if observability.heartbeat_url %#
+            - receiver: heartbeat
+              group_wait: 0s
+              repeat_interval: 5m
+              matchers:
+                - alertname = "Watchdog"
+            #% else %#
             - receiver: "null"
               matchers:
-                - alertname =~ "Watchdog|InfoInhibitor"
+                - alertname = "Watchdog"
+            #% endif %#
+            # InfoInhibitor only exists to mute info alerts.
+            - receiver: "null"
+              matchers:
+                - alertname = "InfoInhibitor"
         receivers:
           - name: "null"
           - name: discord
             discord_configs:
               - webhook_url_file: /etc/alertmanager/secrets/alertmanager-secret/discord-webhook
+          #% if observability.heartbeat_url %#
+          - name: heartbeat
+            webhook_configs:
+              - url_file: /etc/alertmanager/secrets/alertmanager-secret/heartbeat-url
+                send_resolved: false
+          #% endif %#
       #% endif %#
       alertmanagerSpec:
         #% if observability.discord_webhook %#

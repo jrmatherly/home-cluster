@@ -269,6 +269,29 @@ def test_discord_webhook_must_be_discord_url():
         _load_raw(raw)
 
 
+HEARTBEAT_URL = "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
+
+
+def test_heartbeat_url_accepted_with_discord():
+    raw = config_from(
+        "private.toml",
+        **OBSERVABILITY
+        | {
+            "observability.discord_webhook": DISCORD_WEBHOOK,
+            "observability.heartbeat_url": HEARTBEAT_URL,
+        },
+    )
+    assert _load_raw(raw).observability.heartbeat_url == HEARTBEAT_URL
+
+
+def test_heartbeat_url_requires_discord_webhook():
+    raw = config_from(
+        "private.toml", **OBSERVABILITY | {"observability.heartbeat_url": HEARTBEAT_URL}
+    )
+    with pytest.raises(ConfigError, match="heartbeat_url requires discord_webhook"):
+        _load_raw(raw)
+
+
 UNIFI = {"unifi.host": "https://192.0.2.1", "unifi.api_key": "fake"}
 
 

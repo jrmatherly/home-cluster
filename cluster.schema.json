@@ -780,6 +780,12 @@
           "title": "Discord Webhook",
           "type": "string"
         },
+        "heartbeat_url": {
+          "default": "",
+          "pattern": "^(https://[^\\s\"\\\\]+)?$",
+          "title": "Heartbeat Url",
+          "type": "string"
+        },
         "grafana_oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
@@ -1190,6 +1196,7 @@
         "influxdb_password": "",
         "influxdb_token": "",
         "discord_webhook": "",
+        "heartbeat_url": "",
         "grafana_oidc_client_id": "",
         "grafana_oidc_client_secret": "",
         "grafana_secret_key": "",
