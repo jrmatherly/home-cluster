@@ -131,9 +131,7 @@ spec:
             target:
               kind: Deployment
               name: kustomize-controller
-          - 
-            # The operator owns this namespace and marks it ssa: Ignore, so a label in
-            # apps/flux-system/namespace.yaml never reaches it.
+          - # The operator marks this namespace ssa: Ignore, so namespace.yaml cannot label it
             patch: |-
               apiVersion: v1
               kind: Namespace
