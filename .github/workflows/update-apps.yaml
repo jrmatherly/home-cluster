@@ -45,7 +45,7 @@ jobs:
 
       - name: Research the open Renovate PRs
         id: claude
-        uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13 # v1.0.262
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -108,7 +108,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup mise
-        uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           # mise's [env] points KUBECONFIG at a file the runner lacks; unset, kubectl uses the pod's
           # ServiceAccount.
