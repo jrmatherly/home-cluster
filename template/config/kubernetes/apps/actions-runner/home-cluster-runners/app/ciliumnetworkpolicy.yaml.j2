@@ -22,11 +22,17 @@ spec:
     # A CIDR rule cannot reach the API server under Cilium; the entity can.
     - toEntities: ["kube-apiserver"]
     # The checks curl https://<app>.${SECRET_DOMAIN}, which resolves to the
-    # internal gateway. Its Envoy pods run in the network namespace, and the
-    # address itself covers a packet the policy sees before translation.
+    # internal gateway. Its Envoy pods run in the network namespace and listen
+    # on 10443: the Service maps 443 to it, and Cilium's socket load balancer
+    # translates at connect time, so the policy sees the pod port. The address
+    # itself covers a packet the policy sees before translation.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: network
+      toPorts:
+        - ports:
+            - port: "10443"
+              protocol: TCP
     - toCIDR:
         - #{ gateways.internal }#/32
       toPorts:

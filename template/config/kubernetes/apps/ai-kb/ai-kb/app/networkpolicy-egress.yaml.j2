@@ -64,11 +64,16 @@ spec:
     #% endif %#
     #% if ai_kb_oidc %#
     # Pods resolve auth.${SECRET_DOMAIN} to the internal gateway, whose Envoy
-    # pods run in the network namespace.
+    # pods run in the network namespace and listen on 10443: the Service maps
+    # 443 to it, and Cilium's socket load balancer translates at connect time,
+    # so the policy sees the pod port.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 10443
     # The gateway's own address too, in case the policy sees the packet before
     # Cilium translates it to an Envoy pod; node_cidr is excluded below.
     - to:
