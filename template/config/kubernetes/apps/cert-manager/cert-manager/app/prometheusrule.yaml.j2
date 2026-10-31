@@ -1,0 +1,38 @@
+#% if observability_enabled %#
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cert-manager
+spec:
+  groups:
+    # cert-manager exports the instant it will renew each certificate. Six hours past it with the
+    # metric still pointing at the old certificate means the renewal failed (DNS-01, Cloudflare
+    # token, rate limit), and the wildcard still has about 47 hours left. A threshold on
+    # time-to-expiry would fire on every healthy cycle, because the 160-hour certificate renews
+    # with 53 hours left.
+    - name: cert-manager
+      rules:
+        - alert: CertificateNotReady
+          expr: certmanager_certificate_ready_status{condition="False"} == 1
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: Certificate {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready
+            description: >-
+              cert-manager has reported certificate {{ $labels.exported_namespace }}/{{ $labels.name }}
+              not Ready for an hour; run
+              kubectl describe certificate -n {{ $labels.exported_namespace }} {{ $labels.name }}.
+        - alert: CertificateRenewalLate
+          expr: time() > certmanager_certificate_renewal_timestamp_seconds + 6 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: Certificate {{ $labels.exported_namespace }}/{{ $labels.name }} is late to renew
+            description: >-
+              Certificate {{ $labels.exported_namespace }}/{{ $labels.name }} passed its renewal
+              time over six hours ago and has not renewed; run
+              kubectl describe certificate -n {{ $labels.exported_namespace }} {{ $labels.name }}.
+#% endif %#

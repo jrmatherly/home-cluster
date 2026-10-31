@@ -5,6 +5,9 @@ resources:
   - ./clusterissuer.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  #% if observability_enabled %#
+  - ./prometheusrule.yaml
+  #% endif %#
   #% if dns.provider == 'cloudflare' %#
   - ./secret.sops.yaml
   #% endif %#
