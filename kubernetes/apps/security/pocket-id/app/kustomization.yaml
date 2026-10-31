@@ -6,6 +6,7 @@ components:
 resources:
   - ./cluster.yaml
   - ./helmrelease.yaml
+  - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
   - ./secret.sops.yaml
