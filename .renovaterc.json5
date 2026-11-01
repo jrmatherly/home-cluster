@@ -16,7 +16,9 @@
       description: "CloudNativePG extension image volumes (postgresql.extensions[].image.reference) are plain image references no built-in manager reads",
       customType: "regex",
       managerFilePatterns: ["/\\.ya?ml(?:\\.j2)?$/"],
-      matchStrings: ["reference: (?<depName>[^:\\s]+):(?<currentValue>[^\\s]+)"],
+      matchStrings: [
+        "reference: (?<depName>[^:\\s]+):(?<currentValue>[^\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?",
+      ],
       datasourceTemplate: "docker",
     },
   ],
@@ -148,7 +150,7 @@
       platformAutomerge: false,
     },
     {
-      description: "Tier 1 automerge, digest: a rebuild of the same tag, behind Flate on the weekend like the patch rule. The LocalAI images move inside their grouped PR, rustfs rc is pre-1.0 and its Job log once carried a secret, pegaprox and the Servarr builds are never automerged (references/apps.md), and the docs image keeps its own branch rule above, which this later rule would override",
+      description: "Tier 1 automerge, digest: a rebuild of the same tag, behind Flate on the weekend like the patch rule. The LocalAI images move inside their grouped PR, rustfs rc is pre-1.0 and its Job log once carried a secret, pegaprox and the Servarr builds are never automerged (references/apps.md), the shared Postgres image rolls all eight CloudNativePG clusters at once, and the docs image keeps its own branch rule above, which this later rule would override",
       matchFileNames: ["kubernetes/**", "template/config/kubernetes/**"],
       matchDatasources: ["docker"],
       matchUpdateTypes: ["digest"],
@@ -161,6 +163,7 @@
         "!ghcr.io/home-operations/sonarr",
         "!ghcr.io/home-operations/radarr",
         "!ghcr.io/home-operations/prowlarr",
+        "!ghcr.io/cloudnative-pg/postgresql",
         "!ghcr.io/jrmatherly/home-cluster/docs",
       ],
       minimumReleaseAge: "3 days",
