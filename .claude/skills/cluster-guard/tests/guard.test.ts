@@ -95,6 +95,134 @@ test("a secrets file is readable only through the listed parsers, per command se
     "git status --short",
   ]);
 });
+test("quoted, globbed, spliced and flag-separated secret reads are refused", async ($, on) => {
+  world(on);
+  await denied(
+    $,
+    [
+      'cat "cluster.toml"',
+      "cat 'age.key'",
+      "cat clust*",
+      "cat *.toml",
+      "cat cluster.tom?",
+      "cat cluster.tom[l]",
+      "cat cluster.{toml,}",
+      "cat clu''ster.toml",
+      'cat clu""ster.toml',
+      "cat cluster\\.toml",
+      "cat ./cluster.tom?",
+      "cat /work/clust*",
+      "cat talos/talos*",
+      "cat *",
+      "cat cluster.toml # just template",
+      "cat cluster.toml template/scripts/validate.py",
+      "cat -e cluster.toml",
+      "head -m1 cluster.toml",
+      "grep foo cluster.toml",
+      "grep -e foo cluster.toml",
+      "grep -f cluster.toml notes.txt",
+      "grep foo <cluster.toml",
+      "grep <cluster.toml foo",
+      'echo "$(cat cluster.toml)"',
+      "x=$(cat cluster.toml)",
+      "bash -c 'cat cluster.toml'",
+      'git commit -m "$(cat cluster.toml)"',
+      'git commit -m "note" cluster.toml',
+      "bash <<EOF\ncat cluster.toml\nEOF",
+      "cat <<EOF | bash\ncat cluster.toml\nEOF",
+      "bash -c 'cat \"$1\"' _ cluster.toml",
+      "sh -c 'cat' < cluster.toml",
+      "grep -e. cluster.toml",
+      "grep -Ee. age.key",
+      "rg -e. deploy.key",
+      "grep --regex=. cluster.toml",
+      "gh pr create --body-file - <<EOF\n$(cat age.key)\nEOF",
+      "git commit -F - <<EOF\n$(cat cluster.toml)\nEOF",
+      "git commit -F - <<EO'F'\nmsg\nEOF\ncat cluster.toml",
+      "git commit -F - <<E\\OF\nmsg\nEOF\ncat cluster.toml",
+      "git commit -Ftemplate/../cluster.toml",
+      "git commit -m \"$(cat <<'EOF'\nfoo\nEOF\ncat cluster.toml\nEOF\n)\"",
+      'echo "$(cat clust*)"',
+      "echo \"`cat clust*`\"",
+      "eval 'cat clust*'",
+    ],
+    /names a secrets file/,
+  );
+  await allowed($, [
+    "uv run --locked --no-dev template/scripts/validate.py cluster.toml | jq -r .domain.name",
+    "uv run --locked --no-dev template/scripts/check_layout.py cluster.toml",
+    "just template scaffold spegel",
+    "taplo check --schema file://x cluster.toml",
+    'git commit -m "note cluster.toml is gitignored"',
+    "git commit --message='note cluster.toml is gitignored'",
+    "git commit -m \"$(cat <<'EOF'\nnote don't print \"cluster.toml\"\ncluster.toml\nEOF\n)\"",
+    "git commit -q -F - <<'EOF'\nnote cluster.toml\ncat age.key; it's gitignored\nEOF",
+    "git commit -F msg.txt",
+    'grep -rn "cluster.toml" CLAUDE.md',
+    "grep -e cluster.toml .gitignore",
+    "grep cluster.toml .gitignore",
+    "/usr/bin/grep -c kubeconfig CLAUDE.md",
+    "rg 'talosconfig' docs/",
+    "ls kubernetes/apps/*",
+    "cat *.md",
+    "ls cluster.sample.toml",
+    "cat cluster.sample.*",
+    '[[ -f x ]] && echo "[ok]"',
+    'grep -A 2 "cluster.toml" CLAUDE.md',
+    "rg -t md 'talosconfig' docs",
+    "find . -name \\*.json",
+    "find . -name '*.json'",
+    "ls [z-a]*",
+  ]);
+});
+test("just's flags and module path do not hide node maintenance", async ($, on) => {
+  world(on, "", at(3, 0));
+  await denied(
+    $,
+    [
+      "just --yes talos drain k8s-worker-1",
+      "just -f justfile talos drain k8s-worker-1",
+      "just talos::drain k8s-worker-1",
+    ],
+    /02:45 to 03:30/,
+  );
+  await allowed($, ["just talos health"]);
+});
+test("nested shells, other redirects and exec forms still count as writes", async ($, on) => {
+  world(on);
+  await denied(
+    $,
+    [
+      "bash -c 'echo x > kubernetes/a.yaml'",
+      "sh -c 'sed -i s/a/b/ talos/all/1.yaml'",
+      "echo x >| kubernetes/a.yaml",
+      "echo x &> kubernetes/a.yaml",
+      "echo x &>> kubernetes/a.yaml",
+      "echo x 2>| kubernetes/a.yaml",
+      "cp -t kubernetes/ src.yaml",
+      "mv --target-directory=talos/all src.yaml",
+      "find kubernetes -name x -exec sed -i s/a/b/ {} +",
+      "find talos -name x -delete",
+      "ls | xargs sed -i s/a/b/ kubernetes/a.yaml",
+      "ls | xargs -n 1 sed -i s/a/b/ kubernetes/a.yaml",
+      "bash -c 'echo x' > kubernetes/a.yaml",
+      'echo "$(sed -i s/a/b/ kubernetes/a.yaml)"',
+      "eval 'echo x > kubernetes/a.yaml'",
+      "find kubernetes -exec grep -l foo {} \\; -exec sed -i s/a/b/ {} \\;",
+      "find -L kubernetes -delete",
+      "find . -name x -exec cp {} kubernetes/a.yaml \\;",
+    ],
+    /writes a rendered file/,
+  );
+  await allowed($, [
+    "find kubernetes -name '*.yaml' -exec cp {} /tmp/x \\;",
+    "bash -c 'cat kubernetes/a.yaml'",
+    "find kubernetes -name x",
+    "find kubernetes -name x -exec grep -l foo {} +",
+    "ls kubernetes | xargs -n 1 echo",
+    "cmd 2>&1 | tee /tmp/out",
+  ]);
+});
 test("writing a rendered file is refused with the source hint", async ($, on) => {
   world(on);
   const edit = await $.tool.call({
