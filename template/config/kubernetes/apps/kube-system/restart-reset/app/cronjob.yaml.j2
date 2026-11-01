@@ -2,8 +2,10 @@
 # A pod keeps its restart count until it is replaced. The UniFi gear updates itself
 # around 03:00 local time, and a switch reboot cuts the hosts off from each other for
 # a few minutes, so API clients on the cut-off side exit and come back with counts
-# that read as unhealthy. This evicts every Running, fully Ready pod whose last
-# restart is over an hour old, one at a time, so the counts reset after a burst.
+# that read as unhealthy. This evicts one pod per owner each run, when its last restart
+# is over an hour old and every pod of that owner is Ready, and waits for the replacement.
+# Evicting both replicas of an HA pair 30 seconds apart, or a singleton with no PDB, is an
+# outage taken to reset a counter, so a one-replica Deployment without a PDB is skipped too.
 # Eviction honours PodDisruptionBudgets. A CloudNativePG primary is skipped as well,
 # because evicting it would be a failover.
 apiVersion: batch/v1
@@ -42,24 +44,55 @@ spec:
               args:
                 - |
                   now=$(date -u +%s)
-                  kubectl get pods -A -o json | jq -r --argjson now "$now" '
-                    .items[]
-                    | select(.status.phase == "Running")
-                    | select((.metadata.ownerReferences | length) > 0 and .metadata.ownerReferences[0].kind != "Node")
-                    | select(.metadata.labels["cnpg.io/instanceRole"] != "primary")
-                    | select(any(.status.containerStatuses[]?; .restartCount > 0))
-                    | select(all(.status.containerStatuses[]?; .ready))
+                  kubectl get pods,deploy,rs,pdb -A -o json > /tmp/all.json
+                  jq -r --argjson now "$now" '
+                    .items as $all
+                    | def owned($kind; $ns; $name):
+                      first($all[] | select(.kind == $kind and .metadata.namespace == $ns and .metadata.name == $name));
+                    # A pod only these two owners can replace; a StatefulSet here is a singleton, and eviction cannot move a DaemonSet pod.
+                    def owner:
+                      .metadata.namespace as $ns | first(.metadata.ownerReferences[]? | select(.controller)) as $ref
+                      | if $ref.kind == "ReplicaSet" then
+                          owned("ReplicaSet"; $ns; $ref.name).metadata.ownerReferences[]? | select(.kind == "Deployment") | {kind, name}
+                        elif $ref.kind == "Cluster" then {kind: "Cluster", name: $ref.name}
+                        else empty end;
+                    def ready: .status.phase == "Running" and all(.status.containerStatuses[]?; .ready);
+                    # shortcut: a PDB selecting through matchExpressions does not count; none exists today, read it here when one does.
+                    def protected:
+                      .metadata as $pod
+                      | any($all[] | select(.kind == "PodDisruptionBudget"); .metadata.namespace == $pod.namespace and .spec.selector != null and .spec.selector.matchExpressions == null
+                          and all(.spec.selector.matchLabels // {} | to_entries[]; $pod.labels[.key] == .value));
                     # A restart with no finishedAt reads as now, so the pod is left alone.
-                    | select(([.status.containerStatuses[]?.lastState.terminated.finishedAt // empty | fromdate] | max // $now) < $now - 3600)
-                    | "\(.metadata.namespace) \(.metadata.name)"
-                  ' | while read -r ns pod; do
-                    if kubectl create --raw "/api/v1/namespaces/$ns/pods/$pod/eviction" -f - >/dev/null <<EOF
+                    def stale:
+                      any(.status.containerStatuses[]?; .restartCount > 0)
+                      and ([.status.containerStatuses[]?.lastState.terminated.finishedAt // empty | fromdate] | max // $now) < $now - 3600;
+                    [$all[] | select(.kind == "Pod") | select(.status.phase == "Running" or .status.phase == "Pending") | . + {owner: owner}]
+                    | group_by([.metadata.namespace, .owner.kind, .owner.name])[]
+                    | select(all(.[]; ready))
+                    | first(.[]
+                        | select(.metadata.labels["cnpg.io/instanceRole"] != "primary")
+                        | select(stale)
+                        | select(.owner.kind == "Cluster" or owned("Deployment"; .metadata.namespace; .owner.name).spec.replicas > 1 or protected))
+                    | "\(.metadata.namespace) \(.metadata.name) \(.owner.kind) \(.owner.name)"
+                  ' /tmp/all.json > /tmp/victims
+                  # Not a pipe: a failed wait below has to stop the run, not just the pipe's subshell.
+                  while read -r ns pod kind owner; do
+                    if ! kubectl create --raw "/api/v1/namespaces/$ns/pods/$pod/eviction" -f - >/dev/null <<EOF
                   {"apiVersion":"policy/v1","kind":"Eviction","metadata":{"name":"$pod","namespace":"$ns"}}
                   EOF
-                    then echo "evicted $ns/$pod"; sleep 30
-                    else echo "skipped $ns/$pod"
+                    then
+                      echo "skipped $ns/$pod"
+                      continue
                     fi
-                  done
+                    echo "evicted $ns/$pod"
+                    # Past CloudNativePG's 180 s smart shutdown, which a replica with a client waits out.
+                    kubectl -n "$ns" wait "pod/$pod" --for=delete --timeout=240s >/dev/null &&
+                      if [ "$kind" = Cluster ]; then
+                        kubectl -n "$ns" wait "clusters.postgresql.cnpg.io/$owner" --for=condition=Ready --timeout=300s >/dev/null
+                      else
+                        kubectl -n "$ns" rollout status "deployment/$owner" --timeout=120s >/dev/null
+                      fi || { echo "wait failed $ns/$owner"; exit 1; }
+                  done < /tmp/victims
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true

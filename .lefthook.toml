@@ -2,6 +2,10 @@
 parallel = true
 skip = ["merge", "rebase"]
 
+[pre-commit.commands.restart-reset]
+glob = ["template/config/kubernetes/apps/kube-system/restart-reset/**"]
+run = "bash .github/template-tests/e2e/restart-reset-select.test.sh"
+
 [pre-commit.commands.format-just]
 glob = ["justfile", "*.just", ".justfile"]
 run = 'for f in {staged_files}; do just --justfile "$f" --fmt; done'
