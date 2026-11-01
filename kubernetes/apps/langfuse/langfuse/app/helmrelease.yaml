@@ -99,6 +99,12 @@ spec:
         image:
           repository: docker.io/langfuse/langfuse-worker
           tag: 4.72.0@sha256:aa1724b989a00f1e4ca9930709202489c73deaaf2f1116bbd3d71c77edb8fedb
+        # The probe checks Postgres through langfuse-db-rw, which flips during a CNPG instance
+        # restart; three kills on 2026-10-30 were that, not the worker.
+        livenessProbe:
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 6
         resources:
           requests: { memory: 512Mi }
           limits: { memory: 2Gi }
