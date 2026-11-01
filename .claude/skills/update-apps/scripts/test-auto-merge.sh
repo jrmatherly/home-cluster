@@ -14,6 +14,7 @@ export FIX LOG
 oid_a=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 oid_b=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 merged=cccccccccccccccccccccccccccccccccccccccc
+fake_token=ghp_$(printf 'a%.0s' {1..36})
 
 cat >"$bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -327,6 +328,31 @@ echo "This reverts commit $merged." >"$FIX/reverts"
 echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
 status=$(run "$FIX/verdicts.json")
 assert "a merge reverted earlier is reported and left alone" "grep -q '^#69 kener 4.1.8 -> 4.1.9: reverted earlier' '$FIX/out' && ! logged 'git revert'"
+
+case_start evidence-not-published
+pr_fixture 96 radarr 6.4.4 7.0.0 "$oid_a" OPEN
+verdict 96 radarr 6.4.4 7.0.0 "$oid_a" blocked | jq --arg e "major bump $fake_token" '[.evidence = $e]' >"$FIX/verdicts.json"
+status=$(run "$FIX/verdicts.json")
+assert "a posted comment never carries the model's evidence" "logged 'gh pr comment 96' && ! logged '$fake_token' && logged \"see the run's research artifact\""
+
+# research_ok <jq edit> applies the edit to a clean research output and runs the guard on it.
+research_ok() {
+    jq -n '{report: "ok", verdicts: [{app: "kener", namespace: "kener", headRefOid: ("a" * 40), from: "1.0.0", to: "1.0.1", bump: "patch", evidence: "notes"}]}' \
+        | jq "$1" | jq -e -f "$here/research-guard.jq" >/dev/null
+}
+digest=sha256:$(printf 'a%.0s' {1..64})
+case_start research-guard
+assert "the guard passes a clean output" "research_ok ."
+assert "the guard passes an empty verdict list" "research_ok '.verdicts = []'"
+assert "the guard passes a not-ours verdict with no namespace" "research_ok '.verdicts[0].namespace = \"\"'"
+assert "the guard passes a digest in the evidence" "research_ok '.verdicts[0].evidence = \"moved to $digest\"'"
+assert "the guard refuses a GitHub token in the evidence" "! research_ok '.verdicts[0].evidence = \"x $fake_token\"'"
+assert "the guard refuses a GitHub token in the report" "! research_ok '.report = \"x $fake_token\"'"
+assert "the guard refuses an Anthropic token" "! research_ok '.report = \"x sk-ant-oat01-aaaaaaaaaaaaaaaaaaaaaaaa\"'"
+assert "the guard refuses long evidence" "! research_ok '.verdicts[0].evidence = (\"x\" * 800)'"
+for field in app namespace headRefOid from to bump; do
+    assert "the guard refuses free text in $field" "! research_ok '.verdicts[0].$field = \"see https://evil.test\"'"
+done
 
 if [[ $fails -gt 0 ]]; then
     echo "$fails assertion(s) failed"

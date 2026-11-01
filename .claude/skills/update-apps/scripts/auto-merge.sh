@@ -257,7 +257,7 @@ while IFS= read -r v; do
     elif [[ "$verdict" == safe ]]; then
         text="safe by research, but $(jq -r .app <<<"$v") has no scripted check in references/auto-checks.yaml, so merged by hand only"
     else
-        text="$verdict. $(jq -r .evidence <<<"$v")"
+        text="$verdict by research; see the run's research artifact for the evidence"
     fi
     gh pr view "$pr" --json "$pr_fields" >"$tmp/pr-$pr.json"
     if [[ "$(jq -r .state "$tmp/pr-$pr.json")" != OPEN ]]; then
