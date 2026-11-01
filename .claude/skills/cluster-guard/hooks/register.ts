@@ -27,7 +27,7 @@ const CHURNED = /^(?:M.|.M) /;
 const STAGED = /^M/;
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const WRITE_OP =/^(?:\d*(?:>>?|>\||>&)|&>>?)$/;
+const WRITE_OP = /^(?:\d*(?:>>?|>\||>&)|&>>?)$/;
 const OPERATOR = /&>>?|\d*(?:>>|>\||>&|>|<<<|<&|<>|<)/y;
 const HEREDOC = /<<-?\s*((?:'[^']*'|"[^"]*"|\\.|[^\s;|&<>()])+)/y;
 // git commit -m "$(cat <<'EOF' ... EOF)". A quoted delimiter expands nothing, so its body is text.
