@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 
 import check_layout
+import scaffold
 from pydantic import ValidationError
 from validate import Config, ConfigError, format_errors, load, schema
 
@@ -1346,6 +1347,21 @@ SAMPLE_TABLES = list(tomllib.loads((REPO_ROOT / "cluster.sample.toml").read_text
 def test_valid_fixture_follows_sample_layout(fixture):
     tables = list(tomllib.loads(fixture.read_text()))
     assert check_layout.misplaced(SAMPLE_TABLES, tables) is None
+
+
+@pytest.mark.parametrize(
+    "config",
+    ["[a.sub]\nx = 1\n\n[c]\ny = 2\n", "[a]\nx = 1\n\n[a.sub]\nz = 3\n\n[c]\ny = 2\n"],
+)
+def test_scaffold_lands_after_a_table_with_dotted_headers(tmp_path, config):
+    sample = tmp_path / "sample.toml"
+    sample.write_text("[a]\nx = 1\n\n[a.sub]\nz = 3\n\n[b]\n# k = 1\n\n[c]\ny = 2\n")
+    target = tmp_path / "config.toml"
+    target.write_text(config)
+    assert scaffold.main("b", str(sample), str(target)) == 0
+    tables = list(tomllib.loads(target.read_text()))
+    assert check_layout.misplaced(["a", "b", "c"], tables) is None
+    assert tables == ["a", "b", "c"]
 
 
 def test_misplaced_table_is_named():

@@ -49,6 +49,8 @@ jobs:
           - missing-schematic
           - partial-bgp
           - partial-postgres-backup
+          - partial-etcd-backup
+          - etcd-backup-without-backup
           - partial-observability
           - discord-without-observability
           - heartbeat-without-discord

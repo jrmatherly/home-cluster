@@ -1,0 +1,6 @@
+---
+# Lets the etcd-snapshot CronJob call EtcdSnapshot, and nothing else, from kube-system.
+apiVersion: v1alpha1
+kind: KubeTalosAPIAccessConfig
+allowedRoles: ["os:etcd:backup"]
+allowedKubernetesNamespaces: ["kube-system"]

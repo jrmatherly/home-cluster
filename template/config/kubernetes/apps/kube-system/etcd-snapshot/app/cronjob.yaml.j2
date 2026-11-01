@@ -1,0 +1,117 @@
+#% if etcd_backup_enabled %#
+---
+# etcd is three members with no snapshot anywhere else; a full quorum loss has no path
+# back without this. 02:00 UTC sits clear of the node-maintenance guard and of the
+# Postgres backup schedules.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-snapshot
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # apid serves etcd from the control planes.
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: snapshot
+              image: ghcr.io/siderolabs/talosctl:v1.14.2@sha256:b655ae1c73789c4789fcf6fbd61c8f45400ed4b3bd9892a26092fcd4d8d95d86
+              args:
+                - --talosconfig
+                - /var/run/secrets/talos.dev/config
+                - -n
+                - $(NODE_IP)
+                - etcd
+                - snapshot
+                - /work/etcd.snapshot
+              env:
+                - name: HOME
+                  value: /work
+                # 127.0.0.1 in a pod is the pod's own loopback.
+                - name: NODE_IP
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.hostIP
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: talos-secrets
+                  mountPath: /var/run/secrets/talos.dev
+                  readOnly: true
+                - name: work
+                  mountPath: /work
+          containers:
+            - name: upload
+              image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
+                  rc object copy /work/etcd.snapshot "s3/$BUCKET/etcd/etcd-$(date -u +%Y%m%dT%H%M%SZ).snapshot"
+                  # barman's retention only prunes its own paths. Files, not pipes, so a failed step fails the run.
+                  rc object find "s3/$BUCKET/etcd/" --older 30d --json > /tmp/found
+                  jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
+                  cat /tmp/expired
+                  xargs -r -n1 rc object remove --force < /tmp/expired
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: etcd-snapshot-backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: talos-secrets
+              secret:
+                secretName: etcd-snapshot
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+#% endif %#

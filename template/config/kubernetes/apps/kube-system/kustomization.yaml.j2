@@ -10,6 +10,9 @@ resources:
   - ./namespace.yaml
   - ./cilium/ks.yaml
   - ./coredns/ks.yaml
+  #% if etcd_backup_enabled %#
+  - ./etcd-snapshot/ks.yaml
+  #% endif %#
   - ./metrics-server/ks.yaml
   #% if nvidia_enabled %#
   - ./nvidia-device-plugin/ks.yaml

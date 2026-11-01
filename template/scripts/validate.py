@@ -259,6 +259,17 @@ class Postgres(Model):
     backup: PostgresBackup = PostgresBackup()
 
 
+class EtcdBackup(Model):
+    bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
+    access_key: Secret = ""
+    secret_key: Secret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "backup", ("bucket", "access_key", "secret_key"))
+        return self
+
+
 class Redis(Model):
     # Shared by every Redis the redis component creates. Clients put it in a
     # connection URL unencoded, hence letters and digits only.
@@ -771,6 +782,7 @@ class Config(Model):
     talos: Talos = Talos()
     spegel: Spegel = Spegel()
     postgres: Postgres = Postgres()
+    etcd_backup: EtcdBackup = EtcdBackup()
     redis: Redis = Redis()
     observability: Observability = Observability()
     unifi: Unifi = Unifi()
@@ -827,6 +839,11 @@ class Config(Model):
     @property
     def postgres_backup_enabled(self) -> bool:
         return self.postgres.backup.endpoint != ""
+
+    @computed_field
+    @property
+    def etcd_backup_enabled(self) -> bool:
+        return self.etcd_backup.bucket != ""
 
     # Gates components/redis, which gives an app that includes it a Redis of its own.
     @computed_field
@@ -1108,6 +1125,10 @@ class Config(Model):
         if self.ingress.mode != "none" and self.gateways.external is None:
             raise ValueError(
                 f"gateways.external is required when ingress.mode is {self.ingress.mode!r}"
+            )
+        if self.etcd_backup_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "etcd_backup requires postgres.backup: its endpoint is where the snapshots go"
             )
         if self.pocket_id_enabled and not self.postgres_backup_enabled:
             raise ValueError(

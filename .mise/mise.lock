@@ -163,6 +163,33 @@ checksum = "sha256:165a49352b8a60ba2eb7bf2b56e5388ff678ac5af36dc03129cedeaf3a37a
 url = "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v1.30.1/kubectl-cnpg_1.30.1_darwin_x86_64.tar.gz"
 url_api = "https://api.github.com/repos/cloudnative-pg/cloudnative-pg/releases/assets/583849035"
 
+[[tools."github:etcd-io/etcd"]]
+version = "3.7.3"
+backend = "github:etcd-io/etcd"
+
+[tools."github:etcd-io/etcd"."platforms.linux-arm64"]
+checksum = "sha256:ce4c08f5f43d99f0d1993552ce2906829c0366077a97e5e52529337f151a29fb"
+checksum_source = "mise-versions"
+url = "https://github.com/etcd-io/etcd/releases/download/v3.7.3/etcd-v3.7.3-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/etcd-io/etcd/releases/assets/667347436"
+
+[tools."github:etcd-io/etcd"."platforms.linux-x64"]
+checksum = "sha256:5dfa9cc3b3ce3b4b491fbcc2057d3daa166bcc6676f743fcd20f8e5760cb9775"
+checksum_source = "mise-versions"
+url = "https://github.com/etcd-io/etcd/releases/download/v3.7.3/etcd-v3.7.3-linux-amd64.tar.gz"
+url_api = "https://api.github.com/repos/etcd-io/etcd/releases/assets/667347623"
+
+[tools."github:etcd-io/etcd"."platforms.macos-arm64"]
+checksum = "sha256:efd1fc11ea761c9c39c9011fda9c92a9eaecf91be3b7b3198afe4dc786435e28"
+url = "https://github.com/etcd-io/etcd/releases/download/v3.7.3/etcd-v3.7.3-darwin-arm64.zip"
+url_api = "https://api.github.com/repos/etcd-io/etcd/releases/assets/667347900"
+
+[tools."github:etcd-io/etcd"."platforms.macos-x64"]
+checksum = "sha256:95ea410197c6c1f92e299bd632765231efa2183e3675137c2a9a5ba625f7f2c9"
+checksum_source = "mise-versions"
+url = "https://github.com/etcd-io/etcd/releases/download/v3.7.3/etcd-v3.7.3-darwin-amd64.zip"
+url_api = "https://api.github.com/repos/etcd-io/etcd/releases/assets/667348030"
+
 [[tools."github:home-operations/flate"]]
 version = "0.6.5"
 backend = "github:home-operations/flate"

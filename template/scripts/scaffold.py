@@ -43,7 +43,8 @@ def main(section: str, sample_path: str, config_path: str) -> int:
         return 1
     first, last = _block(sample, _header_lines(sample)[section])
     block = sample[first:last]
-    present = _header_lines(config)
+    # A table's last header, so [postgres.backup] counts as postgres and [cilium.hubble] ends cilium.
+    present = {name.split(".")[0]: i for name, i in _header_lines(config).items()}
     before = [name for name in order[: order.index(section)] if name in present]
     if before:
         _, insert_at = _block(config, present[before[-1]])

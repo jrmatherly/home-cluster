@@ -309,6 +309,28 @@ schematic_id = ""
 
 
 # =============================================================================
+#    etcd snapshots. A daily snapshot goes to its own bucket at the endpoint
+#    of [postgres.backup], which must be set. A snapshot holds every object in
+#    the cluster, so this bucket and key pair are separate from the database
+#    pair, which every database namespace can read. Set ALL THREE fields below
+#    to enable. The control planes must carry the Talos API access patch first:
+#    run `just talos apply` before setting them.
+# =============================================================================
+[etcd_backup]
+
+# Bucket that holds the snapshots, under etcd/.
+# OPTIONAL. Example: "home-cluster-etcd"
+
+# bucket = ""
+
+# Access key pair with read and write access to that bucket's objects only.
+# OPTIONAL.
+
+# access_key = ""
+# secret_key = ""
+
+
+# =============================================================================
 #    Observability stack: Prometheus, Alertmanager and Grafana
 #    (kube-prometheus-stack), plus InfluxDB 2 for metrics pushed from outside
 #    the cluster. Set ALL THREE fields below to enable; leaving them all blank

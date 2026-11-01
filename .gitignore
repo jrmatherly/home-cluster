@@ -50,3 +50,6 @@ docs/superpowers/
 # OS
 .DS_Store
 Thumbs.db
+
+# etcd snapshots hold every object in the cluster
+*.snapshot

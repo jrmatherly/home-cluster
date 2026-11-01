@@ -65,6 +65,14 @@ drain node:
     just log info "Pods pinned to the node (stay Pending until it returns)"
     just talos pinned "{{ node }}" | column -t -s $'\t'
 
+[doc('Write an etcd snapshot from the first control plane to an absolute directory')]
+[group('talos')]
+etcd-snapshot dir:
+    # This module runs under talos/, in the repo, and a snapshot holds every object in the cluster.
+    [[ "{{ dir }}" == /* ]] || just log fatal "The directory must be absolute" dir "{{ dir }}"
+    ip="$(yq '[.nodes[] | select(.role == "control-plane")][0].ip' topf.yaml)"
+    talosctl -n "$ip" etcd snapshot "{{ dir }}/etcd-$(date -u +%Y%m%dT%H%M%SZ).snapshot"
+
 [doc('Check Talos, nodes, pods, Flux and CloudNativePG; fails when a node or Flux object is not Ready')]
 [group('talos')]
 health:

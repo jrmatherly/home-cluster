@@ -264,6 +264,27 @@
       "pattern": "^([^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+|@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+)$",
       "type": "string"
     },
+    "EtcdBackup": {
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "default": "",
+          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
+          "title": "Bucket",
+          "type": "string"
+        },
+        "access_key": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "secret_key": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        }
+      },
+      "title": "EtcdBackup",
+      "type": "object"
+    },
     "Fqdn": {
       "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$",
       "type": "string"
@@ -1181,6 +1202,14 @@
           "endpoint": "",
           "secret_access_key": ""
         }
+      }
+    },
+    "etcd_backup": {
+      "$ref": "#/$defs/EtcdBackup",
+      "default": {
+        "bucket": "",
+        "access_key": "",
+        "secret_key": ""
       }
     },
     "redis": {
