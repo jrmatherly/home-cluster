@@ -5,7 +5,7 @@ sidebar:
   order: 15
 ---
 
-This guide covers matherlynet, the public site at `https://${SECRET_DOMAIN}`, from the `[matherlynet]` section of `cluster.toml` to a release that answers through the Cloudflare tunnel. The site and its chart are built in the site's own repository, `<github account>/matherlynet`; this repo owns the namespace, the database, the routes, the securityContext and the NetworkPolicy. The deployment is in Git: `kubernetes/apps/matherlynet/` and the `[matherlynet]` bullet in `CLAUDE.md`.
+This guide covers matherlynet, the public site at `https://${SECRET_DOMAIN}`, from the `[matherlynet]` section of `cluster.toml` to a release that answers through the Cloudflare tunnel. The site and its chart are built in the site's own repository, `<github account>/matherlynet`; this repo owns the namespace, the database, the routes, the securityContext and the NetworkPolicy. The deployment is in Git: `kubernetes/apps/matherlynet/` and `.claude/rules/apps/matherlynet.md`.
 
 Each step names its source. "Template" is `template/config/kubernetes/apps/matherlynet/`. "Sample" is the `[matherlynet]` block of `cluster.sample.toml`. "Site docs" is `docs/deployment.md` in the site's repository. "apps.md" is `.claude/skills/update-apps/references/apps.md`.
 
@@ -87,6 +87,6 @@ The rollout completes and the page has `pageswap`. The chart's own probes hit `/
 
 ## Sources
 
-- This repo: `template/config/kubernetes/apps/matherlynet/`, `template/config/kubernetes/apps/network/cloudflare-tunnel/app/helmrelease.yaml.j2`, `template/config/kubernetes/apps/ai/localai/app/configmap.yaml.j2`, `template/scripts/validate.py` (`Matherlynet`), the `[matherlynet]` blocks of `cluster.sample.toml` and `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`.
+- This repo: `template/config/kubernetes/apps/matherlynet/`, `template/config/kubernetes/apps/network/cloudflare-tunnel/app/helmrelease.yaml.j2`, `template/config/kubernetes/apps/ai/localai/app/configmap.yaml.j2`, `template/scripts/validate.py` (`Matherlynet`), the `[matherlynet]` blocks of `cluster.sample.toml` and `.claude/rules/apps/matherlynet.md`, `.claude/skills/update-apps/references/apps.md`.
 - The site's `docs/deployment.md`, sections 1, 2, 3, 7 and 8.
 - The deploy decisions and the Cloudflare zone rules, both recorded on 2026-10-04 outside the repo.

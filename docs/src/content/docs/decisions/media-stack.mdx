@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-The question, on 2026-10-06, was how to bring the Plex media-automation apps (Sonarr, Radarr, Bazarr, SABnzbd, Tautulli, Overseerr and Maintainerr, then a Docker Compose stack on a Windows machine) into the cluster. Three explorer agents and one synthesizer researched it and the lead reviewed the result. The same evening the operator chose to wipe the media disks and start the library over on a ZFS pool, which removed the NTFS half of the plan. On 2026-10-08 the plan was revised again, this time to drop the carry-over of the Windows configs; every app now starts fresh and a Helm hook configures it. The repository's `CLAUDE.md` describes what was finally built, and where the plan and the build disagree this record follows the build and says so.
+The question, on 2026-10-06, was how to bring the Plex media-automation apps (Sonarr, Radarr, Bazarr, SABnzbd, Tautulli, Overseerr and Maintainerr, then a Docker Compose stack on a Windows machine) into the cluster. Three explorer agents and one synthesizer researched it and the lead reviewed the result. The same evening the operator chose to wipe the media disks and start the library over on a ZFS pool, which removed the NTFS half of the plan. On 2026-10-08 the plan was revised again, this time to drop the carry-over of the Windows configs; every app now starts fresh and a Helm hook configures it. The repository's `.claude/rules/apps/media.md` describes what was finally built, and where the plan and the build disagree this record follows the build and says so.
 
 The setup steps, the per-app sheets and the first-deploy checks are on the [media apps page](/apps/media/).
 
@@ -134,4 +134,4 @@ Fetched pages the record rests on. Claims resting on a snippet say so inline.
 - [What's new in Talos 1.14](https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos) and the [Talos KubeVirt guide](https://docs.siderolabs.com/talos/v1.14/advanced-guides/install-kubevirt)
 - [csi-driver-nfs chart README](https://github.com/kubernetes-csi/csi-driver-nfs/blob/master/charts/README.md) and the [static PV example](https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/deploy/example/pv-nfs-csi.yaml)
 - [theme-park setup](https://docs.theme-park.dev/setup/)
-- Repository files: `CLAUDE.md`, `.claude/rules/flux-apps.md`, `template/config/kubernetes/components/postgres/`, `template/config/talos/all/72-volumes.yaml.j2`, `template/config/kubernetes/apps/kube-system/cilium/app/hubble-securitypolicy.yaml.j2`
+- Repository files: `.claude/rules/apps/media.md`, `.claude/rules/flux-apps.md`, `template/config/kubernetes/components/postgres/`, `template/config/talos/all/72-volumes.yaml.j2`, `template/config/kubernetes/apps/kube-system/cilium/app/hubble-securitypolicy.yaml.j2`

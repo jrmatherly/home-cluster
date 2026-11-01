@@ -18,7 +18,7 @@ safe.
   upgrades (`just talos upgrade-node`, `just talos upgrade-k8s`), not app updates. Say so and stop.
 - **Not this skill, reviewed by hand from their Renovate PRs:** mise tools (`.mise/`), GitHub Actions, the
   docs site's npm dependencies (`docs/package.json`, including `@cloudflare/nimbus-docs`, which has its own
-  migrate step in CLAUDE.md), the `home-operations/renovate-presets` pin in `.renovaterc.json5`, and the
+  migrate step in `.claude/rules/apps/docs-site.md`), the `home-operations/renovate-presets` pin in `.renovaterc.json5`, and the
   docs Dockerfile's base images. Name them in the report when they are open, so they are not forgotten,
   and leave them.
 
@@ -55,7 +55,8 @@ order, and the next app starts only when the current one is healthy.
    `{pr, app, namespace, kind, from, to, bump, headRefOid, verdict, evidence}`: `app` is the key in
    `references/auto-checks.yaml` or `references/apps.md`, `kind` is `chart` or `image`, `headRefOid` is the
    PR head the research read, `verdict` adds `not ours` to the three above, and `evidence` is one sentence
-   with its label (measured or stated). In the action, `--json-schema` makes that array the structured output.
+   with its label (measured or stated). In the action, which has no Write tool, return the array and the report
+   of step 4 as the structured output instead of writing them; the workflow writes both.
 4. **Report and get approval.** Read `templates/report.md` and report in that shape, then stop and wait. A push to
    `main` deploys, because Flux reconciles from Git. A `blocked` app goes no further, and a `--check` run ends
    here. An `--auto` run ends here too, with the report in the auto-run shape of `templates/report.md`
@@ -100,7 +101,8 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
 
 - **The inventory reads templates, not the cluster.** A version in the table is what Git pins. Compare with
   `flux get hr -A` when the two might differ.
-- **Both scripts and `helm`, `flux`, `kubectl` and `gh` need network or cluster access.** Inside the Bash sandbox
+- **`inventory.py`, `compare-chart.sh`, `upstream-diff.sh`, `bootstrap-drift.sh` and `helm`, `flux`, `kubectl` and
+  `gh` need network or cluster access.** Inside the Bash sandbox
   they fail with an x509, "connection closed" or "operation not permitted" error. That is the sandbox, not the
   tool. Rerun the same command outside the sandbox through the normal permission prompt.
 - **Run `just configure` on a line of its own.** The sandbox exclusion matches the bare command. With a pipe or a

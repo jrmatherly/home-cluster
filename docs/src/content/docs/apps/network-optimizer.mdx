@@ -5,7 +5,7 @@ sidebar:
   order: 14
 ---
 
-This guide takes Network Optimizer from the `[network_optimizer]` section of `cluster.toml` to a working UniFi audit and monitor that writes to InfluxDB, with an optional Pocket ID sign-in. The deployment is in Git: `kubernetes/apps/network-optimizer/` and the `[network_optimizer]` bullet in `CLAUDE.md`. The console itself is on the [gateway](/hosts/gateway/) page.
+This guide takes Network Optimizer from the `[network_optimizer]` section of `cluster.toml` to a working UniFi audit and monitor that writes to InfluxDB, with an optional Pocket ID sign-in. The deployment is in Git: `kubernetes/apps/network-optimizer/` and `.claude/rules/apps/network-optimizer.md`. The console itself is on the [gateway](/hosts/gateway/) page.
 
 Network Optimizer is served at `https://optimizer.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it.
 
@@ -51,7 +51,7 @@ The `[observability]` InfluxDB runs org `home`; its first start created bucket `
 
 The namespace enforces `restricted`. The image's `ping` and `traceroute.db` carry the `NET_RAW` file capability, and a binary that cannot get its capability does not start. An init container copies both into an emptyDir, the copies lose the capability, and they are mounted over the originals. The pod sysctl `net.ipv4.ping_group_range = 0 2147483647` lets the copies open an ICMP socket instead (template). Measured in Docker on 2026-10-05: ping, `traceroute -I`, UDP traceroute and .NET `Ping` all work under drop-ALL that way.
 
-A `CiliumNetworkPolicy` admits ICMP Destination Unreachable (type 3) and Time Exceeded (type 11) from outside the cluster, because the NetworkPolicy admits only the `network` namespace and a Kubernetes NetworkPolicy cannot name ICMP (template, `ciliumnetworkpolicy.yaml.j2`). UDP traces then reach the internet. ICMP-mode traces still stop at the node, because Cilium's eBPF masquerade does not translate errors that wrap an ICMP echo (source, the `[network_optimizer]` bullet in `CLAUDE.md`). In Network Tools, pick UDP.
+A `CiliumNetworkPolicy` admits ICMP Destination Unreachable (type 3) and Time Exceeded (type 11) from outside the cluster, because the NetworkPolicy admits only the `network` namespace and a Kubernetes NetworkPolicy cannot name ICMP (template, `ciliumnetworkpolicy.yaml.j2`). UDP traces then reach the internet. ICMP-mode traces still stop at the node, because Cilium's eBPF masquerade does not translate errors that wrap an ICMP echo (source, `.claude/rules/apps/network-optimizer.md`). In Network Tools, pick UDP.
 
 `HOST_IP` stays unset. It is the LAN address that path analysis starts from, and a pod has none (template). The pod's first hop is its node (measured 2026-10-05, a TTL-1 ping answered by `<worker-N address>`), so Upstream Path Discovery may list a node hop. Running the app's agent on the gateway is a later phase, not designed.
 
@@ -83,5 +83,5 @@ It answers `{"status":"healthy",...}`. Then open Performance Tweaks; the gateway
 
 ## Sources
 
-- This repo: `template/config/kubernetes/apps/network-optimizer/`, `template/config/kubernetes/apps/observability/influxdb/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`NetworkOptimizer`), the `[network_optimizer]` blocks of `cluster.sample.toml` and `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`.
+- This repo: `template/config/kubernetes/apps/network-optimizer/`, `template/config/kubernetes/apps/observability/influxdb/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`NetworkOptimizer`), the `[network_optimizer]` blocks of `cluster.sample.toml` and `.claude/rules/apps/network-optimizer.md`, `.claude/skills/update-apps/references/apps.md`.
 - The build record of 2026-10-05 (SNMP v3 finding, ICMP copies, InfluxDB form) and the firmware check of 2026-10-06, kept outside the repo.

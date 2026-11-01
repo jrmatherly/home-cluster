@@ -7,7 +7,7 @@ sidebar:
 
 This guide takes Reactive Resume from the templates in Git to a working resume builder with Pocket ID as its only login. It covers the Pocket ID client, the bucket, the two secrets that must never change, the first sign-in, and how to check that it is healthy. The deployment itself is in Git: the `[reactive_resume]` section of `cluster.toml` and `kubernetes/apps/reactive-resume/`.
 
-Reactive Resume v6 is served at `https://resume.${SECRET_DOMAIN}` on the external gateway only. The internet reaches it through the Cloudflare tunnel, and so does the LAN, because `unifi-dns` writes local records only for routes on `envoy-internal` (`[unifi]` bullet in `CLAUDE.md`).
+Reactive Resume v6 is served at `https://resume.${SECRET_DOMAIN}` on the external gateway only. The internet reaches it through the Cloudflare tunnel, and so does the LAN, because `unifi-dns` writes local records only for routes on `envoy-internal` (`.claude/rules/apps/unifi-dns.md`).
 
 Each step names its source. "Docs" is [the Reactive Resume environment variable reference](https://docs.rxresu.me/self-hosting/environment-variables), read on 2026-10-12. "Template" is a file under `template/config/kubernetes/apps/reactive-resume/`. "Commit" is a message in this repo's history.
 
@@ -59,19 +59,19 @@ Pocket ID itself must be public, so a browser away from home can finish the sign
 ## First sign-in
 
 1. Open `https://resume.${SECRET_DOMAIN}`. The page offers only the Pocket ID button: `FLAG_DISABLE_EMAIL_AUTH=true` turns off email and password sign-in and sign-up and the password reset (docs).
-2. Sign in with Pocket ID. The first sign-in creates the account (`[reactive_resume]` bullet in `CLAUDE.md`). Whether every later Pocket ID user also gets an account on first sign-in was not checked; to keep the app to some people, restrict the Pocket ID client to a group under Allowed user groups.
+2. Sign in with Pocket ID. The first sign-in creates the account (`.claude/rules/apps/reactive-resume.md`). Whether every later Pocket ID user also gets an account on first sign-in was not checked; to keep the app to some people, restrict the Pocket ID client to a group under Allowed user groups.
 
 ## How the pod is wired
 
 - Probes ask for `/`, not `/api/health`. The health check writes an object to the bucket and deletes it inside a fixed 1.5 s limit, and that write has taken from 0.3 s to over 20 s. On 2026-10-05 a slow bucket took the only pod out of the Service for eight minutes while the app and database were healthy (commits `f09d664` and `a0a3ad5`). `/` answers in under 10 ms. There is no liveness probe, because a restart does not fix a database or bucket outage (template).
 - `TRUSTED_PROXIES` is the pod CIDR, so the app takes the visitor's address from `X-Forwarded-For` and its rate limits apply per visitor. Any pod could forge that header, so a NetworkPolicy admits only the `network` namespace on port 3000 (template, `networkpolicy.yaml.j2`; commit `271d117`).
 - The namespace enforces `restricted`; the pod runs as uid 1000 with a read-only root (template).
-- The pod reaches Pocket ID at `auth.${SECRET_DOMAIN}` for discovery through the CoreDNS `hosts` entry that `[pocket_id]` adds (`[pocket_id]` bullet in `CLAUDE.md`).
+- The pod reaches Pocket ID at `auth.${SECRET_DOMAIN}` for discovery through the CoreDNS `hosts` entry that `[pocket_id]` adds (`.claude/rules/apps/pocket-id.md`).
 - Cloudflare zone rules outside Git can skip checks for the home network, so test the external path from a phone on cellular, not from home.
 
 ## Backups
 
-- Postgres: WAL archiving to the `postgres-backup` ObjectStore and a daily base backup at 04:00 UTC, with one taken at once when the ScheduledBackup is created (template, `scheduledbackup.yaml.j2`, `immediate: true`). They land under `reactive-resume-db/` in the backup bucket. The `postgres-backup` PrometheusRule alerts on a failed backup, a backup older than 36 hours, and failing WAL archiving (`CLAUDE.md`).
+- Postgres: WAL archiving to the `postgres-backup` ObjectStore and a daily base backup at 04:00 UTC, with one taken at once when the ScheduledBackup is created (template, `scheduledbackup.yaml.j2`, `immediate: true`). They land under `reactive-resume-db/` in the backup bucket. The `postgres-backup` PrometheusRule alerts on a failed backup, a backup older than 36 hours, and failing WAL archiving (`.claude/rules/apps/postgres.md`).
 - Uploads: nothing in this repo backs up the uploads bucket.
 
 ## Health check
@@ -92,4 +92,4 @@ Renovate opens a pull request for each new image tag of `ghcr.io/reactive-resume
 ## Sources
 
 - Docs: [Self-hosting, Environment variables](https://docs.rxresu.me/self-hosting/environment-variables), read 2026-10-12 (`OAUTH_*`, the callback, `FLAG_DISABLE_EMAIL_AUTH`, `AUTH_SECRET`, `ENCRYPTION_SECRET`, `S3_*`).
-- This repo: `template/config/kubernetes/apps/reactive-resume/`, the `[reactive_resume]` block in `cluster.sample.toml`, `ReactiveResume` in `template/scripts/validate.py`, the `[reactive_resume]` bullet in `CLAUDE.md`, commits `271d117`, `f09d664` and `a0a3ad5`.
+- This repo: `template/config/kubernetes/apps/reactive-resume/`, the `[reactive_resume]` block in `cluster.sample.toml`, `ReactiveResume` in `template/scripts/validate.py`, `.claude/rules/apps/reactive-resume.md`, commits `271d117`, `f09d664` and `a0a3ad5`.

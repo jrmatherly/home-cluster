@@ -9,7 +9,11 @@
       "Read(/flux-webhook-token.txt)",
       "Read(/kubeconfig)",
       "Read(/talos/talosconfig)",
-      "Read(**/*.decrypted~*)"
+      "Read(**/*.decrypted~*)",
+      "mcp__serena__replace_*",
+      "mcp__serena__insert_*",
+      "mcp__serena__rename_symbol",
+      "mcp__serena__safe_delete_symbol"
     ],
     "ask": [
       "Bash(just --yes *)",
@@ -19,6 +23,10 @@
       "Bash(just talos apply*)",
       "Bash(just talos upgrade*)",
       "Bash(just talos reset*)",
+      "Bash(just talos drain *)",
+      "Bash(just talos stop-node *)",
+      "Bash(just talos reboot-node *)",
+      "mcp__terminal__run_in_terminal",
       "Bash(topf apply *)",
       "Bash(topf upgrade *)",
       "Bash(topf reset *)",

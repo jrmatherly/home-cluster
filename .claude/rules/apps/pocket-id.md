@@ -1,0 +1,11 @@
+---
+paths:
+    - "template/config/kubernetes/apps/security/**"
+    - "kubernetes/apps/security/**"
+    - "template/config/kubernetes/apps/kube-system/coredns/**"
+    - "kubernetes/apps/kube-system/coredns/**"
+---
+
+# Pocket ID (`[pocket_id]`)
+
+- `[pocket_id]` in `cluster.toml` (an encryption key, which needs `[postgres.backup]`) gates the `security` namespace, which enforces the `restricted` pod security level. `security/pocket-id` is Pocket ID, a passkey OpenID Connect provider, on the app-template chart at `auth.${SECRET_DOMAIN}` on the internal gateway. Passkeys are bound to that hostname, so it must not change. Its state is in the CloudNativePG cluster `pocket-id-db` (two instances, WAL archiving and a daily backup), so the pod has no volume. The HelmRelease switches off every outbound call the app would make on its own (`ANALYTICS_DISABLED`, `VERSION_CHECK_DISABLED`, and `ICON_LIBRARY_URL: disabled` for the icon library), so keep the pod free of outbound calls when adding settings. A NetworkPolicy admits only the `network` namespace on 1411, because the app trusts `X-Forwarded-For` from the whole pod CIDR (`TRUST_PROXY`); in-cluster callers reach it through the gateway via the CoreDNS hosts entry, and kubelet probes are always admitted (measured in a 2-hour Hubble capture, 2026-10-31). The same flag adds a `hosts` entry to CoreDNS that answers `auth.${SECRET_DOMAIN}` with the internal gateway, because pods cannot resolve names that exist only on the internal gateway. The optional `public = true` (needing an ingress mode other than `none`) also attaches the route to `envoy-external`, so `cloudflare-dns` publishes it and the internet reaches the sign-in page and API through the tunnel, while LAN clients and pods keep the internal path. The `public` fixture sets the section.

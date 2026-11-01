@@ -1,0 +1,9 @@
+---
+paths:
+    - "template/config/kubernetes/apps/actual-budget/**"
+    - "kubernetes/apps/actual-budget/**"
+---
+
+# Actual Budget (`[actual_budget]`)
+
+- `[actual_budget]` in `cluster.toml` (the ID and secret of an OIDC client created by hand in Pocket ID, set together, needing `[pocket_id]`; the optional `public = true` also attaches the route to the external gateway and needs `pocket_id.public`) gates the `actual-budget` namespace, which enforces the `restricted` pod security level. `actual-budget/actual-budget` is Actual Budget, a budgeting app, on the app-template chart at `budget.${SECRET_DOMAIN}` on the internal gateway. The image sets no `USER`, so the pod runs as uid 1001, which owns `/data`. Its state is SQLite on a 5Gi `local-path` volume at `/data`, so the Deployment uses `Recreate`, and the volume is the only server-side copy, though every signed-in client holds the full budget. The server bootstraps OpenID from the environment on every start and tries discovery once, so an init container waits for Pocket ID's discovery document first, and the startup probe keeps the pod out of the Service until that bootstrap has succeeded once, because an instance whose first start could not reach Pocket ID stays unbootstrapped and accepts a server password from anyone (measured on the image). Pocket ID is the only login (`ACTUAL_ALLOWED_LOGIN_METHODS=openid`, `ACTUAL_OPENID_ENFORCE`), and the first sign-in becomes the owner and admin, so the Pocket ID client should be restricted to a group. `ACTUAL_USER_CREATION_MODE=manual`, so every other user is added in Actual's User Directory by Pocket ID username. Sessions expire after 30 days. A NetworkPolicy admits only the `network` namespace, because the app trusts the forwarded client address. The gitignored `private/actual-budget-setup.md` lists the setup steps. The `public` fixture sets the section with `public = true`.

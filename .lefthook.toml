@@ -46,6 +46,11 @@ run = "claude plugin test .claude/skills/cluster-guard"
 glob = ["docs/src/content/**/*"]
 run = "docs/scrub-check.sh {staged_files}"
 
+[pre-commit.commands.claude-md-size]
+glob = ["CLAUDE.md"]
+# It loads in every session; a fact about one app belongs in .claude/rules/apps/.
+run = 'test "$(wc -m < CLAUDE.md)" -le 20000 || { echo "CLAUDE.md is over 20000 characters; move app facts to .claude/rules/apps/"; exit 1; }'
+
 [pre-commit.commands.mise-lock]
 glob = [".mise.toml", ".mise/config.toml", ".mise/conf.d/*.toml"]
 run = "mise lock && git add .mise/mise.lock"

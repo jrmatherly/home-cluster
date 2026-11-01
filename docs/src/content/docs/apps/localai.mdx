@@ -56,7 +56,7 @@ The model is an image built from `images/qwen3.5-4b/Dockerfile`. It downloads th
 
 1. In the Dockerfile, update `REPO`, `REVISION`, `FILE`, `SHA256` and `TAG` together. `TAG` is `<quant>-<first 7 characters of REVISION>`, for example `q4_k_m-e87f176`. A new model gets its own `images/<model>/Dockerfile` in the same shape.
 2. Commit and push to `main`. The Model Images workflow (`.github/workflows/model-images.yaml`) runs when `images/**` changes on `main`. It builds and pushes `ghcr.io/<github account>/models/<model>:<TAG>` and never rebuilds a tag that exists, because the cluster pins it by digest. The run summary prints `Pushed <image>@<digest>`.
-3. A new GHCR package is private. Make it public in the package settings after its first push, because the kubelet pulls it with no pull secret (source, `CLAUDE.md`).
+3. A new GHCR package is private. Make it public in the package settings after its first push, because the kubelet pulls it with no pull secret (source, `.claude/rules/apps/model-images.md`).
 4. In `helmrelease.yaml.j2`, put `<image>:<TAG>@<digest>` in the `models-qwen` image volume. In `configmap.yaml.j2`, update `parameters.model` (`<directory>/<file>.gguf`), and the model name if it changes. A new name also means the ConfigMap key and the two `subPath` mounts in `helmrelease.yaml.j2` (`/models/<name>.yaml`), `LOCALAI_LOAD_TO_MEMORY`, and the Grafana mapping in `grafana-llm-app.yaml.j2`.
 5. `just configure`, commit, push. The first start pulls the new image. A cold start took 4m01s (measured: backend pull 57 s, model pull 92 s, load 45 s); the HelmRelease timeout is 15m for that reason.
 
@@ -102,13 +102,13 @@ The gallery endpoint and runtime settings stay off, so the WebUI cannot install 
 
 ## Known limits
 
-- No `/props`, and `/v1/models` lists only `id` and `object` (measured). A client that reads the context size or tool support from the server finds neither. AI Workspace keeps function calling on without that hint, and its context window is set once per user in the model options (source, `CLAUDE.md`).
+- No `/props`, and `/v1/models` lists only `id` and `object` (measured). A client that reads the context size or tool support from the server finds neither. AI Workspace keeps function calling on without that hint, and its context window is set once per user in the model options (source, `.claude/rules/apps/localai.md`).
 - `tool_choice: required` is not honoured by llama.cpp with this model: on a prompt that needs no tool it writes junk up to `max_tokens`, while `auto` answers cleanly (measured 2026-10-12). Clients send `auto`.
 - The first completion after a container start is slow. The GTX 1080 is Pascal, and its kernels are PTX that the driver compiles on every container start, with no persistent cache. The first completion took 15.2 s for 160 tokens, a warm one 3.4 s, about 47 tokens a second (measured). If the start time ever matters, add a `local-path` volume at `CUDA_CACHE_PATH`.
 - LocalAI holds the whole GPU and only `k8s-gpu-1` has one, so it waits while that node is drained (see [Node maintenance](/operations/node-maintenance/)).
 
 ## Sources
 
-- This repo: `template/config/kubernetes/apps/ai/localai/` (HelmRelease, ConfigMap, NetworkPolicy, Secret, and the WebUI's HTTPRoute, SecurityPolicy and OIDC Secret), `template/config/kubernetes/apps/kube-system/cilium/app/hubble-securitypolicy.yaml.j2` (the policy it copies), the consumer templates under `ai-workspace/`, `observability/` and `matherlynet/`, `images/qwen3.5-4b/Dockerfile`, `.github/workflows/model-images.yaml`, `template/scripts/validate.py` (`LocalAi`, `localai_webui_enabled`, the nvidia and pocket_id checks), `cluster.sample.toml` (`[localai]`), and the `[localai]` and `images/<model>/Dockerfile` bullets in `CLAUDE.md`.
+- This repo: `template/config/kubernetes/apps/ai/localai/` (HelmRelease, ConfigMap, NetworkPolicy, Secret, and the WebUI's HTTPRoute, SecurityPolicy and OIDC Secret), `template/config/kubernetes/apps/kube-system/cilium/app/hubble-securitypolicy.yaml.j2` (the policy it copies), the consumer templates under `ai-workspace/`, `observability/` and `matherlynet/`, `images/qwen3.5-4b/Dockerfile`, `.github/workflows/model-images.yaml`, `template/scripts/validate.py` (`LocalAi`, `localai_webui_enabled`, the nvidia and pocket_id checks), `cluster.sample.toml` (`[localai]`), and the `.claude/rules/apps/localai.md` and `.claude/rules/apps/model-images.md`.
 - LocalAI v4.11.0 source: `core/http/auth/public_routes.go` (the WebUI shell is public) and `core/http/routes/auth.go` (`token-login` sets the `token` cookie).
 - Measurements from the rollout on 2026-10-12, on the cluster and in Docker.

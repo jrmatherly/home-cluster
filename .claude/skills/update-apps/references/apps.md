@@ -3,6 +3,9 @@
 One row per app this repo templates. Add a row when an app is added, and add a note when an update teaches
 something. Step 5 of the skill keeps this file current.
 
+Contents: Upstream sources, Apps that move together, Order when several are pending, App-specific
+cautions, Wait for the release, Post-deploy checks.
+
 ## Upstream sources
 
 The chart column is what the template pins. The releases column is where the notes are.

@@ -94,7 +94,7 @@ The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 
 ## Settings to keep off
 
-- "Allow users to edit their own account details", in the application settings. [AI Workspace](/apps/ai-workspace/) links a Pocket ID sign-in to the account with the same email, so a user who could change their own email to another member's address would sign in as that member (repo, the `[ai_workspace]` bullet in `CLAUDE.md`). Turn it off before admitting anyone else.
+- "Allow users to edit their own account details", in the application settings. [AI Workspace](/apps/ai-workspace/) links a Pocket ID sign-in to the account with the same email, so a user who could change their own email to another member's address would sign in as that member (repo, `.claude/rules/apps/ai-workspace.md`). Turn it off before admitting anyone else.
 
 ## The `public` flag
 
@@ -107,7 +107,7 @@ The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 
 ## Backups
 
-`pocket-id-db` archives WAL continuously and takes a daily backup at 03:00 UTC, plus one when the ScheduledBackup is created (repo, `app/cluster.yaml.j2`, `app/scheduledbackup.yaml.j2`). Both go through the barman-cloud plugin to the `postgres-backup` ObjectStore in the bucket from `[postgres.backup]`, under the cluster name `pocket-id-db`, with a 30-day retention policy (repo, `components/postgres/objectstore.yaml.j2`). The `postgres-backup` PrometheusRule alerts when a backup fails, is older than 36 hours, or WAL archiving fails (repo, `CLAUDE.md`).
+`pocket-id-db` archives WAL continuously and takes a daily backup at 03:00 UTC, plus one when the ScheduledBackup is created (repo, `app/cluster.yaml.j2`, `app/scheduledbackup.yaml.j2`). Both go through the barman-cloud plugin to the `postgres-backup` ObjectStore in the bucket from `[postgres.backup]`, under the cluster name `pocket-id-db`, with a 30-day retention policy (repo, `components/postgres/objectstore.yaml.j2`). The `postgres-backup` PrometheusRule alerts when a backup fails, is older than 36 hours, or WAL archiving fails (repo, `.claude/rules/apps/postgres.md`).
 
 ```sh
 kubectl -n security get backup
@@ -135,5 +135,5 @@ Expect `204`, then sign in once with a passkey (repo, `.claude/skills/update-app
 
 ## Sources
 
-- This repo: `template/config/kubernetes/apps/security/pocket-id/`, `template/config/kubernetes/apps/kube-system/coredns/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`PocketId` and the cross-field checks), the `[pocket_id]` block of `cluster.sample.toml`, the `[pocket_id]` bullet in `CLAUDE.md`, `.claude/skills/update-apps/references/apps.md`.
+- This repo: `template/config/kubernetes/apps/security/pocket-id/`, `template/config/kubernetes/apps/kube-system/coredns/app/helmrelease.yaml.j2`, `template/scripts/validate.py` (`PocketId` and the cross-field checks), the `[pocket_id]` block of `cluster.sample.toml`, `.claude/rules/apps/pocket-id.md`, `.claude/skills/update-apps/references/apps.md`.
 - Commits `3b4dffb` (Pocket ID, 2026-10-04) and `271d117` (the `public` switch, 2026-10-04).
