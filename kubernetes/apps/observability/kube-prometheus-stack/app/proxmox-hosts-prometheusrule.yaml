@@ -1,0 +1,33 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: proxmox-hosts
+spec:
+  groups:
+    - name: proxmox-hosts
+      rules:
+        # node_zfs_zpool_state is a 1/0 gauge per pool and state.
+        - alert: ZfsPoolNotOnline
+          expr: |
+            node_zfs_zpool_state{job="proxmox-hosts", state!="online"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: ZFS pool {{ $labels.zpool }} on {{ $labels.instance }} is {{ $labels.state }}
+            description: >-
+              ZFS pool {{ $labels.zpool }} on Proxmox host {{ $labels.instance }} is
+              {{ $labels.state }}. Reattach or replace the device; the runbook is the
+              "Restart bursts and a degraded ZFS pool" page.
+        - alert: ProxmoxHostExporterDown
+          expr: |
+            up{job="proxmox-hosts"} == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: node-exporter on {{ $labels.instance }} is down
+            description: >-
+              Prometheus cannot scrape node-exporter on Proxmox host {{ $labels.instance }}, so
+              its ZFS pools are not being watched.

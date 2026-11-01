@@ -6,6 +6,8 @@ resources:
   - ./grafana-llm-app.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  - ./proxmox-hosts-prometheusrule.yaml
+  - ./proxmox-hosts-scrapeconfig.yaml
   - ./secret.sops.yaml
 configMapGenerator:
   - name: grafana-dashboard-github
