@@ -33,10 +33,10 @@ Template stage:
 - `uv run --locked --no-dev template/scripts/validate.py <file.toml>` validates one config and prints it as JSON.
 - `taplo check --schema "file://$PWD/cluster.schema.json" ./cluster.toml` checks the TOML against the schema.
 
-These commands come from the rendered `mod.just` files, and now work:
+These commands come from the rendered `mod.just` files:
 
 - `just bootstrap talos` and `just bootstrap apps` run the two bootstrap phases.
-- `just talos render|diff|apply|apply-node <node>|upgrade-node <node>|upgrade-k8s|reset-node <node>` manage the nodes. `just talos status|drain|uncordon|resume <node>` take one out of service and back by host name: `drain` checks the other nodes and etcd, switches over its CloudNativePG primaries (a one-instance cluster such as `ai-kb-db` is skipped with a warning and goes down with the node, since 2026-10-19; before that the drain aborted on it), then drains. `stop-node <node>` drains and powers it off for host maintenance, `reboot-node <node>` drains, reboots and resumes it, and `health` checks Talos, nodes, pods, Flux and CloudNativePG.
+- `just talos render|diff|apply|apply-node <node>|upgrade-node <node>|upgrade-k8s|reset-node <node>` manage the nodes. `just talos status|drain|uncordon|resume <node>` take one out of service and back by host name: `drain` checks the other nodes and etcd, switches over its CloudNativePG primaries (a one-instance cluster such as `ai-kb-db` is skipped with a warning and goes down with the node), then drains. `stop-node <node>` drains and powers it off for host maintenance, `reboot-node <node>` drains, reboots and resumes it, and `health` checks Talos, nodes, pods, Flux and CloudNativePG.
 - `just kube primaries` lists the CloudNativePG primaries and their nodes, and `just kube switchover <cluster> <namespace> [replica]` promotes a replica with `kubectl cnpg promote` and waits for a healthy cluster.
 - `just kube reconcile` forces a Flux reconcile.
 
