@@ -11,6 +11,9 @@ spec:
   backupOwnerReference: self
   cluster:
     name: reactive-resume-db
+  # A standby cannot close the WAL segment a backup ends in, so on a quiet
+  # database the backup is not restorable until the next segment switch.
+  target: primary
   method: plugin
   pluginConfiguration:
     name: barman-cloud.cloudnative-pg.io
