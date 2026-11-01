@@ -79,6 +79,14 @@ renovate_pr() {
         and (.headRefName | startswith("renovate/"))' "$1" >/dev/null
 }
 
+# checks_passed <pr json>: every check finished without failing, and Flate ran and passed. Flate has
+# cancel-in-progress, so a cancelled run is a missing check, not a passed one; and "Flate - Success"
+# passes when Flate is skipped, so only the job named Flate counts.
+checks_passed() {
+    jq -e 'all(.statusCheckRollup[]; (.conclusion // .state // "PENDING") | ascii_upcase | IN("SUCCESS", "SKIPPED", "NEUTRAL"))
+        and any(.statusCheckRollup[]; .name == "Flate" and .conclusion == "SUCCESS")' "$1" >/dev/null
+}
+
 # version_only <diff> <namespace> <app>: every changed file is under the app's own directory in
 # kubernetes/apps or template/config/kubernetes/apps, every changed line is a tag, version, image
 # or reference value, and each pair differs in the version alone.
@@ -168,8 +176,8 @@ merge_app() {
         outcome=$(comment "$pr" "safe by research, but not a same-repository Renovate PR, so not merged")
         return
     fi
-    if jq -e '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length > 0' "$tmp/pr-$pr.json" >/dev/null; then
-        outcome=$(comment "$pr" "safe by research, but a PR check failed, so not merged")
+    if ! checks_passed "$tmp/pr-$pr.json"; then
+        outcome=$(comment "$pr" "safe by research, but a PR check is not finished or did not succeed, so not merged")
         return
     fi
     gh pr diff "$pr" >"$tmp/pr-$pr.diff"

@@ -63,12 +63,14 @@ done
 chmod +x "$bin"/*
 export PATH="$bin:$PATH"
 
-# pr_fixture <pr> <app> <from> <to> <oid> <state> [failed-check] writes pr-N.json and a version-only diff.
+# pr_fixture <pr> <app> <from> <to> <oid> <state> writes pr-N.json and a version-only diff. $rollup
+# replaces the passing statusCheckRollup.
 pr_fixture() {
-    local pr=$1 app=$2 from=$3 to=$4 oid=$5 state=$6 check=${7:-SUCCESS}
+    local pr=$1 app=$2 from=$3 to=$4 oid=$5 state=$6
+    local default_rollup='[{"__typename":"CheckRun","name":"Flate","conclusion":"SUCCESS"},{"__typename":"StatusContext","context":"renovate/stability-days","state":"SUCCESS"}]'
     cat >"$FIX/pr-$pr.json" <<EOF
 {"state":"$state","headRefOid":"$oid","mergeCommit":{"oid":"$merged"},
- "statusCheckRollup":[{"name":"Flate","conclusion":"$check"},{"name":null,"conclusion":null}],
+ "statusCheckRollup":${rollup:-$default_rollup},
  "author":{"is_bot":true,"login":"${author:-app/renovate}"},"isCrossRepository":${cross:-false},
  "headRefName":"${branch:-renovate/$app}","comments":[]}
 EOF
@@ -251,12 +253,30 @@ assert "a later app stays unmerged" "! logged 'gh pr merge 70'"
 assert "the stop is reported" "grep -q '^Stopped on: #69 kener' '$FIX/out'"
 assert "kener merges before reactive-resume whatever the verdict order" "! logged 'gh pr view 70'"
 
-case_start failed-flate-check
-pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN FAILURE
+flate_ok='{"__typename":"CheckRun","name":"Flate","conclusion":"SUCCESS"}'
+for unfinished in \
+    "failure|[{\"__typename\":\"CheckRun\",\"name\":\"Flate\",\"conclusion\":\"FAILURE\"}]" \
+    "running-null|[{\"__typename\":\"CheckRun\",\"name\":\"Flate\",\"conclusion\":null}]" \
+    "running-empty|[{\"__typename\":\"CheckRun\",\"name\":\"Flate\",\"conclusion\":\"\"}]" \
+    "cancelled|[{\"__typename\":\"CheckRun\",\"name\":\"Flate\",\"conclusion\":\"CANCELLED\"}]" \
+    "status-pending|[$flate_ok,{\"__typename\":\"StatusContext\",\"context\":\"x\",\"state\":\"PENDING\"}]" \
+    "no-flate|[{\"__typename\":\"CheckRun\",\"name\":\"Other\",\"conclusion\":\"SUCCESS\"}]" \
+    "flate-skipped|[{\"__typename\":\"CheckRun\",\"name\":\"Flate\",\"conclusion\":\"SKIPPED\"},{\"__typename\":\"CheckRun\",\"name\":\"Flate - Success\",\"conclusion\":\"SUCCESS\"}]" \
+    "no-checks|[]"; do
+    case_start "unfinished-${unfinished%%|*}"
+    rollup=${unfinished#*|} pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+    touch "$FIX/on-main-$oid_a"
+    echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+    status=$(run "$FIX/verdicts.json")
+    assert "${unfinished%%|*} is commented, not merged" "logged 'a PR check is not finished or did not succeed' && ! logged 'gh pr merge'"
+done
+
+case_start skipped-check-allowed
+rollup="[$flate_ok,{\"__typename\":\"CheckRun\",\"name\":\"Docs\",\"conclusion\":\"SKIPPED\"},{\"__typename\":\"CheckRun\",\"name\":\"Lint\",\"conclusion\":\"NEUTRAL\"}]" pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
 touch "$FIX/on-main-$oid_a"
 echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
 status=$(run "$FIX/verdicts.json")
-assert "a PR with a failed check is commented, not merged" "logged 'gh pr comment 69' && ! logged 'gh pr merge'"
+assert "a skipped or neutral check beside a passed Flate still merges" "logged 'gh pr merge 69'"
 
 case_start head-moved
 pr_fixture 69 kener 4.1.8 4.1.9 "$oid_b" OPEN
