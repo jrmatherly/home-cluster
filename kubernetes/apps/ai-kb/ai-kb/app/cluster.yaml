@@ -9,6 +9,14 @@ spec:
   # paradedb enterprise", measured 2026-10-17). WAL archiving and the daily
   # backup are the safety net.
   instances: 1
+  # Peak working set 169 MiB over 7 days, read 2026-11-01. Request at the peak,
+  # limit at three times it and 512Mi at least.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
   imageCatalogRef:
     apiGroup: postgresql.cnpg.io
     kind: ImageCatalog
