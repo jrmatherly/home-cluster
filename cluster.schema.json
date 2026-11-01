@@ -274,11 +274,11 @@
           "type": "string"
         },
         "access_key": {
-          "$ref": "#/$defs/Secret",
+          "$ref": "#/$defs/UrlCredential",
           "default": ""
         },
         "secret_key": {
-          "$ref": "#/$defs/Secret",
+          "$ref": "#/$defs/UrlCredential",
           "default": ""
         }
       },
@@ -1137,6 +1137,10 @@
       },
       "title": "Unifi",
       "type": "object"
+    },
+    "UrlCredential": {
+      "pattern": "^[A-Za-z0-9_-]*$",
+      "type": "string"
     },
     "WorkerName": {
       "pattern": "^[a-z0-9-]*$",

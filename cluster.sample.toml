@@ -324,6 +324,7 @@ schematic_id = ""
 # bucket = ""
 
 # Access key pair with read and write access to that bucket's objects only.
+# Letters, digits, - and _ only, because the job builds them into a URL.
 # OPTIONAL.
 
 # access_key = ""

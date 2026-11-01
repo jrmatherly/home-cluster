@@ -51,7 +51,7 @@ secret_access_key = "fake"
 
 [etcd_backup]
 bucket = "fake-etcd"
-access_key = "fake"
+access_key = "fake-etcd"
 secret_key = "fake"
 
 [observability]

@@ -81,6 +81,9 @@ type ApiKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{32,})?$")]
 # A RustFS access key; its secret key is an ApiKey. Letters and digits, because
 # the provisioning Job passes both to rc as arguments.
 type S3AccessKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{16,})?$")]
+# A key pair the snapshot job builds into an https://key:secret@host URL, where a
+# slash or an at sign would send the keys to another host. R2's are hex.
+type UrlCredential = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]*$")]
 # A [[nodes]] name that _worker checks against the node list.
 type WorkerName = Annotated[str, Field(pattern=r"^[a-z0-9-]*$")]
 
@@ -261,8 +264,8 @@ class Postgres(Model):
 
 class EtcdBackup(Model):
     bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    access_key: Secret = ""
-    secret_key: Secret = ""
+    access_key: UrlCredential = ""
+    secret_key: UrlCredential = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
@@ -1129,6 +1132,14 @@ class Config(Model):
         if self.etcd_backup_enabled and not self.postgres_backup_enabled:
             raise ValueError(
                 "etcd_backup requires postgres.backup: its endpoint is where the snapshots go"
+            )
+        # The database pair is mounted in every database namespace, and a snapshot holds every object.
+        if self.etcd_backup_enabled and (
+            self.etcd_backup.bucket == self.postgres.backup.bucket
+            or self.etcd_backup.access_key == self.postgres.backup.access_key_id
+        ):
+            raise ValueError(
+                "etcd_backup needs its own bucket and key pair, not those of postgres.backup"
             )
         if self.pocket_id_enabled and not self.postgres_backup_enabled:
             raise ValueError(

@@ -51,6 +51,8 @@ jobs:
           - partial-postgres-backup
           - partial-etcd-backup
           - etcd-backup-without-backup
+          - etcd-backup-shares-database-pair
+          - etcd-backup-url-unsafe-key
           - partial-observability
           - discord-without-observability
           - heartbeat-without-discord
