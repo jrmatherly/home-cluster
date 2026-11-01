@@ -19,6 +19,22 @@ spec:
               cpu: 100m
             limits:
               memory: 1Gi
+        #% if nodes | length > 1 %#
+        # Preferred, so a node loss never leaves a gateway pod Pending. The selector spans both
+        # gateways, because they share this EnvoyProxy and it cannot name one of them.
+        pod:
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/name: envoy
+      envoyPDB:
+        minAvailable: 1
+        #% endif %#
       envoyService:
         externalTrafficPolicy: Cluster
   shutdown:
