@@ -43,6 +43,14 @@ jobs:
           chmod -R a-w .claude/skills/update-apps/scripts .claude/skills/update-apps/references
           test ! -w .claude/skills/update-apps/scripts/upstream-diff.sh
 
+      - name: Install the subprocess sandbox
+        # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB requires it: without socat and bubblewrap Bash will not
+        # start (measured 2026-11-01). The action installs them only with allowed_non_write_users.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          sudo sysctl -e -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Research the open Renovate PRs
         id: claude
         uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
@@ -78,8 +86,8 @@ jobs:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
 
       - name: Refuse output that could carry a token
-        # The primary control: the scrub covers subprocesses only, and no bubblewrap runs here, because
-        # the action installs it only with allowed_non_write_users.
+        # The primary control: the scrub and the sandbox cover subprocesses only, and the Read tool runs
+        # in the Claude Code process itself.
         shell: bash
         env:
           OUTPUT: ${{ steps.claude.outputs.structured_output }}
