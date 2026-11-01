@@ -43,8 +43,10 @@ EOF
 cat >"$bin/flux" <<'EOF'
 #!/usr/bin/env bash
 echo "flux $*" >>"$LOG"
-[[ "$1" == get ]] && echo "NAMESPACE NAME REVISION SUSPENDED READY MESSAGE"
-exit 0
+[[ "$1" == get ]] || exit 0
+echo "NAMESPACE NAME REVISION SUSPENDED READY MESSAGE"
+# The nth listing of a kind prints unready-<kind>-<n>, so a case can change it across the merge.
+cat "$FIX/unready-$2-$(grep -c "^flux get $2 " "$LOG")" 2>/dev/null || true
 EOF
 cat >"$bin/flate" <<'EOF'
 #!/usr/bin/env bash
@@ -121,6 +123,38 @@ assert "safe listed app writes nothing to Flux objects" "! logged 'flux reconcil
 assert "safe listed app exits 0" "[[ $status == 0 ]]"
 assert "safe listed app reports merged and passed" "grep -q '^#69 kener 4.1.8 -> 4.1.9: merged, checks passed' '$FIX/out'"
 assert "safe listed app does not run flate when the head is on main" "! logged 'flate '"
+
+case_start helmrelease-wait-fails
+pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+echo helmrelease/kener >"$FIX/kubectl-fail"
+touch "$FIX/on-main-$oid_a"
+status=$(run "$FIX/verdicts.json")
+assert "a failed HelmRelease wait reverts the merge" "logged 'revert --no-edit $merged'"
+assert "a failed HelmRelease wait is reported as reverted" "grep -q 'a check failed, merge .* reverted' '$FIX/out'"
+assert "a failed HelmRelease wait exits non-zero" "[[ $status != 0 ]]"
+
+for flux_kind in hr ks; do
+    case_start "cluster-not-ready-before-merge-$flux_kind"
+    pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+    echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+    touch "$FIX/on-main-$oid_a"
+    echo "media sonarr v1 False False dependency not ready, 2m" >"$FIX/unready-$flux_kind-1"
+    echo "media sonarr v1 False False health check failed, 9m" >"$FIX/unready-$flux_kind-2"
+    status=$(run "$FIX/verdicts.json")
+    assert "$flux_kind not Ready before the merge does not revert it" "! logged 'revert --no-edit'"
+    assert "$flux_kind not Ready before the merge reports passed" "grep -q '^#69 kener 4.1.8 -> 4.1.9: merged, checks passed' '$FIX/out'"
+
+    case_start "cluster-not-ready-after-merge-$flux_kind"
+    pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+    echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+    touch "$FIX/on-main-$oid_a"
+    echo "media sonarr v1 False False dependency not ready, 2m" >"$FIX/unready-$flux_kind-1"
+    printf 'media sonarr v1 False False dependency not ready, 3m\nmedia radarr v1 False False failed, 1m\n' >"$FIX/unready-$flux_kind-2"
+    status=$(run "$FIX/verdicts.json")
+    assert "$flux_kind newly not Ready after the merge reverts it" "logged 'revert --no-edit $merged'"
+    assert "$flux_kind newly not Ready after the merge names the object" "grep -q 'media/radarr' '$FIX/err'"
+done
 
 case_start never-automerged
 pr_fixture 92 pegaprox 1.4.0 1.4.1 "$oid_a" OPEN

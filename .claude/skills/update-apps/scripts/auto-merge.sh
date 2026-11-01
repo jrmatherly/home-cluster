@@ -103,9 +103,16 @@ flate_passes() {
     grep -qE "✓ +(HelmRelease|Kustomization) +$2/$3\$" <<<"$out" && ! grep -qE "✗ .* $2/$3( |\$)" <<<"$out"
 }
 
-# app_checks <app json>: the Flux object, the cluster-wide readiness, then the app's own commands.
+# unready <hr|ks>: the sorted namespace/name of each Flux object not Ready. Keys only, because the
+# message and age columns change on every reconcile.
+unready() {
+    flux get "$1" -A --status-selector ready=false | awk 'NR > 1 { print $1 "/" $2 }' | sort
+}
+
+# app_checks <app json>: the Flux object, what the merge made unready, then the app's own commands.
+# Called from an `if`, so set -e is off inside; every check returns on its own.
 app_checks() {
-    local ns kind name check
+    local ns kind name check flux_kind new
     ns=$(jq -r .namespace <<<"$1")
     kind=$(jq -r .kind <<<"$1")
     name=$(jq -r .name <<<"$1")
@@ -115,9 +122,15 @@ app_checks() {
         Deployment) kubectl -n "$ns" rollout status "deploy/$name" --timeout=$timeout ;;
         StatefulSet) kubectl -n "$ns" rollout status "sts/$name" --timeout=$timeout ;;
         *) echo "unknown kind $kind in auto-checks.yaml" >&2; return 1 ;;
-    esac
-    [[ $(flux get hr -A --status-selector ready=false | wc -l) -le 1 ]]
-    [[ $(flux get ks -A --status-selector ready=false | wc -l) -le 1 ]]
+    esac || return 1
+    for flux_kind in hr ks; do
+        unready "$flux_kind" >"$tmp/unready-$flux_kind-after" || return 1
+        new=$(comm -13 "$tmp/unready-$flux_kind-before" "$tmp/unready-$flux_kind-after")
+        if [[ -n "$new" ]]; then
+            echo "  not Ready since the merge ($flux_kind): $new"
+            return 1
+        fi
+    done
     while IFS= read -r check; do
         [[ -n "$check" ]] || continue
         echo "  check: $check"
@@ -178,6 +191,8 @@ merge_app() {
         outcome="not merged, $stopped"
         return
     fi
+    unready hr >"$tmp/unready-hr-before"
+    unready ks >"$tmp/unready-ks-before"
     gh pr merge "$pr" --rebase --delete-branch --match-head-commit "$head"
     git pull --ff-only
     gh pr view "$pr" --json "$pr_fields" >"$tmp/pr-$pr.json"
