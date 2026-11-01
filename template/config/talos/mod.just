@@ -161,9 +161,10 @@ reset:
 reset-node node:
     topf reset --nodes-filter "^{{ node }}$" --confirm=false
 
-[doc('Bring a node back after maintenance: wait for Ready and etcd, uncordon, wait for its pods')]
+[arg('wait', pattern='wait|no-wait')]
+[doc('Bring a node back after maintenance: wait for Ready and etcd, uncordon, wait for its pods (no-wait skips that last step)')]
 [group('talos')]
-resume node:
+resume node wait='wait':
     info="$(just talos node-info "{{ node }}")"
     read -r ip role <<<"$info"
     just log info "Waiting for the node to be Ready" node "{{ node }}"
@@ -176,7 +177,7 @@ resume node:
             sleep 10
         done
     fi
-    just talos uncordon "{{ node }}"
+    just talos uncordon "{{ node }}" "{{ wait }}"
     # Not `just talos health` here: its Talos check waits up to 5 minutes while any other node
     # is still cordoned, which is the normal state between resumes on a multi-node host. Run it
     # once at the end of the runbook.
@@ -223,11 +224,17 @@ stop-node node:
     done
     just log info "Talos API is down; confirm the VM is stopped on the host (qm status), reboot the host, then run: just talos resume {{ node }}"
 
-[doc('Uncordon a node and wait for its pods to be Ready')]
+[arg('wait', pattern='wait|no-wait')]
+[doc('Uncordon a node and wait for its pods to be Ready (no-wait skips the wait)')]
 [group('talos')]
-uncordon node:
+uncordon node wait='wait':
     just talos node-info "{{ node }}" >/dev/null
     kubectl uncordon "{{ node }}"
+    # A worker's pods can need another worker on the same host still cordoned, so a chained resume deadlocks.
+    if [[ "{{ wait }}" == no-wait ]]; then
+        kubectl get node "{{ node }}"
+        exit 0
+    fi
     just log info "Waiting for pods on the node to be Ready" node "{{ node }}"
     deadline=$((SECONDS + 600))
     # The reads sit in the loop body, not its condition, so a failing kubectl aborts the recipe
@@ -256,7 +263,11 @@ upgrade-k8s:
 upgrade:
     topf upgrade
 
-[doc('Upgrade Talos on a single node (asks first)')]
+[confirm("Drain and upgrade Talos on node " + node + "? [y/N]")]
+[doc('Drain a node with the preflight checks, upgrade Talos on it, then resume it')]
 [group('talos')]
 upgrade-node node:
-    topf upgrade --nodes-filter "^{{ node }}$"
+    # Not topf's own drain, which skips the preflight and the CloudNativePG switchover.
+    just --yes talos drain "{{ node }}"
+    topf upgrade --nodes-filter "^{{ node }}$" --drain=false --confirm=false
+    just talos resume "{{ node }}"
