@@ -8,6 +8,22 @@ spec:
   # Each instance is pinned to a node by its local-path volume, so a second one
   # lets a node go down without locking every login out.
   instances: 2
+  # Peak working set 153 MiB over 7 days, read 2026-11-01. Request at the peak,
+  # limit at three times it and 512Mi at least.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  # Switch the primary over to the replica on a roll, instead of a restart in place
+  # that refuses connections for up to the 180 s smart shutdown.
+  primaryUpdateMethod: switchover
+  # Counts schedulable nodes, because instance pods do not tolerate the control plane taint.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: #{ 'required' if nodes | rejectattr('controller') | list | length > 1 else 'preferred' }#
   imageCatalogRef:
     apiGroup: postgresql.cnpg.io
     kind: ImageCatalog
