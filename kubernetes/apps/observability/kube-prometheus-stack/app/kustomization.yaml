@@ -5,6 +5,7 @@ resources:
   - ./alertmanager-secret.sops.yaml
   - ./grafana-llm-app.yaml
   - ./helmrelease.yaml
+  - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./proxmox-hosts-prometheusrule.yaml
   - ./proxmox-hosts-scrapeconfig.yaml

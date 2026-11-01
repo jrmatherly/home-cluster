@@ -1,0 +1,29 @@
+#% if observability_enabled %#
+---
+# The gateway serves the UI where tokens and buckets are made, Network Optimizer
+# writes its time series, and Grafana reads them. The Proxmox hosts write nothing here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: influxdb
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: influxdb
+      app.kubernetes.io/controller: influxdb
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network-optimizer
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 8086
+#% endif %#
