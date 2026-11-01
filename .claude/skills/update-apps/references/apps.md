@@ -220,7 +220,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
 - **pocket-id** is the identity provider, so a broken update locks every login that goes through it. Stay on the
   `-distroless` image variant. It migrates its database on start and refuses to start on a database a newer
   version migrated, so a rollback after a migration means restoring `pocket-id-db` from its backup: read the notes
-  for a migration before updating, and confirm a recent backup with `kubectl -n security get backup`. Its hostname
+  for a migration before updating, and confirm a recent backup with `kubectl -n security get backup`. Its
+  HelmRelease carries `home-cluster.io/remediation: manual`, so Flux never rolls a failed upgrade back, image-pull
+  failures included: read the pod log, then fix forward or restore, and never roll back with `flux`. Its hostname
   must never change, because passkeys are bound to it. Recovery after losing every passkey is
   `kubectl -n security exec deploy/pocket-id -- /app/pocket-id one-time-access-token <user>`. Since v2.19
   an outbound SSRF policy blocks private targets for SCIM, backchannel logout, federated JWKS and LDAP

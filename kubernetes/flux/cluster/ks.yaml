@@ -52,6 +52,7 @@ spec:
               target:
                 group: helm.toolkit.fluxcd.io
                 kind: HelmRelease
+                labelSelector: home-cluster.io/remediation notin (manual)
       target:
         group: kustomize.toolkit.fluxcd.io
         kind: Kustomization

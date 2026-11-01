@@ -3,11 +3,26 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: pocket-id
+  labels:
+    home-cluster.io/remediation: manual
 spec:
   chartRef:
     kind: OCIRepository
     name: pocket-id
   interval: 1h
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  # Pocket ID refuses to start on a database a newer version migrated, so a rollback after a
+  # migrated-then-failed upgrade crash-loops every SSO login. A failed upgrade stays on the new
+  # image, image-pull failures included; the fix is forward or a restore from pocket-id-db's backup.
+  upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
+    remediation:
+      remediateLastFailure: false
+      retries: 0
   values:
     controllers:
       pocket-id:
