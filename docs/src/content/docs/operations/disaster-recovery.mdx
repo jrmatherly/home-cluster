@@ -1,0 +1,107 @@
+---
+title: Disaster recovery
+description: What a rebuild needs from outside Git, and how to recover from lost etcd quorum, a lost database, a lost node disk or a lost namespace.
+sidebar:
+  order: 5
+---
+
+## Status on 2026-11-01
+
+| Recovery | State |
+| --- | --- |
+| Postgres restore from the backup bucket | Rehearsed on `pocket-id-db`. See the rehearsal log. |
+| etcd restore from a snapshot | Not rehearsed. A rehearsal needs a throwaway Talos cluster. |
+| Volumes on `local-path` with no backup | Listed below. They are not recoverable. |
+
+## Before anything: what a rebuild needs from outside Git
+
+Keep a copy of the first five files off these hosts, and not only on the workstation. The private runbook records where each copy is.
+
+| File | What it does | If it is lost |
+| --- | --- | --- |
+| `age.key` | Decrypts every `*.sops.*` file, the Talos PKI too | Nothing replaces it. The repo's secrets are unreadable. |
+| `cluster.toml` | Every setting and secret the render uses | Rebuild it by hand from the sample and each service's console |
+| `deploy.key` | Flux's Git access | Create a new deploy key |
+| `cloudflare-tunnel.json` | The tunnel's credentials | Create a new tunnel |
+| `talosconfig` | Talos API access | Regenerate it from `talos/secrets.sops.yaml` |
+| `kubeconfig` | Kubernetes API access | Regenerate it with `talosctl kubeconfig` |
+| `flux-webhook-token.txt` | Webhook token | Regenerate it, then re-render |
+
+## Lost etcd quorum
+
+Try to restore quorum first. Compare `talosctl -n <cp-1 address> etcd members` and `talosctl -n <cp-1 address> service etcd` across the control planes. If one member is down, bring it back. The steps below are for when that fails.
+
+1. Get a snapshot. The `etcd-snapshot` CronJob writes `etcd/etcd-<date>.snapshot` to the `[etcd_backup]` bucket once a day at 02:00 UTC and keeps 30 days. If etcd still answers, `just talos etcd-snapshot <absolute dir>` is fresher. Check the file with `etcdutl snapshot status <file> -w table`.
+2. If a control plane is up but etcd is not, wipe its data after the snapshot is safe: `talosctl -n <cp-1 address> reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL`. Rebuild a lost VM with `just talos apply-node <node>`, which carries the same secrets.
+3. Wait until every control plane shows etcd `Preparing` in `talosctl -n <cp-1 address> service etcd`.
+4. On one control plane only, run `talosctl -n <cp-1 address> bootstrap --recover-from=<file>`. Leave out `--recover-skip-hash-check`, because a `talosctl etcd snapshot` file carries its hash. That flag is for a database file copied off a disk.
+5. The other control planes rejoin once the API is up. Then run `just talos health`.
+
+## Lost a database
+
+Seven clusters archive to the `postgres-backup` ObjectStore, each under its own name. `radar-db` has no backup by design, because it holds seven days of history. A lost one starts empty.
+
+| Namespace | Cluster | Instances | Backup (UTC) |
+| --- | --- | --- | --- |
+| `security` | `pocket-id-db` | 2 | 03:00 |
+| `matherlynet` | `matherlynet-db` | 2 | 03:00 |
+| `reactive-resume` | `reactive-resume-db` | 2 | 04:00 |
+| `kener` | `kener-db` | 2 | 04:30 |
+| `ai-workspace` | `ai-workspace-db` | 2 | 05:00 |
+| `ai-kb` | `ai-kb-db` | 1 | 05:30 |
+| `langfuse` | `langfuse-db` | 2 | 05:45 |
+| `radar` | `radar-db` | 2 | none |
+
+Recreate the Cluster with the same name, because the name is the bucket key, and add this stanza:
+
+```yaml
+spec:
+  bootstrap:
+    recovery:
+      source: <cluster>
+  externalClusters:
+    - name: <cluster>
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: postgres-backup
+          serverName: <cluster>
+```
+
+Remove `spec.plugins` until you have checked the restored data. With it set, the new instance archives into the same bucket path as the backup it came from. The templates do not carry this stanza, so a recovery needs a hand-applied Cluster with Flux suspended on that Kustomization, or a temporary template edit.
+
+## Lost a node's disk
+
+A `local-path` volume lives on one node. CloudNativePG instances re-sync from a peer or the bucket. These volumes have no copy:
+
+| Volume | What is lost |
+| --- | --- |
+| `pegaprox/pegaprox` | Its database, restorable only from a hand-made backup |
+| `network-optimizer/network-optimizer` | Settings and audit history |
+| `rustfs/rustfs-data` | AI KB's files and Langfuse's events |
+| `langfuse/data-clickhouse-0` | Traces |
+| `observability/influxdb` | Metrics pushed from outside the cluster |
+| `actual-budget/actual-budget` | The budget files. Clients keep their own copy. |
+| `media/*` configs | App settings. The configure hooks rebuild most of them. |
+| Grafana's volume | State made in the UI. Dashboards are in Git. |
+| `*/data-redis-0`, `ai-kb/ai-kb-neo4j`, `ai-kb/ai-kb-data-files` | Caches and queues. Neo4j and the data files rebuild from a re-ingest (inferred, not tried). |
+
+Prometheus and Alertmanager lose history and silences only.
+
+## Lost a namespace
+
+The `local-path` reclaim policy is `Delete` and every app has `prune: true`, so turning a section off in `cluster.toml` deletes its namespace's volumes. A rename can do the same. Removing or adding a persistence entry on an app-template app can rename its claims and delete the data, which happened on 2026-10-05 and 2026-10-24. Check the `flate` output for a PVC rename before merging such a change.
+
+## Rehearsal log
+
+On 2026-11-01 `pocket-id-db` was restored twice into a scratch namespace, from the newest backup plus the archived WAL, on a 2Gi `local-path` volume. Each run reached Ready in under three minutes (174 s and 153 s).
+
+- The second run compared exact row counts for all 32 tables in `public` against the live primary, with no differences. It compared counts only, not row contents.
+- The scratch Cluster had no `spec.plugins`, and the bucket had no prefix for it afterwards.
+- The copied ObjectStore drops `retentionPolicy`, labels and annotations, so it has no retention setting and no Flux labels.
+- The app was not pointed at the restored copy, and the other six clusters were not rehearsed.
+
+## Sources
+
+- Talos: "Disaster Recovery" (v1.14).
+- CloudNativePG: "Recovery" and the Barman Cloud plugin documentation.
