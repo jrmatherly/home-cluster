@@ -1,4 +1,12 @@
 ---
+- name: renovate/container
+  color: ededed
+- name: renovate/helm
+  color: ededed
+- name: renovate/github-action
+  color: ededed
+- name: renovate/github-release
+  color: ededed
 - name: type/digest
   color: ffeC19
 - name: type/patch

@@ -28,6 +28,8 @@ WATCHED = [
     "pyproject.toml",
     "uv.lock",
     ".github/template-tests",
+    ".oxfmtrc.json",
+    ".mise",
 ]
 FIXTURES = ROOT / ".github/template-tests/valid"
 # Full validation on the fixture that enables the most features; the rest only

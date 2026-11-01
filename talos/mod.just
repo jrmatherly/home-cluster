@@ -236,7 +236,8 @@ uncordon node:
     kubectl get node "{{ node }}"
 
 # topf intentionally does not manage Kubernetes upgrades
-[doc('Upgrade Kubernetes')]
+[confirm("Upgrade Kubernetes on every node? [y/N]")]
+[doc('Upgrade Kubernetes (asks first)')]
 [group('talos')]
 upgrade-k8s:
     talosctl --nodes "$(yq '[.nodes[] | select(.role == "control-plane")][0].ip' topf.yaml)" \
