@@ -178,6 +178,19 @@ status=$(run "$FIX/verdicts.json")
 assert "a non-version line is commented, not merged" "logged 'gh pr comment 69' && ! logged 'gh pr merge'"
 assert "a non-version line exits 0" "[[ $status == 0 ]]"
 
+for extra in "rename|similarity index 100%\nrename from a\nrename to b" \
+    "binary|Binary files a/x and b/x differ" \
+    "mode|old mode 100644\nnew mode 100755" \
+    "new-file|new file mode 100644"; do
+    case_start "not-version-only-${extra%%|*}"
+    pr_fixture 69 kener 4.1.8 4.1.9 "$oid_a" OPEN
+    touch "$FIX/on-main-$oid_a"
+    printf -- 'diff --git a/x b/x\n%b\n' "${extra#*|}" >>"$FIX/pr-69.diff"
+    echo "[$(verdict 69 kener 4.1.8 4.1.9 "$oid_a" safe)]" >"$FIX/verdicts.json"
+    status=$(run "$FIX/verdicts.json")
+    assert "a ${extra%%|*} is commented, not merged" "logged 'changes more than version strings' && ! logged 'gh pr merge'"
+done
+
 case_start outside-kubernetes
 pr_fixture 68 kener 32.0.1 32.0.2 "$oid_a" OPEN
 touch "$FIX/on-main-$oid_a"

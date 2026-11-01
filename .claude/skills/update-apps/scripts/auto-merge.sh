@@ -89,9 +89,11 @@ checks_passed() {
 
 # version_only <diff> <namespace> <app>: every changed file is under the app's own directory in
 # kubernetes/apps or template/config/kubernetes/apps, every changed line is a tag, version, image
-# or reference value, and each pair differs in the version alone.
+# or reference value, and each pair differs in the version alone. A rename, mode change, new file or
+# binary carries no +/- lines to check, so its header alone refuses the diff.
 version_only() {
     local diff=$1 dir="apps/$2/$3/"
+    grep -qE '^(rename from|copy from|Binary files|old mode|new file mode|deleted file mode)' "$diff" && return 1
     grep -E '^(\+\+\+|---) ' "$diff" | grep -qvE "^(\+\+\+ b|--- a)/(kubernetes|template/config/kubernetes)/$dir" && return 1
     grep -E '^[-+]' "$diff" | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[-+] *(- )?(tag|version|image|reference): \S+$' && return 1
     local key='s/^[-+]//; s/@sha256:[0-9a-f]{64}//; s/:[^:]*$//' removed added
