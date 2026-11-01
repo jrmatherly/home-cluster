@@ -9,7 +9,6 @@ resources:
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
-  - ./networkpolicy-postgres.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
   - ./secret.sops.yaml
