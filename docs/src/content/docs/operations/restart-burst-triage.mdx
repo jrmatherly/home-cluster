@@ -114,7 +114,7 @@ its `/dev/disk/by-id` symlinks stay, which proves nothing. Both drives here run 
 
     `zpool status` again until it reads "scrub repaired 0B ... with 0 errors" (33 s for 60 GB). If `nvme list` shows one drive after a cold start, the drive is dead: `zpool replace rpool <device id>-part3 <new device id>-part3`.
 
-4. Bring the nodes back, control plane first, then `health`:
+4. Bring the nodes back, control plane first, then the three workers at the same time, each in its own terminal, then `health`. [Node maintenance](/operations/node-maintenance/) says why:
 
     ```sh
     just talos resume k8s-cp-1
@@ -132,8 +132,10 @@ its `/dev/disk/by-id` symlinks stay, which proves nothing. Both drives here run 
 
 ## Prevention
 
-- A 980 PRO on current firmware that hangs with "Device not ready" after a reset matches the drive's deepest power-saving state (APST) misbehaving with the slot. One hang is thin evidence; on a second, set `nvme_core.default_ps_max_latency_us=0` on the host's kernel command line (`/etc/kernel/cmdline`, then `proxmox-boot-tool refresh`).
-- Nothing in the cluster could see rpool. `proxmox_hosts` under `[observability]` now scrapes node-exporter on the three Proxmox hosts and alerts on `node_zfs_zpool_state` when a pool is not online (a page needs `discord_webhook`). Built 2026-10-12; it waits on `prometheus-node-exporter` being installed on each host. The steps are in [Grafana plugins](/apps/grafana-plugins/), under "Proxmox hosts and ZFS".
+- A 980 PRO on current firmware that hangs with "Device not ready" after a reset matches the drive's deepest power-saving state (APST) misbehaving with the slot (inferred, unproven). The same drive dropped again on 2026-10-24 with `CSTS=0x1`, a controller still answering on PCIe but stuck, and the pool ran degraded for 7 days unseen. So `nvme_core.default_ps_max_latency_us=0` went on the host's kernel command line on 2026-10-31, in effect from the 2026-11-01 boot (read back from `/sys/module/nvme_core/parameters/`). This host boots GRUB on UEFI, so the option is in `GRUB_CMDLINE_LINUX_DEFAULT` in `/etc/default/grub`, followed by `update-grub` and `proxmox-boot-tool refresh`, not `/etc/kernel/cmdline`.
+- A third hang with APST off means APST was not the cause: replace the drive. A replacement is recommended anyway. If the slot is in doubt, swap the two drives first to see whether the fault follows the drive.
+- The operator reports the drops follow power flickers that move the host to its UPS (stated, unproven). The drive's Unsafe Shutdowns went from 63 on 2026-10-12 to 64 on 2026-11-01, one per hang, so no flicker cut its power in between. A flicker could still trigger a hang, and a UPS log would settle it.
+- `proxmox_hosts` under `[observability]` scrapes node-exporter on the three Proxmox hosts and alerts on `node_zfs_zpool_state` when a pool is not online (a page needs `discord_webhook`). On since 2026-10-31; it paged for this drive and cleared after the repair. The steps are in [Grafana plugins](/apps/grafana-plugins/), under "Proxmox hosts and ZFS".
 - `restart-reset` runs hourly since 2026-10-12, so a burst at any hour clears within two hours. Its guard skips restarts under an hour old, and `concurrencyPolicy: Forbid` keeps runs from overlapping.
 
 ## Sources

@@ -172,7 +172,7 @@ home cluster, and not a clean switchover:
 ```sh
 just talos health
 just kube primaries                    # confirm the placement above still holds
-just talos stop-node k8s-worker-1      # Prometheus and Network Optimizer go Pending; no Postgres
+just talos stop-node k8s-worker-1      # Prometheus, Network Optimizer, RustFS and AI KB's Redis go Pending; no Postgres
 kubectl drain k8s-worker-2 --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m
 talosctl -n <k8s-worker-2 address> shutdown
 kubectl drain k8s-worker-3 --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m
@@ -191,13 +191,18 @@ After the host is back (five minutes; the control plane needs a minute to rejoin
 
 ```sh
 just talos resume k8s-cp-1             # waits for etcd on this node
-just talos resume k8s-worker-3         # Grafana, InfluxDB, PegaProx, Actual Budget, four Postgres instances
+```
+
+Then resume the three workers at the same time, each in its own terminal, and run `health` when all three have returned:
+
+```sh
+just talos resume k8s-worker-1         # Prometheus, Network Optimizer, RustFS, AI KB's Redis
 just talos resume k8s-worker-2
-just talos resume k8s-worker-1
+just talos resume k8s-worker-3         # Grafana, InfluxDB, PegaProx, Actual Budget, four Postgres instances
 just talos health
 ```
 
-Only the last `health` counts. `resume` itself does not run it, so the list goes quickly.
+Only the last `health` counts. `resume` does not run it, but it does wait up to 10 minutes for the node's pods and then fails, and those pods depend on the other two workers. On 2026-11-01 `k8s-worker-2`'s resume held on `ai-kb-app`, which needs Redis and RustFS on `k8s-worker-1`, and `k8s-worker-3`'s held on Actual Budget, which needs Pocket ID. One after another, or chained with `&&`, can stall until the timeout.
 
 ### Reboot all three hosts
 

@@ -151,28 +151,25 @@ To check it:
 
 The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and raises an alert when a ZFS pool there is not online (a page needs `discord_webhook`). Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs the three required `[observability]` fields (source, `template/scripts/validate.py`).
 
-As of 2026-10-23 the templates are built, but `proxmox_hosts` is empty, so nothing scrapes the hosts and no ZFS alert can fire.
+On since 2026-10-31: all three hosts `up`, and `ZfsPoolNotOnline` fired for the non-GPU host's rpool on its first evaluation.
 
 What it renders (source, `kube-prometheus-stack/app/`):
 
 - `proxmox-hosts-scrapeconfig.yaml`, a `ScrapeConfig` with the job `proxmox-hosts`, every 60 seconds, one target per address at port 9100. The HelmRelease sets `scrapeConfigSelectorNilUsesHelmValues: false`, so Prometheus picks it up with no label.
 - `proxmox-hosts-prometheusrule.yaml`, the `proxmox-hosts` rule group. `ZfsPoolNotOnline` is critical and fires when `node_zfs_zpool_state{job="proxmox-hosts", state!="online"} == 1` holds for 2 minutes. `ProxmoxHostExporterDown` is a warning and fires when `up{job="proxmox-hosts"} == 0` holds for 10 minutes.
 
-The zfs collector of node-exporter exposes `node_zfs_zpool_state` as a 1 or 0 gauge per pool and state, with the labels `zpool` and `state` (docs, node_exporter zfs collector). Nothing here has measured it yet. The first measurement is the `grep` in step 2.
+The zfs collector of node-exporter exposes `node_zfs_zpool_state` as a 1 or 0 gauge per pool and state, with the labels `zpool` and `state` (measured 2026-10-31).
 
-1. On each Proxmox host, as root, install Debian's package. It starts the exporter on port 9100 and enables it at boot.
+Steps 1 and 2 are a private script here, also for a rebuilt or added host. It copies itself to each host over SSH, runs, and saves the output locally.
 
-    ```sh
-    apt install -y prometheus-node-exporter
-    ```
-
+1. On each Proxmox host, as root, limit the exporter's connections before it first starts: a systemd drop-in at `/etc/systemd/system/prometheus-node-exporter.service.d/10-allow-scrapers.conf` sets `IPAddressDeny=any` and `IPAddressAllow=localhost <node network>`. Then install Debian's package with `--no-install-recommends`. It starts the exporter on port 9100 and enables it at boot.
 2. On the same host, check that every pool reports `state="online"` with the value 1.
 
     ```sh
     curl -s localhost:9100/metrics | grep node_zfs_zpool_state
     ```
 
-3. If the Proxmox firewall is on, allow TCP 9100 at the datacenter or node level from every Talos node address, because any node may host Prometheus. Cilium masquerades pod traffic that leaves the cluster, so the scrape arrives from the node's address, not the pod CIDR.
+3. The Proxmox firewall is disabled on these hosts. If it is ever turned on, allow TCP 9100 at the datacenter or node level from every Talos node address, because any node may host Prometheus. Cilium masquerades pod traffic that leaves the cluster, so the scrape arrives from the node's address, not the pod CIDR, which is why the drop-in allows the node network.
 4. In `cluster.toml`, under `[observability]`, set the hosts' addresses, then render, commit and push as in "Render, commit and push".
 
     ```toml
