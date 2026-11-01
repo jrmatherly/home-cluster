@@ -3,7 +3,7 @@
 Machine configs are assembled by [topf](https://postfinance.github.io/topf/) from
 `topf.yaml` plus the strategic merge patches in this directory.
 
-<https://www.talos.dev/latest/talos-guides/configuration/patching/>
+<https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/system-configuration/patching>
 
 ## Patch Directories
 

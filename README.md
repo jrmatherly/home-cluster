@@ -14,18 +14,21 @@ addresses, because this repository is public.
 ## What runs here
 
 - **Platform:** Talos Linux, Cilium with BGP to the gateway, Flux, cert-manager, Envoy Gateway,
-  external-dns for Cloudflare and for the UniFi console, a Cloudflare tunnel, spegel, reloader.
+  external-dns for Cloudflare and for the UniFi console, a Cloudflare tunnel, spegel, reloader,
+  and an in-cluster GitHub Actions runner.
 - **Storage:** `local-path` volumes pinned to a node, an NFS share from the media host through
-  csi-driver-nfs, CloudNativePG for every Postgres with backups to object storage, one Redis per
-  app that needs it, and RustFS as an in-cluster S3 store for app files.
+  csi-driver-nfs, CloudNativePG for every Postgres with backups to object storage (except Radar's
+  seven-day history), a daily etcd snapshot to its own bucket, one Redis per app that needs it,
+  and RustFS as an in-cluster S3 store for app files.
 - **Identity:** Pocket ID issues passkey logins, and apps without a login sit behind an Envoy
   Gateway security policy that signs users in with it.
 - **Observability:** kube-prometheus-stack with Grafana and Alertmanager, InfluxDB for the
   Proxmox and network time series, Hubble.
 - **Apps:** a media stack (Sonarr, Radarr, Prowlarr, SABnzbd, Recyclarr, Bazarr, Tautulli, Seerr,
   Maintainerr), Actual Budget, Kener, Network Optimizer, PegaProx, Radar, Reactive Resume, AI
-  Workspace (with a browserless pod), AI KB (with SearXNG for web search), Langfuse for AI KB's traces, LocalAI on the GPU node (a
-  chat and an embedding model), the public site, and this documentation.
+  Workspace (with a browserless pod), AI KB (with SearXNG for web search), Langfuse for AI KB's
+  traces, LocalAI on the GPU node (a chat and an embedding model), the public site, and this
+  documentation.
 
 Each app lives under `kubernetes/apps/<namespace>/<app>/`, rendered from its `.j2` source under
 `template/config/`. `cluster.sample.toml` documents every setting, and a section in `cluster.toml`
@@ -39,8 +42,8 @@ turns the matching namespace on.
 3. Commit and push. Flux reconciles `kubernetes/` from `main`, so the push is the deploy.
 
 Node operations go through `just talos` (`status`, `drain`, `stop-node`, `reboot-node`, `resume`,
-`health`, `upgrade-node`, `upgrade-k8s`), and `just kube` lists the Postgres primaries and
-switches one over before a node is drained.
+`health`, `upgrade-node`, `upgrade-k8s`, `etcd-snapshot`), and `just kube` lists the Postgres
+primaries and switches one over before a node is drained.
 
 ## Tooling
 
@@ -48,13 +51,14 @@ switches one over before a node is drained.
   and the sops keys at files inside the repository. Run `mise trust` and `mise install` once.
 - [lefthook](https://github.com/evilmartians/lefthook) runs the pre-commit checks: oxfmt on
   JSON, YAML, Markdown and TOML, `just --fmt`, `mise fmt`, `mise lock`, zizmor, Ruff, shellcheck,
-  markdownlint, a scrub of the documentation pages for private values, and the cluster-guard
-  tests when its files are staged.
+  markdownlint, a scrub of the documentation pages for private values, a size limit on
+  `CLAUDE.md`, and the cluster-guard and restart-reset tests when their files are staged.
 - [Renovate](https://www.mend.io/renovate) keeps charts, images, tools and actions current, and
   pins the documentation image to its digest after every build.
-- GitHub Actions build the documentation image and the model images for LocalAI. The
-  template's fixture tests run locally through a Stop hook; the upstream CI jobs skip on this
-  fork.
+- GitHub Actions build the documentation image and the model images for LocalAI, run Flate on
+  pull requests that touch `kubernetes/`, and research the open Renovate PRs every Monday, with
+  merges behind a repository switch. The template's fixture tests run locally through a Stop
+  hook; the upstream CI jobs skip on this fork.
 
 ## Layout
 
@@ -73,8 +77,10 @@ images/               recipes for the model images LocalAI mounts
 ## Private files
 
 `cluster.toml`, `age.key`, `deploy.key`, `cloudflare-tunnel.json`, `flux-webhook-token.txt`,
-`kubeconfig`, `talos/talosconfig` and the `private/` directory are gitignored and never leave this
-machine. Every file with `.sops.` in its name is encrypted before it is committed.
+`kubeconfig`, `talos/talosconfig` and the `private/` directory are gitignored and never committed.
+A rebuild needs some of them, `age.key` above all, so
+[disaster recovery](./docs/src/content/docs/operations/disaster-recovery.mdx) lists which ones need
+a copy off these hosts. Every file with `.sops.` in its name is encrypted before it is committed.
 
 ## License
 
