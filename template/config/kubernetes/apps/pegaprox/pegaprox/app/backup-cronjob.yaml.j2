@@ -1,0 +1,132 @@
+#% if pegaprox_enabled and volume_backup_enabled %#
+---
+# The volume is the only copy of the stored Proxmox credentials. The tar holds the
+# field-encryption keys but not db_key, which the databases need and which stays in
+# the Secret, so a tar alone cannot be read.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: volume-backup
+spec:
+  schedule: "30 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # The app's own image, because only its dbcrypto can open SQLCipher with
+            # db_key in either form. Read-write, because SQLite cannot open a WAL
+            # database read-only once the app has stopped and removed its -shm file;
+            # local-path keeps this pod on the app's node, so WAL locking holds.
+            - name: snapshot
+              image: ghcr.io/pegaprox/pegaprox:1.4.1@sha256:8d295a524a52f0b923616a3eb415ff6422fe62beba5bb441f35c75d8985f1add
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  python3 -c '
+                  import os
+                  from pegaprox.core import dbcrypto
+                  for f in ("pegaprox.db", "syslog.db"):
+                      # connect() would create a missing file on the volume.
+                      if not os.path.exists("/app/config/" + f):
+                          continue
+                      c = dbcrypto.connect("/app/config/" + f, timeout=30)
+                      c.execute("VACUUM INTO ?", ("/work/" + f,))
+                      c.close()
+                      d = dbcrypto.connect("/work/" + f)
+                      assert d.execute("pragma integrity_check").fetchone()[0] == "ok", f
+                      d.close()
+                  '
+                  set -- pegaprox.db
+                  if [ -f /work/syslog.db ]; then set -- "$@" syslog.db; fi
+                  rc=0
+                  tar -czf /work/out.tar.gz --exclude='./pegaprox.db*' --exclude='./syslog.db*' --exclude='./.pegaprox.lock' -C /app/config . -C /work "$@" || rc=$?
+                  # GNU tar exits 1 when a file changed as it read, which is fine here; 2 is a real failure.
+                  [ "$rc" -le 1 ]
+                  rm /work/*.db
+                  # A restore without these looks healthy and cannot read its stored secrets.
+                  tar -tzf /work/out.tar.gz > /tmp/members
+                  for f in ./.pegaprox_aes256.key ./.pegaprox.key pegaprox.db; do grep -qxF "$f" /tmp/members; done
+              env:
+                - name: PYTHONPATH
+                  value: /app
+              envFrom:
+                - secretRef:
+                    name: pegaprox-secret
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: config
+                  mountPath: /app/config
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
+                  rc object copy /work/out.tar.gz "s3/$BUCKET/volumes/pegaprox/pegaprox-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+                  # Reached only after a good upload. Files, not pipes, so a failed step fails the run.
+                  rc object find "s3/$BUCKET/volumes/pegaprox/" --older 7d --json > /tmp/found
+                  jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
+                  cat /tmp/expired
+                  xargs -r -n1 rc object remove --force < /tmp/expired
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: volume-backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: config
+              persistentVolumeClaim:
+                claimName: pegaprox
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+#% endif %#
