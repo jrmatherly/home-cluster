@@ -1,0 +1,77 @@
+---
+title: Volume backups
+description: Copy the volumes that hold the only copy of an app's state to an R2 bucket each night, and prove a copy restores.
+sidebar:
+  order: 19
+---
+
+The steps outside the repo that `[volume_backup]` in `cluster.toml` needs, in order. The jobs are in
+Git. They copy PegaProx's and Network Optimizer's volumes and AI KB's RustFS files to one R2 bucket
+each night and keep 7 days.
+
+## What it needs first
+
+- `[postgres.backup]`, because the jobs use its endpoint.
+- `db_key`, the age key and `cluster.toml` kept somewhere off the admin machine. Without `db_key` the
+  PegaProx backup is unreadable.
+
+## The bucket and token
+
+1. In Cloudflare, R2, create a bucket for the copies.
+2. Under R2, Manage API tokens, create a token with **Object Read & Write**, applied to that bucket
+   only. Copy the Access Key ID and Secret Access Key. They are shown once.
+
+Network Optimizer's tar holds usable credentials, so treat that token as a secret of the same weight
+as the UniFi key. Tokens scope to a bucket, not a prefix, and R2 has no write-only permission.
+
+## cluster.toml
+
+Fill the `[volume_backup]` block: `bucket`, `access_key`, `secret_key`. The keys may use letters,
+digits, `-` and `_`. Then `just configure`, restore the sops files that did not change, and commit and
+push the rendered files. The three new `backup-secret.sops.yaml` files are untracked, so the restore
+leaves them encrypted.
+
+## First run
+
+Once per namespace (`pegaprox`, `network-optimizer`, `rustfs`):
+
+```sh
+kubectl -n <namespace> create job --from=cronjob/volume-backup volume-backup-first
+kubectl -n <namespace> logs job/volume-backup-first --all-containers
+```
+
+Expect an object under `volumes/<namespace>/` in the bucket.
+
+## Prove a restore
+
+A restored PegaProx without its key files returns health 200 and cannot read a single stored
+credential, so health proves nothing. Download the newest tar and run it with no network, because a
+restored app acts on the real Proxmox and UniFi. For PegaProx, open the database with the app's own
+code and the live `db_key`, and read the stored clusters: a wrong key raises an error. For Network
+Optimizer, check `integrity_check`, the app's health, and that the hash of `.credential_key` matches
+the live one. Delete the tars afterwards.
+
+## Restore into the cluster
+
+These steps are not rehearsed in the cluster.
+
+1. `flux suspend helmrelease <app>`, so Flux does not undo the next step, then scale the Deployment to
+   zero.
+2. Start a one-off pod under the app's uid with the claim mounted, using the app's own image, because
+   `kubectl cp` needs `tar` in it.
+3. Delete the database's `-wal` and `-shm` files, or SQLite may apply an old WAL to the new file.
+4. Copy the tar in and extract it over the volume.
+5. Delete the pod, `flux resume helmrelease <app>`, and check a stored secret, not just health.
+
+For AI KB's files, extract the tar and run `rc mirror <dir> rustfs/ai-kb-files`. Object metadata is not
+preserved.
+
+## Keeping an eye on it
+
+- A failed run fires `KubeJobFailed`.
+- A job that never runs fires nothing, so read `kubectl get cronjob -A` now and then.
+- If you run on R2's free tier, read the bucket sizes before adding anything else to it.
+
+## Sources
+
+Measured in Docker against the pinned images on 2026-11-02. [SQLite write-ahead logging](https://sqlite.org/wal.html) covers why a read-only open of a live WAL database is not safe to rely on.

@@ -88,13 +88,13 @@ Remove `spec.plugins` until you have checked the restored data. With it set, the
 
 ## Lost a node's disk
 
-A `local-path` volume lives on one node. CloudNativePG instances re-sync from a peer or the bucket. These volumes have no copy:
+A `local-path` volume lives on one node. CloudNativePG instances re-sync from a peer or the bucket. These volumes have no copy, apart from the three that [volume backups](/apps/volume-backup/) cover once `[volume_backup]` is set:
 
 | Volume | What is lost |
 | --- | --- |
-| `pegaprox/pegaprox` | Its database, restorable only from a hand-made backup |
-| `network-optimizer/network-optimizer` | Settings and audit history |
-| `rustfs/rustfs-data` | AI KB's files and Langfuse's events |
+| `pegaprox/pegaprox` | Its database and keys. Restorable from a nightly copy, which also needs `db_key` |
+| `network-optimizer/network-optimizer` | Settings, audit history and keys. Restorable from a nightly copy |
+| `rustfs/rustfs-data` | AI KB's files, restorable from a nightly copy, and Langfuse's events, which are not |
 | `langfuse/data-clickhouse-0` | Traces |
 | `observability/influxdb` | Metrics pushed from outside the cluster |
 | `actual-budget/actual-budget` | The budget files. Clients keep their own copy. |
