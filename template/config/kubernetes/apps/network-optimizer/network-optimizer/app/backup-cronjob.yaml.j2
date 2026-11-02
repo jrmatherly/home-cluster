@@ -1,0 +1,112 @@
+#% if network_optimizer_enabled and volume_backup_enabled %#
+---
+# The volume is the only copy of the settings, the audit history and the keys that
+# decrypt the stored credentials.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: volume-backup
+spec:
+  schedule: "40 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # The app's own image, because it has sqlite3 and GNU tar and adds nothing
+            # new with access to this volume. Read-write, because SQLite cannot open a
+            # WAL database read-only once the app has stopped and removed its -shm file;
+            # local-path keeps this pod on the app's node, so WAL locking holds.
+            - name: snapshot
+              image: ghcr.io/ozark-connect/network-optimizer:2.10.5@sha256:44e17cb1499358ba60495a1a6016f41c5ebdd945324942d3169c51d344f50665
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  sqlite3 /app/data/network_optimizer.db ".timeout 30000" "VACUUM INTO '/work/network_optimizer.db'"
+                  test "$(sqlite3 /work/network_optimizer.db 'pragma integrity_check')" = ok
+                  # shortcut: a multi-site install's sites/*.db would be copied live; add them to VACUUM when a second site exists.
+                  rc=0
+                  tar -czf /work/out.tar.gz --exclude='./network_optimizer.db*' --exclude='./GeoLite2-*' --exclude='./ieee-oui-cache.txt' --exclude='./temp' -C /app/data . -C /work network_optimizer.db || rc=$?
+                  # GNU tar exits 1 when a file changed as it read, which is fine here; 2 is a real failure.
+                  [ "$rc" -le 1 ]
+                  rm /work/network_optimizer.db
+                  # A restore without these looks healthy and cannot read its stored secrets.
+                  tar -tzf /work/out.tar.gz > /tmp/members
+                  for f in ./.credential_key ./keys/ network_optimizer.db; do grep -qxF "$f" /tmp/members; done
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: data
+                  mountPath: /app/data
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
+                  rc object copy /work/out.tar.gz "s3/$BUCKET/volumes/network-optimizer/network-optimizer-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+                  # Reached only after a good upload. Files, not pipes, so a failed step fails the run.
+                  rc object find "s3/$BUCKET/volumes/network-optimizer/" --older 7d --json > /tmp/found
+                  jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
+                  cat /tmp/expired
+                  xargs -r -n1 rc object remove --force < /tmp/expired
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: volume-backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: network-optimizer
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+#% endif %#

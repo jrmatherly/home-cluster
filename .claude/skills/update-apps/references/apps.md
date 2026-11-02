@@ -283,7 +283,9 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   (rustfs/rustfs#8121, #8015), which is why `scanner.cycle_secs` is set. `rc` is pre-1.0; after bumping it, run
   the provisioning Job's script against the new image, because it depends on `bucket create --ignore-existing`
   and `admin service-account info`, `create` and `update`, and check its log for a secret key: `rc` prints
-  one on success, so the script sends that output to `/dev/null`. Tier 1: never, for `rc`, and
+  one on success, so the script sends that output to `/dev/null`. The `volume-backup` and `etcd-snapshot` jobs
+  also depend on `object copy`, `object find --older --json`, `object remove --force` and `mirror`, so run those
+  too. Tier 1: never, for `rc`, and
   `auto-merge.sh` never merges it either (it has no entry in `auto-checks.yaml`).
 - **pegaprox** releases about once a week and holds the Proxmox credentials. Read each release's list of
   behaviour changes before bumping. Two critical authorization advisories were fixed in 1.1.1, so never go below
@@ -299,7 +301,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `pegaprox-config` to `pegaprox`, so Helm deleted the old claim and local-path deleted the database (restored
   2026-10-31 from `private/backups/`), so never add or remove a persistence entry here without a backup and a
   claim-name check. OIDC refuses 100.64.0.0/10 unless "Allow private IPs" is on, which the setup guide already sets.
-- **network-optimizer** ran pre-release tags until 2026-10-10, while the stable release's Performance Tweaks page
+  The `volume-backup` CronJob pins the same image and calls `pegaprox.core.dbcrypto.connect`, so bump both files
+  together and confirm that function still exists.
+- **network-optimizer** The `volume-backup` CronJob runs the same image and needs `sqlite3` and GNU `tar` in it, so
+  bump both files together and confirm they are still there. It ran pre-release tags until 2026-10-10, while the stable release's Performance Tweaks page
   refused the UDM-SE's UniFi OS; 2.9.2 carries the same cap as the last preview, so it is on the stable tag. That page caps the gateway firmware at `MaxSupportedFirmware` in
   `src/NetworkOptimizer.Web/Services/PerfTweaksDeploymentService.cs` and shows the firmware red above it, so after
   a UniFi OS update on the gateway, compare the version on that page with the constant in the pinned tag. If a
