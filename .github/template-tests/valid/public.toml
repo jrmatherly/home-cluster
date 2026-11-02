@@ -89,6 +89,8 @@ oidc_client_id = "fake"
 oidc_client_secret = "fake"
 
 [matherlynet]
+google_client_id = "google-client-id"
+google_client_secret = "google-client-secret"
 better_auth_secret = "fake"
 admin_email = "admin@example.com"
 smtp_url = "smtps://fake:fake@smtp.example.com:465"

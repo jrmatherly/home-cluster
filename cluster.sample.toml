@@ -283,6 +283,18 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Spegel mirrors container images between nodes, so a pull can come from a
+#    peer before it goes to the registry.
+# =============================================================================
+[spegel]
+
+# Whether Spegel mirrors images between nodes.
+# OPTIONAL. Default: true when more than one node is listed, false on a single node.
+
+# enabled = true
+
+
+# =============================================================================
 #    Postgres backups. Each database in the cluster backs up to this
 #    S3-compatible object store (Cloudflare R2, Backblaze B2, MinIO, ...).
 #    Set ALL FOUR fields below to enable; leaving them all blank disables
