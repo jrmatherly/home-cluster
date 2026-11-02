@@ -47,7 +47,7 @@ The first ran at 227 MB in a 256 MiB limit (measured 2026-11-01). The 30-day pru
 
 Try to restore quorum first. Compare `talosctl -n <cp-1 address> etcd members` and `talosctl -n <cp-1 address> service etcd` across the control planes. If one member is down, bring it back. The steps below are for when that fails.
 
-1. Get a snapshot. The `etcd-snapshot` CronJob writes `etcd/etcd-<date>.snapshot` to the `[etcd_backup]` bucket once a day at 02:00 UTC and keeps 30 days. If etcd still answers, `just talos etcd-snapshot <absolute dir>` is fresher. Check the file with `etcdutl snapshot status <file> -w table`.
+1. Get a snapshot. The `etcd-snapshot` CronJob writes `etcd/etcd-<date>.snapshot` to the `[etcd_backup]` bucket once a day at 02:00 UTC and keeps 7 days. If etcd still answers, `just talos etcd-snapshot <absolute dir>` is fresher. Check the file with `etcdutl snapshot status <file> -w table`.
 2. If a control plane is up but etcd is not, wipe its data after the snapshot is safe: `talosctl -n <cp-1 address> reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL`. Rebuild a lost VM with `just talos apply-node <node>`, which carries the same secrets.
 3. Wait until every control plane shows etcd `Preparing` in `talosctl -n <cp-1 address> service etcd`.
 4. On one control plane only, run `talosctl -n <cp-1 address> bootstrap --recover-from=<file>`. Leave out `--recover-skip-hash-check`, because a `talosctl etcd snapshot` file carries its hash. That flag is for a database file copied off a disk.

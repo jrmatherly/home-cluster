@@ -79,7 +79,8 @@ spec:
                   export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
                   rc object copy /work/etcd.snapshot "s3/$BUCKET/etcd/etcd-$(date -u +%Y%m%dT%H%M%SZ).snapshot"
                   # barman's retention only prunes its own paths. Files, not pipes, so a failed step fails the run.
-                  rc object find "s3/$BUCKET/etcd/" --older 30d --json > /tmp/found
+                  # 7 days, because 30 would hold 6.8 GB of R2's free 10 GB.
+                  rc object find "s3/$BUCKET/etcd/" --older 7d --json > /tmp/found
                   jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
                   cat /tmp/expired
                   xargs -r -n1 rc object remove --force < /tmp/expired
