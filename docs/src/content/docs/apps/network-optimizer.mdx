@@ -13,7 +13,7 @@ Each step names its source. "Template" is `template/config/kubernetes/apps/netwo
 
 ## What it holds
 
-Everything the app learns is in its SQLite database and keys on a 5Gi `local-path` volume at `/app/data` (template, `helmrelease.yaml.j2`): the UniFi API key, the InfluxDB settings, the Pocket ID role mapping, the credential key and the ASP.NET Data Protection keys. SQLite allows one writer and the volume is pinned to one node, so the Deployment uses `Recreate`. There is no backup of the volume; [node maintenance](/operations/node-maintenance/) lists the pod on `k8s-worker-1`. The migrations run at startup on that only copy, so read them before a bump (apps.md).
+Everything the app learns is in its SQLite database and keys on a 5Gi `local-path` volume at `/app/data` (template, `helmrelease.yaml.j2`): the UniFi API key, the InfluxDB settings, the Pocket ID role mapping, the credential key and the ASP.NET Data Protection keys. SQLite allows one writer and the volume is pinned to one node, so the Deployment uses `Recreate`. With [volume backups](/apps/volume-backup/) on, the volume has a nightly copy, and otherwise none; [node maintenance](/operations/node-maintenance/) lists the pod on `k8s-worker-1`. The migrations run at startup on that only copy, so read them before a bump (apps.md).
 
 ## Fill `cluster.toml`
 

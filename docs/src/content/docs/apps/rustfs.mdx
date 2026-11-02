@@ -17,7 +17,7 @@ RustFS is an S3-compatible object store for the cluster's own apps. It runs stan
 one 20Gi `local-path` claim at `/data` on the worker named in `rustfs.node`. Every object lives on
 that node's disk and nowhere else. A single drive has no parity, so the server logs
 `storage_class_zero_redundancy` at startup and can detect bitrot but not repair it. The node's ZFS
-mirror on its Proxmox host is the only protection, the same as any other `local-path` volume.
+mirror on its Proxmox host is the only protection in the cluster, the same as any other `local-path` volume; [volume backups](/apps/volume-backup/) add a nightly copy of `ai-kb-files` off it.
 Replication to R2 is not possible, because RustFS replicates only to a target with bucket
 versioning and R2 does not implement it.
 

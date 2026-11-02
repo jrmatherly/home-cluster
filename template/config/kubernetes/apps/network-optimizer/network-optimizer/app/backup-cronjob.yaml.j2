@@ -37,6 +37,8 @@ spec:
                 - |
                   sqlite3 /app/data/network_optimizer.db ".timeout 30000" "VACUUM INTO '/work/network_optimizer.db'"
                   test "$(sqlite3 /work/network_optimizer.db 'pragma integrity_check')" = ok
+                  # An app that lost its volume starts empty. Fail here, before the prune, so the good copies stay.
+                  test "$(sqlite3 /work/network_optimizer.db 'select count(*) from UniFiConnectionSettings')" -gt 0
                   # shortcut: a multi-site install's sites/*.db would be copied live; add them to VACUUM when a second site exists.
                   rc=0
                   tar -czf /work/out.tar.gz --exclude='./network_optimizer.db*' --exclude='./GeoLite2-*' --exclude='./ieee-oui-cache.txt' --exclude='./temp' -C /app/data . -C /work network_optimizer.db || rc=$?

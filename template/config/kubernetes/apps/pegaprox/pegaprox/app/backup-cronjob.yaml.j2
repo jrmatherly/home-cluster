@@ -48,6 +48,9 @@ spec:
                       c.close()
                       d = dbcrypto.connect("/work/" + f)
                       assert d.execute("pragma integrity_check").fetchone()[0] == "ok", f
+                      # An app that lost its volume starts empty. Fail here, before the prune, so the good copies stay.
+                      if f == "pegaprox.db":
+                          assert d.execute("select count(*) from clusters").fetchone()[0] > 0, "no clusters"
                       d.close()
                   '
                   set -- pegaprox.db

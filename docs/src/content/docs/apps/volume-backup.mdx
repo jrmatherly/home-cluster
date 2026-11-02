@@ -55,20 +55,22 @@ the live one. Delete the tars afterwards.
 
 These steps are not rehearsed in the cluster.
 
-1. `flux suspend helmrelease <app>`, so Flux does not undo the next step, then scale the Deployment to
-   zero.
-2. Start a one-off pod under the app's uid with the claim mounted, using the app's own image, because
-   `kubectl cp` needs `tar` in it.
-3. Delete the database's `-wal` and `-shm` files, or SQLite may apply an old WAL to the new file.
-4. Copy the tar in and extract it over the volume.
-5. Delete the pod, `flux resume helmrelease <app>`, and check a stored secret, not just health.
+If the disk or node is gone, the claim is bound to a volume that no longer exists, so make a new one first: delete the PVC and PV, then run `flux reconcile helmrelease <app> -n <namespace> --force`, which recreates the claim. The app starts empty with new keys, and the steps below overwrite them.
+
+1. `flux suspend helmrelease <app>`, so a chart upgrade cannot start mid-restore, then scale the Deployment to zero.
+2. Start a one-off pod in the app's own image, under the app's uid, with the claim mounted at its usual path, a `sleep` command and the `restricted` security fields. `kubectl cp` needs the `tar` in that image.
+3. Copy the tar to `/tmp` in the pod, not onto the volume, where the next backup would pick it up.
+4. In the volume, delete `*.db-wal` and `*.db-shm`, or SQLite may apply an old WAL to the new file.
+5. Extract to scratch, then copy the members and not the root, because the volume root is owned by root and extracting `./` over it exits 2. Then delete the pod.
+6. `flux resume helmrelease <app>`, then scale the Deployment back to one, because nothing restores the replica count without drift detection.
+7. Check a stored secret, not just health.
 
 For AI KB's files, extract the tar and run `rc mirror <dir> rustfs/ai-kb-files`. Object metadata is not
 preserved.
 
 ## Keeping an eye on it
 
-- A failed run fires `KubeJobFailed`.
+- A failed run fires `KubeJobFailed`, which stays firing until the failed Job is deleted. A job also fails if the app has no configured clusters or UniFi connection, because an app that lost its volume starts empty, and failing there stops the prune, so the good copies stay.
 - A job that never runs fires nothing, so read `kubectl get cronjob -A` now and then.
 - If you run on R2's free tier, read the bucket sizes before adding anything else to it.
 

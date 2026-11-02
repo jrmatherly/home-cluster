@@ -27,17 +27,47 @@ spec:
             runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
-          containers:
-            - name: backup
+          initContainers:
+            - name: snapshot
               image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
               command: ["sh", "-eu", "-c"]
               args:
                 - |
-                  rc alias set rustfs http://rustfs-svc.rustfs.svc.cluster.local:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY"
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_rustfs="http://$RUSTFS_ACCESS_KEY:$RUSTFS_SECRET_KEY@rustfs-svc.rustfs.svc.cluster.local:9000"
                   mkdir /work/files
                   rc mirror --no-progress rustfs/ai-kb-files /work/files
                   # shortcut: copies everything nightly; move to a live mirror above about 1 GB.
                   tar -czf /work/out.tar.gz -C /work/files .
+                  rm -r /work/files
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: rustfs-secret
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
                   # Built here so the keys are never on a command line or in the pod spec.
                   export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
                   rc object copy /work/out.tar.gz "s3/$BUCKET/volumes/rustfs/rustfs-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
@@ -50,8 +80,6 @@ spec:
                 - name: HOME
                   value: /tmp
               envFrom:
-                - secretRef:
-                    name: rustfs-secret
                 - secretRef:
                     name: volume-backup
               securityContext:
@@ -68,6 +96,7 @@ spec:
               volumeMounts:
                 - name: work
                   mountPath: /work
+                  readOnly: true
                 - name: tmp
                   mountPath: /tmp
           volumes:
