@@ -3,6 +3,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  #% if ai_kb_rustfs and volume_backup_enabled %#
+  - ./backup-cronjob.yaml
+  - ./backup-secret.sops.yaml
+  #% endif %#
   - ./helmrelease.yaml
   - ./helmrepository.yaml
   - ./networkpolicy.yaml

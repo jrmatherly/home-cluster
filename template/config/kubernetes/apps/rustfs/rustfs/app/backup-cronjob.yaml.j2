@@ -1,0 +1,78 @@
+#% if ai_kb_rustfs and volume_backup_enabled %#
+---
+# AI KB's files live on one node's disk, and R2 cannot be a replication target because
+# it has no bucket versioning. After AI KB's 05:30 UTC database backup, so a restored
+# database refers only to files in this tar. langfuse-events is left out on purpose,
+# because ClickHouse has no backup and the events alone restore little.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: volume-backup
+spec:
+  schedule: "10 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: docker.io/rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  rc alias set rustfs http://rustfs-svc.rustfs.svc.cluster.local:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY"
+                  mkdir /work/files
+                  rc mirror --no-progress rustfs/ai-kb-files /work/files
+                  # shortcut: copies everything nightly; move to a live mirror above about 1 GB.
+                  tar -czf /work/out.tar.gz -C /work/files .
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
+                  rc object copy /work/out.tar.gz "s3/$BUCKET/volumes/rustfs/rustfs-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+                  # Reached only after a good upload. Files, not pipes, so a failed step fails the run.
+                  rc object find "s3/$BUCKET/volumes/rustfs/" --older 7d --json > /tmp/found
+                  jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
+                  cat /tmp/expired
+                  xargs -r -n1 rc object remove --force < /tmp/expired
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: rustfs-secret
+                - secretRef:
+                    name: volume-backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+#% endif %#
