@@ -108,6 +108,10 @@ spec:
       # every start, keeping each plugin's config.json, so a hand-added plugin is
       # copied there and picked up with Rescan.
       config:
+        # The chart renames a lone claim when a second one appears, which deleted
+        # this database on 2026-10-24.
+        forceRename: pegaprox
+        retain: true
         type: persistentVolumeClaim
         storageClass: local-path
         accessMode: ReadWriteOnce

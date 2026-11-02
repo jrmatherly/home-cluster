@@ -104,6 +104,9 @@ spec:
       # Budget files and the account database. The only copy on the server; every
       # signed-in client also holds the full budget.
       data:
+        # The chart renames a lone claim when a second one appears.
+        forceRename: actual-budget
+        retain: true
         type: persistentVolumeClaim
         storageClass: local-path
         accessMode: ReadWriteOnce

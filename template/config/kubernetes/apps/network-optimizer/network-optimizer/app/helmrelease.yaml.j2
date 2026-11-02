@@ -91,6 +91,9 @@ spec:
             port: *port
     persistence:
       data:
+        # The chart renames a lone claim when a second one appears.
+        forceRename: network-optimizer
+        retain: true
         type: persistentVolumeClaim
         storageClass: local-path
         accessMode: ReadWriteOnce
