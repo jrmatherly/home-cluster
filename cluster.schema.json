@@ -1142,6 +1142,27 @@
       "pattern": "^[A-Za-z0-9_-]*$",
       "type": "string"
     },
+    "VolumeBackup": {
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "default": "",
+          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
+          "title": "Bucket",
+          "type": "string"
+        },
+        "access_key": {
+          "$ref": "#/$defs/UrlCredential",
+          "default": ""
+        },
+        "secret_key": {
+          "$ref": "#/$defs/UrlCredential",
+          "default": ""
+        }
+      },
+      "title": "VolumeBackup",
+      "type": "object"
+    },
     "WorkerName": {
       "pattern": "^[a-z0-9-]*$",
       "type": "string"
@@ -1210,6 +1231,14 @@
     },
     "etcd_backup": {
       "$ref": "#/$defs/EtcdBackup",
+      "default": {
+        "bucket": "",
+        "access_key": "",
+        "secret_key": ""
+      }
+    },
+    "volume_backup": {
+      "$ref": "#/$defs/VolumeBackup",
       "default": {
         "bucket": "",
         "access_key": "",

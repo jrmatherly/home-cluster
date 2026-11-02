@@ -344,6 +344,28 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Volume backups. Nightly copies of the volumes of PegaProx and Network
+#    Optimizer and of AI KB's RustFS files go to one bucket at the endpoint of
+#    [postgres.backup], which must be set, and are kept 7 days. A copy can hold
+#    usable credentials, so this bucket and key pair are separate from the
+#    database and etcd pairs. Set ALL THREE fields below to enable.
+# =============================================================================
+[volume_backup]
+
+# Bucket that holds the copies, under volumes/.
+# OPTIONAL. Example: "home-cluster-volumes"
+
+# bucket = ""
+
+# Access key pair with read and write access to that bucket's objects only.
+# Letters, digits, - and _ only, because the jobs build them into a URL.
+# OPTIONAL.
+
+# access_key = ""
+# secret_key = ""
+
+
+# =============================================================================
 #    Observability stack: Prometheus, Alertmanager and Grafana
 #    (kube-prometheus-stack), plus InfluxDB 2 for metrics pushed from outside
 #    the cluster. Set ALL THREE fields below to enable; leaving them all blank

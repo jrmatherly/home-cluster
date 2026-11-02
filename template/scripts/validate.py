@@ -273,6 +273,17 @@ class EtcdBackup(Model):
         return self
 
 
+class VolumeBackup(Model):
+    bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
+    access_key: UrlCredential = ""
+    secret_key: UrlCredential = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "backup", ("bucket", "access_key", "secret_key"))
+        return self
+
+
 class Redis(Model):
     # Shared by every Redis the redis component creates. Clients put it in a
     # connection URL unencoded, hence letters and digits only.
@@ -786,6 +797,7 @@ class Config(Model):
     spegel: Spegel = Spegel()
     postgres: Postgres = Postgres()
     etcd_backup: EtcdBackup = EtcdBackup()
+    volume_backup: VolumeBackup = VolumeBackup()
     redis: Redis = Redis()
     observability: Observability = Observability()
     unifi: Unifi = Unifi()
@@ -847,6 +859,11 @@ class Config(Model):
     @property
     def etcd_backup_enabled(self) -> bool:
         return self.etcd_backup.bucket != ""
+
+    @computed_field
+    @property
+    def volume_backup_enabled(self) -> bool:
+        return self.volume_backup.bucket != ""
 
     # Gates components/redis, which gives an app that includes it a Redis of its own.
     @computed_field
@@ -1140,6 +1157,20 @@ class Config(Model):
         ):
             raise ValueError(
                 "etcd_backup needs its own bucket and key pair, not those of postgres.backup"
+            )
+        if self.volume_backup_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "volume_backup requires postgres.backup: its endpoint is where the backups go"
+            )
+        # A tar can hold usable credentials, so neither wider pair may reach this bucket.
+        if self.volume_backup_enabled and (
+            self.volume_backup.bucket in (self.postgres.backup.bucket, self.etcd_backup.bucket)
+            or self.volume_backup.access_key
+            in (self.postgres.backup.access_key_id, self.etcd_backup.access_key)
+        ):
+            raise ValueError(
+                "volume_backup needs its own bucket and key pair, "
+                "not those of postgres.backup or etcd_backup"
             )
         if self.pocket_id_enabled and not self.postgres_backup_enabled:
             raise ValueError(

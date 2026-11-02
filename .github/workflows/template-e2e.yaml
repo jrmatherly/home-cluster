@@ -53,6 +53,11 @@ jobs:
           - etcd-backup-without-backup
           - etcd-backup-shares-database-pair
           - etcd-backup-url-unsafe-key
+          - partial-volume-backup
+          - volume-backup-without-backup
+          - volume-backup-shares-database-pair
+          - volume-backup-shares-etcd-pair
+          - volume-backup-url-unsafe-key
           - partial-observability
           - discord-without-observability
           - heartbeat-without-discord

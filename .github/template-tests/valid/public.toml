@@ -54,6 +54,11 @@ bucket = "fake-etcd"
 access_key = "fake-etcd"
 secret_key = "fake"
 
+[volume_backup]
+bucket = "fake-volumes"
+access_key = "fake-volumes"
+secret_key = "fake"
+
 [observability]
 grafana_password = "fake"
 influxdb_password = "fakefake"
