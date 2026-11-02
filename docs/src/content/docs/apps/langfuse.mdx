@@ -18,8 +18,9 @@ Langfuse is an LLM tracing UI. AI KB sends it one trace per chat, with the full 
 so treat its data like AI KB's own. It needs four stores, all in the `langfuse` namespace or on the
 cluster:
 
-- Postgres: the CloudNativePG cluster `langfuse-db` (two instances, WAL archiving, a daily backup
-  at 05:45 UTC) holds users, projects and API keys.
+- Postgres: the CloudNativePG cluster `langfuse-db` (two instances on separate nodes, 50m CPU and
+  256Mi requested with a 512Mi limit, WAL archiving, a daily backup at 05:45 UTC, and a roll switches
+  the primary over instead of restarting it in place) holds users, projects and API keys.
 - ClickHouse: one StatefulSet `clickhouse` with a 20Gi `local-path` volume holds the traces. It has
   one replica and no backup, so a lost node loses the trace history but nothing else. Trace
   retention is an Enterprise feature, so the volume is the ceiling; measure it after a month with
@@ -189,5 +190,9 @@ rollback needs more than an image swap. ClickHouse must stay on a version Langfu
   run from the web image against the same database, then a restart.
 - Traces never appear: check `kubectl -n langfuse logs deploy/langfuse-worker` for S3 errors, and
   that the provisioning Job ran after the key pair was added.
+- The worker restarts while the database rolls: its liveness probe checks Postgres through
+  `langfuse-db-rw`, which flips during an instance restart and killed the worker three times on
+  2026-10-30. The HelmRelease now allows about a minute (`timeoutSeconds: 10`, `failureThreshold: 6`),
+  and it stayed at 0 restarts across a roll on 2026-11-01, so a restart now points at something longer.
 - ClickHouse is near its 4Gi limit: the system log tables Langfuse never reads are already off, so
   look at `system.parts` for the largest table.

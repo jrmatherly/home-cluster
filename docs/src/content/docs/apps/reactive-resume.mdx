@@ -13,7 +13,7 @@ Each step names its source. "Docs" is [the Reactive Resume environment variable 
 
 ## What Reactive Resume holds
 
-- Accounts, resumes and settings are in the CloudNativePG cluster `reactive-resume-db`: two instances on `local-path` volumes, 2Gi each, Postgres 18 (template, `cluster.yaml.j2`).
+- Accounts, resumes and settings are in the CloudNativePG cluster `reactive-resume-db`: two instances on `local-path` volumes, 2Gi each, Postgres 18, requesting 50m CPU and 128Mi with a 512Mi limit, on separate nodes, and a roll switches the primary over instead of restarting it in place (template, `cluster.yaml.j2`).
 - Uploads go to an S3-compatible bucket, so the pod has no volume; `/app/data` and `/tmp` are emptyDirs (template, `helmrelease.yaml.j2`). The bucket can stay private, because the app reads objects with its own keys and serves them itself (docs, `S3_BUCKET`).
 - Saved AI keys are personal, encrypted with `encryption_secret`. There is no shared AI provider and no Redis (decision, 2026-10-04).
 

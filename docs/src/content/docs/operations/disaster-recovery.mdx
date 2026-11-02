@@ -27,6 +27,22 @@ Keep a copy of the first five files off these hosts, and not only on the worksta
 | `kubeconfig` | Kubernetes API access | Regenerate it with `talosctl kubeconfig` |
 | `flux-webhook-token.txt` | Webhook token | Regenerate it, then re-render |
 
+## Turn on the etcd snapshots
+
+`[etcd_backup]` in `cluster.toml` gates the `kube-system/etcd-snapshot` CronJob. A snapshot holds every object in the cluster, so it gets its own bucket and key pair. The validator refuses a bucket or access key shared with `[postgres.backup]`, whose pair every database namespace can read. It reuses that section's endpoint.
+
+1. Run `just talos diff`, then `just talos apply`, before setting the section. The apply creates the `serviceaccounts.talos.dev` CRD and the `talos` Service the job needs, and changes only the control planes with no reboot (measured 2026-11-01).
+2. Create the bucket and an access key pair scoped to that bucket alone. The keys hold only letters, digits, `-` and `_`, because the job builds them into a URL.
+3. Run `just template scaffold etcd_backup`, fill in `bucket`, `access_key` and `secret_key`, then `just configure`, commit and push.
+4. Take the first one by hand and read its size in the job's log and in the bucket's listing, which should match:
+
+    ```sh
+    kubectl -n kube-system create job --from=cronjob/etcd-snapshot etcd-snapshot-manual
+    kubectl -n kube-system logs job/etcd-snapshot-manual --all-containers
+    ```
+
+The first ran at 227 MB in a 256 MiB limit (measured 2026-11-01). The 30-day prune has only run against a scratch store so far. The files have no client-side encryption. Secret values inside are encrypted under a key that stays in `talos/secrets.sops.yaml` (config read 2026-11-01, not proved on a stored Secret), and everything else in etcd is plaintext. The bucket has no public access. The `talosctl` image tag in the CronJob tracks the Talos version by hand, so bump it with a Talos upgrade.
+
 ## Lost etcd quorum
 
 Try to restore quorum first. Compare `talosctl -n <cp-1 address> etcd members` and `talosctl -n <cp-1 address> service etcd` across the control planes. If one member is down, bring it back. The steps below are for when that fails.
@@ -39,7 +55,7 @@ Try to restore quorum first. Compare `talosctl -n <cp-1 address> etcd members` a
 
 ## Lost a database
 
-Seven clusters archive to the `postgres-backup` ObjectStore, each under its own name. `radar-db` has no backup by design, because it holds seven days of history. A lost one starts empty.
+Seven clusters archive to the `postgres-backup` ObjectStore, each under its own name. `radar-db` has no backup by design, because it holds seven days of history. A lost one starts empty. Scheduled backups run on the primary (`target: primary`), because a backup taken on a replica of a quiet database ended in a WAL segment that stayed unarchived for days (read 2026-11-01).
 
 | Namespace | Cluster | Instances | Backup (UTC) |
 | --- | --- | --- | --- |

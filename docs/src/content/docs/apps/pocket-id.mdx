@@ -13,9 +13,11 @@ Each claim names its source. "Repo" is a file in this repository. "Decision" is 
 
 ## What Pocket ID holds
 
-Pocket ID's state is in the CloudNativePG cluster `pocket-id-db` in the `security` namespace, passkeys and token signing keys included (repo, `app/cluster.yaml.j2`, `validate.py`). `FILE_BACKEND: database` puts uploads there too, so the pod has no volume and can move to any node (repo, `app/helmrelease.yaml.j2`). Two instances, because each is pinned to a node by its `local-path` volume and a second one keeps logins working when a node is down (repo, the comment in `app/cluster.yaml.j2`).
+Pocket ID's state is in the CloudNativePG cluster `pocket-id-db` in the `security` namespace, passkeys and token signing keys included (repo, `app/cluster.yaml.j2`, `validate.py`). `FILE_BACKEND: database` puts uploads there too, so the pod has no volume and can move to any node (repo, `app/helmrelease.yaml.j2`). Two instances, because each is pinned to a node by its `local-path` volume and a second one keeps logins working when a node is down (repo, the comment in `app/cluster.yaml.j2`). They request 50m CPU and 256Mi with a 512Mi limit, on separate nodes, and a roll switches the primary over instead of restarting it in place (repo, `app/cluster.yaml.j2`).
 
 The pod runs `ghcr.io/pocket-id/pocket-id` (`v2.18.0-distroless` on 2026-10-12) on the app-template chart, as uid 65532 with a read-only root, under the `restricted` pod security level. The Deployment uses `Recreate`, because only one Pocket ID instance may use a database (repo, `app/helmrelease.yaml.j2`). It makes no outbound calls of its own: `ANALYTICS_DISABLED`, `VERSION_CHECK_DISABLED` and `ICON_LIBRARY_URL: disabled`, so a login never depends on the internet. Keep it that way when adding settings.
+
+A NetworkPolicy admits only the `network` namespace on 1411, because the app trusts `X-Forwarded-For` from the whole pod CIDR (repo, `app/networkpolicy.yaml.j2`). In-cluster callers reach it through the gateway, by the CoreDNS hosts entry.
 
 ## The hostname never changes
 
@@ -107,13 +109,13 @@ The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 
 ## Backups
 
-`pocket-id-db` archives WAL continuously and takes a daily backup at 03:00 UTC, plus one when the ScheduledBackup is created (repo, `app/cluster.yaml.j2`, `app/scheduledbackup.yaml.j2`). Both go through the barman-cloud plugin to the `postgres-backup` ObjectStore in the bucket from `[postgres.backup]`, under the cluster name `pocket-id-db`, with a 30-day retention policy (repo, `components/postgres/objectstore.yaml.j2`). The `postgres-backup` PrometheusRule alerts when a backup fails, is older than 36 hours, or WAL archiving fails (repo, `.claude/rules/apps/postgres.md`).
+`pocket-id-db` archives WAL continuously and takes a daily backup at 03:00 UTC, plus one when the ScheduledBackup is created (repo, `app/cluster.yaml.j2`, `app/scheduledbackup.yaml.j2`). Both go through the barman-cloud plugin to the `postgres-backup` ObjectStore in the bucket from `[postgres.backup]`, under the cluster name `pocket-id-db`, with a 30-day retention policy (repo, `components/postgres/objectstore.yaml.j2`). The `postgres-backup` PrometheusRule alerts when a backup fails, is older than 36 hours, or WAL archiving fails, and when the cluster stops reporting a backup metric, its replica lags or it drops to one instance (repo, `.claude/rules/apps/postgres.md`).
 
 ```sh
 kubectl -n security get backup
 ```
 
-Pocket ID migrates its database on start and refuses to start on a database a newer version migrated. A rollback after a migration means restoring `pocket-id-db` from its backup, so read the release notes for a migration and confirm a recent backup before updating (repo, `.claude/skills/update-apps/references/apps.md`). Stay on the `-distroless` image variant.
+Pocket ID migrates its database on start and refuses to start on a database a newer version migrated. A rollback after a migration means restoring `pocket-id-db` from its backup, so read the release notes for a migration and confirm a recent backup before updating (repo, `.claude/skills/update-apps/references/apps.md`). For the same reason Flux never rolls it back: the HelmRelease sets `retries: 0` and `remediateLastFailure: false` and carries the label `home-cluster.io/remediation: manual`, which keeps the cluster's default remediation off it. A failed upgrade stays on the new image, image-pull failures included, and the fix is forward or a restore (repo, `app/helmrelease.yaml.j2`). Stay on the `-distroless` image variant.
 
 ## Health check
 

@@ -31,12 +31,18 @@ and schedule by themselves when it is back. That is expected, not a failure.
 
 Postgres: there are eight CloudNativePG clusters (`ai-kb-db`, `ai-workspace-db`, `kener-db`,
 `langfuse-db`, `matherlynet-db`, `pocket-id-db`, `radar-db`, `reactive-resume-db`), and each but
-`ai-kb-db` has two instances on different nodes. The primary's PodDisruptionBudget blocks
+`ai-kb-db` has two instances, kept on different nodes by required anti-affinity. A change to a
+Cluster or its image rolls the replica, then switches over (`primaryUpdateMethod: switchover`, about
+34 s a pair, measured 2026-11-01), and `ai-kb-db` restarts in place. The primary's PodDisruptionBudget blocks
 eviction, so a drain that meets a primary hangs. `just talos drain` switches every primary on the
 node over to its replica first (about 16 s each, measured). `ai-kb-db` has one instance, so
 `drain`, `stop-node` and `reboot-node` log a warning and skip its switchover: its pod goes down with
 the node, because its `local-path` volume is pinned there, and comes back when the node does. AI
 KB is down for that time.
+
+The gateway path has budgets of its own: `envoyPDB` keeps one Envoy pod of each gateway up and
+CoreDNS allows one unavailable. `cloudflared` runs two connectors with preferred anti-affinity and no
+budget, so a drain moves them freely.
 
 ## Cheat sheet
 
@@ -52,9 +58,11 @@ drain's confirmation, so you answer one prompt.
 | `just kube switchover <cluster> <namespace> [replica]` | yes                 | Promote a replica (by default a Ready one on another node than the primary) and wait for the cluster to be healthy.                                                                                                                                                                               |
 | `just talos drain <node>`                              | yes                 | Preflight (every other node Ready unless it is cordoned, which means you took it down on purpose; for a control plane, the other two Ready, schedulable and answering `etcd status`, plus every control plane a voting member), switch over its primaries, `kubectl drain`, list the pinned pods. |
 | `just talos stop-node <node>`                          | yes                 | `drain` (skipped when the node is already cordoned and NotReady, so a re-run is safe), then power the VM off through Talos and wait until its API stops answering. Ends by telling you to confirm `qm status` on the host, reboot it, and run `resume`.                                           |
-| `just talos resume <node>`                             | yes (uncordon)      | Wait for Ready, then for etcd on a control plane, uncordon, wait for every pod on the node and every pinned pod, print the node list. It does not run `health`, because that waits up to five minutes while any other node is still cordoned; run `health` once at the end.                       |
+| `just talos resume <node>`                             | yes (uncordon)      | Wait for Ready, then for etcd on a control plane, uncordon, wait for every pod on the node and every pinned pod, print the node list. It does not run `health`, because that waits up to five minutes while any other node is still cordoned; run `health` once at the end. `resume <node> no-wait` skips the wait for the pods. |
 | `just talos reboot-node <node>`                        | yes                 | `drain`, reboot Talos, wait for a new boot ID and Ready, `resume`. For a Talos reboot with no host work.                                                                                                                                                                                          |
-| `just talos uncordon <node>`                           | yes                 | Undo a drain without a reboot. Waits for the pods.                                                                                                                                                                                                                                                |
+| `just talos uncordon <node>`                           | yes                 | Undo a drain without a reboot. Waits for the pods, unless given `no-wait`.                                                                                                                                                                                                                        |
+| `just talos upgrade-node <node>`                       | yes                 | `drain` with its preflight and switchovers (not topf's own drain, which skips both), upgrade Talos on the node, `resume`. You answer one prompt. It had not run on a real node as of 2026-11-01.                                                                                                  |
+| `just talos upgrade-k8s`                               | yes                 | Upgrade Kubernetes on every node. Asks first.                                                                                                                                                                                                                                                     |
 | `just talos nodes`                                     | no                  | topf's view of the nodes.                                                                                                                                                                                                                                                                         |
 
 Host side, on the host as root. Guest IDs are in the map.
@@ -202,7 +210,7 @@ just talos resume k8s-worker-3         # Grafana, InfluxDB, PegaProx, Actual Bud
 just talos health
 ```
 
-Only the last `health` counts. `resume` does not run it, but it does wait up to 10 minutes for the node's pods and then fails, and those pods depend on the other two workers. On 2026-11-01 `k8s-worker-2`'s resume held on `ai-kb-app`, which needs Redis and RustFS on `k8s-worker-1`, and `k8s-worker-3`'s held on Actual Budget, which needs Pocket ID. One after another, or chained with `&&`, can stall until the timeout.
+Only the last `health` counts. `resume` does not run it, but it does wait up to 10 minutes for the node's pods and then fails, and those pods depend on the other two workers. On 2026-11-01 `k8s-worker-2`'s resume held on `ai-kb-app`, which needs Redis and RustFS on `k8s-worker-1`, and `k8s-worker-3`'s held on Actual Budget, which needs Pocket ID. One after another, or chained with `&&`, can stall until the timeout. `just talos resume <node> no-wait` is for a chained form: it stops after the uncordon, so nothing waits on another worker, and the final `health` is the check (added 2026-11-01, not yet run on a real resume).
 
 ### Reboot all three hosts
 

@@ -90,7 +90,7 @@ A warm restart takes 45 s from pod start to Ready (measured).
 
 The WebUI is off by default. Setting `oidc_client_id` and `oidc_client_secret` under `[localai]` turns it on at `https://localai.${SECRET_DOMAIN}` on the internal gateway (source, `validate.py`, `localai_webui_enabled`). It renders the `localai` HTTPRoute on `envoy-internal` and the `localai` SecurityPolicy, puts the client secret in the `localai-oidc` Secret, and the NetworkPolicy then admits the `network` namespace, where the gateway runs (source, `kustomization.yaml.j2`, `networkpolicy.yaml.j2`).
 
-The SecurityPolicy is a copy of Hubble's. The gateway signs users in with Pocket ID and admits only a token whose `groups` claim contains `cluster_admins` (source, `securitypolicy.yaml.j2`). LocalAI needs that sign-in in front of it, because it serves the WebUI shell, `/login` and the static assets to anyone (source, LocalAI v4.11.0, `core/http/auth/public_routes.go`).
+The SecurityPolicy is a copy of Hubble's. The gateway signs users in with Pocket ID and admits only a token minted for this client (`audiences`) whose `groups` claim contains `cluster_admins` (source, `securitypolicy.yaml.j2`). LocalAI needs that sign-in in front of it, because it serves the WebUI shell, `/login` and the static assets to anyone (source, LocalAI v4.11.0, `core/http/auth/public_routes.go`).
 
 1. Create a Pocket ID OIDC client as [the recipe on the Pocket ID page](/apps/pocket-id/#register-another-app-as-an-oidc-client) describes. Callback URL `https://localai.${SECRET_DOMAIN}/oauth2/callback`. Include the `groups` scope and restrict the client to `cluster_admins`.
 2. Put the client ID and secret in `cluster.toml` as `oidc_client_id` and `oidc_client_secret` under `[localai]`.

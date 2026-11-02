@@ -7,7 +7,7 @@ sidebar:
 
 Radar is a Kubernetes UI with a timeline. It signs users in with Pocket ID itself and acts as the signed-in user through impersonation. This guide covers the OIDC client, the two `[radar]` fields, the role binding that decides what a user may do, the `radar-db` cluster, and the health check. The deployment itself is in Git: the `[radar]` section of `cluster.toml` and `kubernetes/apps/radar/`. Pocket ID itself is on the [Pocket ID](/apps/pocket-id/) page.
 
-Radar is served at `https://radar.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it (repo, `app/helmrelease.yaml.j2`; decision 2026-10-04, Radar stays LAN-only when Pocket ID goes public).
+Radar is served at `https://radar.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it (repo, `app/helmrelease.yaml.j2`; decision 2026-10-04, Radar stays LAN-only when Pocket ID goes public). The pod can act as anyone, so a NetworkPolicy admits only the gateway's `network` namespace on 9280 (repo, `app/networkpolicy.yaml.j2`).
 
 Each claim names its source. "Repo" is a file in this repository. "Decision" is a choice the operator made, with its date.
 
@@ -61,7 +61,7 @@ To give someone less, add a binding from `oidc:<group>` to a narrower ClusterRol
 
 ## The timeline database
 
-The timeline is in the CloudNativePG cluster `radar-db` (two instances, PostgreSQL 18, 5Gi of `local-path` each), with a retention of 168 hours (repo, `app/cluster.yaml.j2`, `timeline.retention`). It has no backup and no WAL archiving: it is seven days of disposable history (repo, the comment in `app/cluster.yaml.j2`; decision 2026-10-04). Two instances, because Radar does not start without its database and each instance is pinned to a node.
+The timeline is in the CloudNativePG cluster `radar-db` (two instances, PostgreSQL 18, 5Gi of `local-path` each), with a retention of 168 hours (repo, `app/cluster.yaml.j2`, `timeline.retention`). It has no backup and no WAL archiving: it is seven days of disposable history (repo, the comment in `app/cluster.yaml.j2`; decision 2026-10-04). Two instances, because Radar does not start without its database and each instance is pinned to a node. They request 50m CPU and 256Mi with a 768Mi limit, on separate nodes, and a roll switches the primary over instead of restarting it in place (repo, `app/cluster.yaml.j2`).
 
 An init container waits until `radar-db-rw` accepts connections on 5432, because Radar starts in a disconnected mode when the database is unreachable and does not retry (repo, `app/helmrelease.yaml.j2`; commit `3c6c764`). If the UI serves errors after an update, check the database first, then restart the Deployment (repo, `.claude/skills/update-apps/references/apps.md`). Upstream tests PostgreSQL 17, and this repo runs 18 (same source).
 

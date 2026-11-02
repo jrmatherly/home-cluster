@@ -1,6 +1,6 @@
 ---
 title: Grafana plugins
-description: Set up the GitHub App, the Sentry internal integration, the LLM app and Infinity behind the four Grafana plugins, then verify the data sources.
+description: Set up the GitHub App, the Sentry internal integration, the LLM app and Infinity behind the four Grafana plugins, verify the data sources, then scrape the Proxmox hosts and add the Alertmanager heartbeat.
 sidebar:
   order: 2
 ---
@@ -177,3 +177,19 @@ Steps 1 and 2 are a private script here, also for a rebuilt or added host. It co
     ```
 
 5. In Prometheus, query `up{job="proxmox-hosts"}`. Each host shows 1.
+
+## The Alertmanager heartbeat
+
+Discord only hears from a running Alertmanager, so nothing inside the cluster can report that Prometheus, Alertmanager or their node died. The optional `heartbeat_url` under `[observability]`, which needs `discord_webhook`, routes the always-firing `Watchdog` alert to an outside service, which pages when the pings stop. It cannot see a broken Discord webhook, because the heartbeat is its own receiver (source, `validate.py`).
+
+On since 2026-10-31, with Healthchecks.io (decision 2026-10-31). The route sets `group_interval: 1m`, which gives a ping every 6 minutes against 10 with the chart's 5m, where one missed ping would pass the check's 15-minute limit (measured on Alertmanager v0.34.2, 2026-10-31).
+
+1. Create a check on the service with period 10 minutes and grace 5 minutes, and add its email and Discord channels. Discord here is the service's own integration, so a page does not depend on the cluster.
+2. In `cluster.toml`, under `[observability]`, set the check's ping URL, then render, commit and push as in "Render, commit and push". The URL goes in the sops-encrypted `alertmanager-secret`.
+
+    ```toml
+    heartbeat_url = "https://hc-ping.com/<token>"
+    ```
+
+3. Confirm the first ping on the service's page. An unknown URL answers HTTP 200 (`OK (not found)`), and a check that never got a ping cannot go down, so a clean Alertmanager log proves nothing.
+4. Test it once, by silencing `alertname=Watchdog` for 25 minutes in Alertmanager. Measured 2026-10-31: email and Discord paged 15 minutes after the last ping, and the check went up 31 s after the silence ended, with both up notices received.

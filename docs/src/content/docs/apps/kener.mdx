@@ -13,7 +13,7 @@ Each step names its source. "Docs" is [Kener's OpenID Connect page](https://kene
 
 ## What Kener holds
 
-- Monitors, incidents, accounts and the OIDC settings are in the CloudNativePG cluster `kener-db`: two instances on `local-path` volumes, 2Gi each, Postgres 18 (template, `cluster.yaml.j2`). The validator refuses Kener without `[postgres.backup]`, because that data cannot be recreated (`validate.py`).
+- Monitors, incidents, accounts and the OIDC settings are in the CloudNativePG cluster `kener-db`: two instances on `local-path` volumes, 2Gi each, Postgres 18, requesting 50m CPU and 128Mi with a 512Mi limit, on separate nodes, and a roll switches the primary over instead of restarting it in place (template, `cluster.yaml.j2`). The validator refuses Kener without `[postgres.backup]`, because that data cannot be recreated (`validate.py`).
 - The job queue and the check schedule are in the namespace's own Redis, `redis:6379`, from `components/redis` (template, `kustomization.yaml.j2`).
 
 ## The secret key

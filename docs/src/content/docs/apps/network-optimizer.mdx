@@ -35,7 +35,7 @@ These are settings in the app, not in `cluster.toml` (sample).
 
 ## Connect InfluxDB
 
-The `[observability]` InfluxDB runs org `home`; its first start created bucket `proxmox` for the Proxmox hosts (source, `observability/influxdb/app/helmrelease.yaml.j2`). Network Optimizer gets buckets of its own (sample):
+The `[observability]` InfluxDB runs org `home`; its first start created bucket `proxmox` (source, `observability/influxdb/app/helmrelease.yaml.j2`), which stays empty, because the Proxmox hosts write nothing there (read 2026-10-31). Network Optimizer gets buckets of its own (sample):
 
 1. In InfluxDB (`https://influxdb.${SECRET_DOMAIN}`), org `home`, create `network_monitoring` with 90 days retention and `network_monitoring_longterm` with 365 days.
 2. Create an API token that can read and write those two buckets only. `influxdb_token` in `[observability]` is the admin token; do not give it to the app.

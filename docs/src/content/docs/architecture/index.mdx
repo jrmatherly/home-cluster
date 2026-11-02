@@ -60,8 +60,13 @@ UI, which has no login of its own.
 Envoy Gateway runs two gateways. `envoy-internal` serves routes meant for the LAN, and most apps
 use it. `envoy-external` sits behind the ingress path and serves what the public internet may
 reach. With `ingress.mode = "cloudflare-tunnel"`, `cloudflared` connects outbound, so no router
-port is forwarded. With `"direct"` the operator forwards TCP 443 to the external gateway. With
-`"none"` nothing is exposed.
+port is forwarded, and with more than one node it runs two connectors. With `"direct"` the operator
+forwards TCP 443 to the external gateway. With `"none"` nothing is exposed. The Envoy pods and CoreDNS
+have PodDisruptionBudgets, so a drain cannot take all of them at once.
+
+Every namespace enforces a pod security level except `kube-system`, `kube-public`, `kube-node-lease`
+and `cilium-secrets`. Most enforce `restricted`, `network` enforces `baseline` because `k8s-gateway` and
+`unifi-dns` fail `restricted`, and `observability` and `storage` enforce `privileged`.
 
 DNS has three parts. `k8s_gateway` answers for cluster hostnames at `gateways.dns`, for a
 conditional forwarder on the home DNS server. `cloudflare-dns` (ExternalDNS) publishes the
@@ -88,7 +93,12 @@ database includes `components/postgres`, which adds the `postgres-backup` Object
 Each Cluster has two instances on different nodes, except `ai-kb-db`, which runs one because the
 community pg_search refuses to start on a standby. Cluster names are unique across
 namespaces because backups land under the Cluster's name in the bucket. A `postgres-backup`
-PrometheusRule alerts on a failed backup, a backup older than 36 hours and failing WAL archiving.
+PrometheusRule alerts on a failed backup, a backup older than 36 hours, failing WAL archiving, a
+missing backup metric, a lagging replica and a cluster down to one instance. The component's
+`postgres` CiliumNetworkPolicy admits the namespace on 5432, the operator, the other instances and
+the API server on 8000, and `observability` on 9187, so a client in another namespace needs a rule.
+Each Cluster sets its own resources, and each two-instance Cluster requires its instances on
+different nodes and rolls by switchover.
 
 `[redis]` adds `components/redis`. An app that includes it gets a Redis 8 instance of its own at
 `redis:6379` in its namespace, with an append-only file on a 1Gi `local-path` volume and a
@@ -116,9 +126,11 @@ three ways.
 
 `[observability]` gates the `observability` namespace. `kube-prometheus-stack` runs Prometheus,
 Alertmanager and Grafana, scrapes every ServiceMonitor, PodMonitor and rule in the cluster, and
-reaches etcd through the control-plane node addresses. `influxdb` is InfluxDB 2, with org `home`
-and the bucket `proxmox` for the Proxmox hosts; Network Optimizer writes to two buckets of its own,
-created by hand. Both have routes on the internal gateway.
+reaches etcd through the control-plane node addresses. Prometheus keeps 14 days, capped at 30GB.
+`influxdb` is InfluxDB 2, with org `home` and an empty bucket `proxmox` from its first start, because
+the Proxmox hosts write nothing there; Network Optimizer writes to two buckets of its own, created by
+hand. Grafana and InfluxDB have routes on the internal gateway. Policies admit only known callers to
+Alertmanager, Prometheus, Grafana and InfluxDB.
 
 Grafana plugins come in two ways. The bundled data source plugins update through the chart's
 `shadowBundledPlugins: true` and `preinstall_auto_update`; never list them in `preinstall`,
@@ -129,7 +141,10 @@ data source (an internal integration) and the LLM app (pointed at LocalAI when
 `nvidia_enabled`) are each gated by their own fields. See the Grafana plugins page.
 
 The optional `discord_webhook` gives Alertmanager a Discord receiver. Without it every alert goes
-to the `null` receiver.
+to the `null` receiver. The optional `heartbeat_url` also sends the always-firing `Watchdog` alert to
+an outside service, which pages when the pings stop, so a dead Prometheus or Alertmanager is noticed.
+Rules for certificates, Flux objects and sources, CloudNativePG and the Proxmox hosts sit beside what
+they watch.
 
 ## Apps
 

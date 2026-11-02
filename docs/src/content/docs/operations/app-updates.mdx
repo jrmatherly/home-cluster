@@ -25,7 +25,10 @@ built 2026-10-25. The research and apply steps live in the `update-apps` skill
 Renovate merges, on the weekend and only once Flate passes on the pull request:
 
 - Digest updates under `kubernetes/**`. A digest update is a rebuild of the same tag. The rule
-  leaves out LocalAI, the `rustfs/rc` image, PegaProx and the Servarr images.
+  leaves out LocalAI, the `rustfs/rc` image, PegaProx, the Servarr images and the shared Postgres
+  image. The Postgres pin rolls all eight CloudNativePG clusters at once, so its pull request waits
+  for a hand merge in a window. The first took under two minutes, by switchover on the seven
+  two-instance clusters (measured 2026-11-02).
 - Patch updates for the apps on the allowlist in the patch rule, once the release is three days old:
   Kener, Seerr, Maintainerr, the browserless Chromium image, cloudflared, echo and the UniFi
   ExternalDNS webhook. Each earned its place with a merged history that changed nothing but the
@@ -47,23 +50,50 @@ requests and release notes and write nothing. It ends with one verdict per open 
 request, `safe`, `needs template change`, `blocked` or `not ours`, in `verdicts.json`, and a report
 in the run's summary.
 
+The repository is public, and that summary and the research artifact are public with it, so the job
+keeps its token out of them:
+
+- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` strips the token from subprocesses, which also needs the
+  sandbox. The workflow installs bubblewrap and socat itself, because without them Bash refuses to
+  start.
+- The sandbox's PID namespace keeps sandboxed tools from naming the Claude Code process under
+  `/proc`. The `Read(//proc/**)` deny does not do that on its own: `grep . /proc/1/environ` ran under
+  it (measured 2026-11-01).
+- A guard step, `scripts/research-guard.jq`, is the primary control. It refuses the whole output when
+  any of it carries a token shape, or a verdict field falls outside its pattern, and then nothing is
+  published.
+- Pull request comments post fixed text, never the model's evidence.
+
+Two limits remain. The guard is a denylist of token shapes, so an encoded or split token passes it.
+And a run that researches nothing still reads green: a run on 2026-11-01 returned no verdicts with 16
+pull requests open, and only its report said so. Read the report, not just the check mark.
+
 `apply` runs on the runner in the cluster (`runs-on: home-cluster`) with no model. It runs
 `scripts/auto-merge.sh` over the verdicts, which merges a `safe` verdict only when all of these hold:
 
 - The Renovate app opened the pull request from a `renovate/` branch in this repository. The
   repository is public, so a verdict alone is never enough.
 - The pull request head is the one the research read.
-- The diff changes version strings alone, and only under the app's own directory.
+- Every check on the pull request finished without failing, and the job named `Flate` ran and
+  succeeded. A running or cancelled check refuses the merge. `Flate - Filter` and `Flate - Success`
+  pass when Flate is skipped, so neither counts.
+- The diff changes version strings alone, and only under the app's own directory. A rename, a mode
+  change, a new or deleted file or a binary refuses it, because those have no version lines to check.
 - The app is in `references/auto-checks.yaml` and is not marked `Tier 1: never` in
   `references/apps.md`.
 
-After a merge the script waits for Flux to apply the merge commit, then runs the app's checks from
-`auto-checks.yaml`. A failed check reverts that merge, with a revert commit pushed to `main`, and
-stops the run. A check that cannot run stops the run with no revert. Every other verdict gets one
-comment on the pull request that opens with `<!-- update-apps verdict -->`, so a pull request with
-that comment was seen and judged, and the comment says why it was left open. The domain the checks
-curl through the internal gateway comes from the repository secret `CLUSTER_DOMAIN`, because
-`cluster.toml` is absent on the runner.
+After a merge the script waits for Flux to apply the merge commit, then checks three things: the
+app's Flux object or workload comes Ready, no HelmRelease or Kustomization went not Ready since the
+merge (read against a list taken just before it, so one already broken does not count), and the
+app's own commands from `auto-checks.yaml` pass. A failure reverts that merge, with a revert commit
+pushed to `main`, and stops the run. A check that cannot run stops the run with no revert. Every
+other verdict gets one comment on the pull request that opens with `<!-- update-apps verdict -->`,
+so a pull request with that comment was seen and judged, and the comment says why it was left open.
+The domain the checks curl through the internal gateway comes from the repository secret
+`CLUSTER_DOMAIN`, because `cluster.toml` is absent on the runner.
+
+The first live run, on 2026-11-01, merged one kube-prometheus-stack update, passed its checks and
+reverted nothing. The revert path has only run in `scripts/test-auto-merge.sh`.
 
 To read a run, open the Actions page of the repository, pick the latest "Update Apps" run, and read
 the summary of the `research` job for the verdicts and the log of the `apply` job for what each
@@ -72,11 +102,18 @@ until the repository variable `UPDATE_APPS_LIVE` is `true`.
 
 ## When it pages
 
-Two alerts cover a bad update.
+Four alerts cover a bad update.
 
-`FluxHelmReleaseNotReady` and `FluxKustomizationNotReady`, from the `flux` PrometheusRule in
-`flux-system`, page Discord when a HelmRelease or Kustomization that is not suspended reports Ready
-False for 15 minutes. That is what an upgrade helm-controller rolled back looks like.
+`FluxHelmReleaseNotReady`, from the `flux` PrometheusRule in `flux-system`, pages Discord when a
+HelmRelease that is not suspended reports Ready False for 15 minutes. That is what an upgrade
+helm-controller rolled back looks like.
+
+`FluxKustomizationNotReady` does the same for a Kustomization after 30 minutes, because one retries
+on its own interval.
+
+`FluxSourceNotReady` pages when a Git, OCI or Helm source is not Ready for 30 minutes. A failed source
+keeps serving its last artifact, so everything else stays Ready while commits stop reaching the
+cluster.
 
 `KubePodCrashLooping`, from kube-prometheus-stack, pages when a pod restarts in a loop. That covers
 a plain Deployment under a Kustomization with `wait: false`, which the Flux alerts cannot see.
@@ -137,4 +174,6 @@ Then add it to the patch rule's allowlist in `.renovaterc.json5` for the weekend
 - `.renovaterc.json5` for the three Tier 1 rules and their exclusions.
 - `.claude/skills/update-apps/SKILL.md`, "Runs in CI", for the two jobs and the merge conditions,
   and `references/auto-checks.yaml` for the checks and the apps left out on purpose.
-- `kubernetes/apps/flux-system/flux-operator/app/prometheusrule.yaml` for the two Flux alerts.
+- `kubernetes/apps/flux-system/flux-operator/app/prometheusrule.yaml` for the three Flux alerts.
+- `.github/workflows/update-apps.yaml`, `scripts/auto-merge.sh` and `scripts/research-guard.jq` for
+  the research job's guards and the merge conditions.

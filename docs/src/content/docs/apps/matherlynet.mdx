@@ -34,7 +34,7 @@ Values reach the chart in three layers (template, `helmrelease.yaml.j2`):
 - `valuesFrom` the CloudNativePG Secret `matherlynet-db-app`, key `uri`, into `secrets.web.appdb_uri`.
 - `valuesFrom` the sops Secret `matherlynet-secret`, a whole values document: `admin_email`, `mail_from`, `better_auth_secret`, `smtp_url`, the OAuth secrets and the playground key. It is a document because Flux splits a `targetPath` value on commas, and the two addresses are in it to keep them out of Git (template, `secret.sops.yaml.j2`).
 
-The database is the CloudNativePG cluster `matherlynet-db`: two instances on 5Gi `local-path` volumes, Postgres 18 from the `postgresql` ImageCatalog, WAL archived to the backup bucket, and a daily backup at 03:00 UTC (template, `cluster.yaml.j2`, `scheduledbackup.yaml.j2`). The second instance keeps the site up when a node goes down.
+The database is the CloudNativePG cluster `matherlynet-db`: two instances on 5Gi `local-path` volumes, Postgres 18 from the `postgresql` ImageCatalog, WAL archived to the backup bucket, and a daily backup at 03:00 UTC (template, `cluster.yaml.j2`, `scheduledbackup.yaml.j2`). The second instance keeps the site up when a node goes down. They request 50m CPU and 128Mi with a 512Mi limit, on separate nodes, and a roll switches the primary over instead of restarting it in place (template, `cluster.yaml.j2`).
 
 ## The `postRenderers` patch
 

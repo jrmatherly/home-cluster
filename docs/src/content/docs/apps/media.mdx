@@ -12,7 +12,8 @@ fresh), and the host side (pool, export, Plex) is on [Third host](/hosts/third-h
 ## The Pocket ID client
 
 One client, named `Media`, with one callback URL per app. The gateway's SecurityPolicy admits only
-the `cluster_admins` group, so the client itself needs no group restriction.
+the `cluster_admins` group, so the client itself needs no group restriction. It accepts only ID tokens
+minted for this client (`audiences`).
 
 ```text
 https://sonarr.${SECRET_DOMAIN}/oauth2/callback

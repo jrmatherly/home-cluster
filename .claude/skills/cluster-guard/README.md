@@ -12,9 +12,9 @@ A Claude Code hooks module for this repo. It refuses four things before the tool
 - **Secrets files.** A Bash command segment that names `cluster.toml`, `age.key`, `deploy.key`,
   `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig` or `talosconfig` is refused
   unless that segment runs `template/scripts/validate.py`, `template/scripts/check_layout.py`, a
-  `just template` recipe or `taplo check`. Segments are split on `;`, `&&`, `||`, `|` and
-  newlines, and quoted text is ignored, so a commit message or a quoted grep pattern may name the
-  file. The Read tool is denied `cluster.toml` and the key files by `.claude/settings.json`.
+  `just template` recipe or `taplo check`. One shell tokenizer resolves quotes and reads nested
+  shells, `eval` and command substitutions as commands, so a quoted, globbed or spliced name is
+  still refused. Only a `git commit` message and a `grep` or `rg` pattern count as text. The Read tool is denied `cluster.toml` and the key files by `.claude/settings.json`.
 - **The UniFi window.** Node maintenance is refused from 02:45 to 03:30 local time. That covers
   `just talos apply`, `apply-node`, `drain`, `stop-node`, `reboot-node`, `upgrade-node`, `upgrade-k8s` and
   `reset-node`, the all-node `upgrade` and `reset`, `talosctl` with

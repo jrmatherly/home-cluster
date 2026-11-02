@@ -37,7 +37,7 @@ The HelmRelease sets `hubble.tls.auto.method: cronJob`. The chart's default `hel
 Hubble UI has no login of its own, so an Envoy Gateway `SecurityPolicy` on its route does the sign-in (template, `hubble-securitypolicy.yaml.j2`):
 
 - OIDC against `https://auth.${SECRET_DOMAIN}`, with the authorization and token endpoints written out, so the policy does not depend on Pocket ID answering its discovery document when the gateway reconciles. Scopes `openid profile email groups`. Redirect URL `https://hubble.${SECRET_DOMAIN}/oauth2/callback`, logout path `/logout`.
-- The ID token goes into a cookie with the fixed name `hubble-id-token`. A JWT provider in the same policy reads that cookie and verifies the token against Pocket ID's `/.well-known/jwks.json`.
+- The ID token goes into a cookie with the fixed name `hubble-id-token`. A JWT provider in the same policy reads that cookie, verifies the token against Pocket ID's `/.well-known/jwks.json`, and requires `audiences` to name this client, so a token Pocket ID minted for another app is refused.
 - Authorization denies by default and allows only a token whose `groups` claim contains `cluster_admins`. A Pocket ID user outside that group signs in and is still refused.
 
 ## Create the OIDC client in Pocket ID
