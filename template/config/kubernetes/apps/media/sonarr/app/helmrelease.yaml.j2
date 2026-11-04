@@ -4,6 +4,8 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: sonarr
+  labels:
+    home-cluster.io/remediation: manual
 spec:
   chartRef:
     kind: OCIRepository
@@ -13,11 +15,19 @@ spec:
   # waits for it.
   timeout: 30m
   install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
     remediation:
       retries: 3
+  # Sonarr 4 cannot read a database Sonarr 5 migrated (no such column: MinSize), so a
+  # failed upgrade stays on the new image; the fix is forward or a restore of /config.
   upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
     remediation:
-      retries: 3
+      remediateLastFailure: false
+      retries: 0
   values:
     controllers:
       sonarr:
@@ -34,7 +44,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/sonarr
-              tag: 4.0.20.3012@sha256:1f19eb5e0f421418c1a956bbe01310a0141423afe28bd9a4b1dcb8629ff2bce2
+              tag: 5.0.0.2941@sha256:93b0923dd12afd43247739e19dac59d74c52a15ea12e036b7ced264cffb42574
             env:
               # The gateway's Pocket ID sign-in and the NetworkPolicy are the
               # login, so Sonarr trusts whoever reaches it.

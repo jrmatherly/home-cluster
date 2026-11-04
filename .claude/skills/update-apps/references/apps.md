@@ -77,7 +77,7 @@ The chart column is what the template pins. The releases column is where the not
 | rustfs provision (image)  | rustfs             | `docker.io/rustfs/rc`                                                                             | <https://github.com/rustfs/cli/releases>                          |
 | langfuse                  | langfuse           | `ghcr.io/langfuse/langfuse-k8s/charts/langfuse` (the chart lags the app; images pinned apart)     | <https://github.com/langfuse/langfuse-k8s/releases>               |
 | langfuse (images)         | langfuse           | `docker.io/langfuse/langfuse` and `docker.io/langfuse/langfuse-worker` (one version, by digest)   | <https://github.com/langfuse/langfuse/releases>                   |
-| clickhouse (image)        | langfuse           | `docker.io/clickhouse/clickhouse-server` (plain StatefulSet, pinned by digest; 25.12 or later)    | <https://github.com/ClickHouse/ClickHouse/releases>               |
+| clickhouse (image)        | langfuse           | `docker.io/clickhouse/clickhouse-server` (plain StatefulSet, pinned by digest; 26.3 or later)     | <https://github.com/ClickHouse/ClickHouse/releases>               |
 | arc-controller            | actions-runner     | `ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller`                | <https://github.com/actions/actions-runner-controller/releases>   |
 | home-cluster-runners      | actions-runner     | `ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set` (one version)             | <https://github.com/actions/actions-runner-controller/releases>   |
 | runner (image)            | actions-runner     | `ghcr.io/actions/actions-runner` (by digest, in the scale set `template`)                         | <https://github.com/actions/runner/releases>                      |
@@ -105,7 +105,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   On a chart bump, also check that the top-level `langfuse.additionalEnv` still reaches both web and worker,
   because `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST` must be on the worker for evaluators to reach LocalAI.
   The ClickHouse image in `clickhouse.yaml.j2` moves on its own, last. Langfuse states only a floor
-  (`>= 25.12`, 26.4 recommended, at 4.72.0); its compose files pin 25.12 and 26.4 and its untagged build
+  (26.3 LTS is the oldest line its CI runs at 4.75.0, up from `>= 25.12` at 4.72.0); its compose files pin 26.3 and its untagged build
   test runs `latest`, so a line Langfuse's CI exercises is admitted (26.10 on 2026-10-30, as 26.9 before
   it). Read every "Backward Incompatible Change" entry in ClickHouse's CHANGELOG.md for the lines crossed
   against the `config.d` file (the logger, the `query_log` TTL and the removed system log tables) and the
@@ -340,12 +340,18 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   A pre-release build can be the same source as the stable one: upstream tags a build, then promotes a later
   build of the same commit, so compare the two before switching images
   (`gh api repos/Sonarr/Sonarr/compare/v<pin>...v<stable> --jq .status`; `identical` means nothing to gain).
-  The Sonarr image publishes the v5 pre-releases and skipped the stable `4.0.20.3014`, but that tag and the
-  pin `4.0.20.3012` are both commit `cab419a` (checked 2026-10-15), so keep the pin until v5 goes stable. The
-  stable-tagged alternatives cost more: `hotio/sonarr` writes to `/etc` and fails on a read-only root, and
-  `linuxserver/sonarr` starts under the pod's securityContext with a `/run` emptyDir but calls read-only plus
-  non-root unsupported (both measured in Docker). Radarr and Prowlarr pin upstream's latest stable. A Sonarr
-  v5 move also needs Recyclarr 8.8.0 or later. Tier 1: never, and `auto-merge.sh` never merges them either.
+  Since 2026-11-04 all three run the develop channel by Jason's choice (Sonarr 5, Radarr 7, Prowlarr 3, all
+  pre-release upstream), and the Renovate rule that held Sonarr below 5 is gone. A major move needs the
+  Docker probe first: run the four configure hooks, `recyclarr sync` and the prune against the old pins, swap
+  the images on the same volumes, rerun them and diff the API state. Sonarr 4 cannot read a database Sonarr
+  5 migrated (`no such column: MinSize`, measured), so Sonarr carries `home-cluster.io/remediation: manual`
+  and Flux never rolls it back; before a Sonarr bump that migrates, run its `Backup` command
+  (`POST /api/v3/command`) and `kubectl cp` the zip from `/config/Backups/manual` to `private/backups/sonarr/`.
+  Radarr 6 and Prowlarr 2 started clean on databases their new majors migrated (measured). Sonarr 5 keeps
+  quality sizes per profile, which Recyclarr 8.8.0 or later writes. The stable-tagged alternatives cost more:
+  `hotio/sonarr` writes to `/etc` and fails on a read-only root, and `linuxserver/sonarr` starts under the
+  pod's securityContext with a `/run` emptyDir but calls read-only plus non-root unsupported (both measured in
+  Docker). Tier 1: never, and `auto-merge.sh` never merges them either.
 - **kener, seerr, maintainerr, browserless and echo** needed nothing beyond the version bump in their merged
   history (PRs 33 to 92). Tier 1: patch.
 - **prometheus-operator-crds** is applied once by `just bootstrap apps` and is not a Flux app. Changing its
