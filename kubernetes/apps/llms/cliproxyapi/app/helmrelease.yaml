@@ -75,6 +75,12 @@ spec:
         size: 1Gi
         globalMounts:
           - path: /data
+      # The plugin host unpacks each plugin under /tmp/cliproxy-pluginhost before loading it;
+      # on the read-only root that mkdir failed and no plugin ran (measured 2026-11-07).
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
       # Only the init container sees the plaintext keys; the app keeps a hash.
       seed:
         type: secret
