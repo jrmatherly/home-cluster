@@ -35,6 +35,8 @@ spec:
             image: *image
             env:
               CPA_UPSTREAM_URL: http://cliproxyapi.llms.svc.cluster.local:8317
+              # Record-only queue of revoked or invalid logins for review; auto-disable stays off.
+              USAGE_ACCOUNT_ACTIONS_ENABLED: "true"
             envFrom:
               - secretRef:
                   name: cpa-manager-secret
