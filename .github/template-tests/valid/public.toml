@@ -210,6 +210,7 @@ management_key = "fakefakefakefakefakefakefakefakefake"
 api_key = "fakefakefakefakefakefakefakefakefake"
 manager_admin_key = "cpamp_fakefakefakefakefakefakefakefake"
 ohmycpa_master_key = "0000000000000000000000000000000000000000000000000000000000000000"
+github_token = "github_pat_fakefakefakefakefakefake"
 
 [github_runner]
 token = "github_pat_fakefakefakefakefakefake"

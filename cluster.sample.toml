@@ -1302,6 +1302,14 @@ schematic_id = ""
 
 # ohmycpa_master_key = ""
 
+# A GitHub fine-grained token with no permissions, for the proxy's plugin store:
+# release lookups on the public plugin repositories run unauthenticated at 60
+# requests an hour without it. It is written to the seed config, so a change
+# reaches a running proxy only by re-seeding.
+# OPTIONAL. Example: "github_pat_..."
+
+# github_token = ""
+
 
 # =============================================================================
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the

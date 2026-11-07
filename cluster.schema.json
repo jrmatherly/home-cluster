@@ -247,6 +247,11 @@
           "pattern": "^$|^[0-9a-f]{64}$",
           "title": "Ohmycpa Master Key",
           "type": "string"
+        },
+        "github_token": {
+          "default": "",
+          "title": "Github Token",
+          "type": "string"
         }
       },
       "title": "CliProxyApi",
@@ -1484,7 +1489,8 @@
         "management_key": "",
         "api_key": "",
         "manager_admin_key": "",
-        "ohmycpa_master_key": ""
+        "ohmycpa_master_key": "",
+        "github_token": ""
       }
     },
     "localai": {

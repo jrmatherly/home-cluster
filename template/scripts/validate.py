@@ -776,14 +776,17 @@ class CliProxyApi(Model):
     # Oh-My-CPA's at-rest encryption key, 64 hex characters; set to deploy that
     # second console. Never changed once it has data.
     ohmycpa_master_key: str = Field(default="", pattern=r"^$|^[0-9a-f]{64}$")
+    # A GitHub token for the plugin store's release lookups (public repositories only).
+    github_token: str = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
         _all_or_none(self, "cliproxyapi", ("management_key", "api_key", "manager_admin_key"))
-        if self.ohmycpa_master_key and not self.management_key:
-            raise ValueError(
-                "cliproxyapi.ohmycpa_master_key needs management_key, api_key and manager_admin_key"
-            )
+        for name in ("ohmycpa_master_key", "github_token"):
+            if getattr(self, name) and not self.management_key:
+                raise ValueError(
+                    f"cliproxyapi.{name} needs management_key, api_key and manager_admin_key"
+                )
         return self
 
 

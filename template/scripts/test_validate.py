@@ -1001,6 +1001,12 @@ def test_ohmycpa_master_key_needs_cliproxyapi():
         _load_raw(raw)
 
 
+def test_cliproxyapi_github_token_needs_cliproxyapi():
+    raw = config_from("private.toml", **{"cliproxyapi.github_token": "github_pat_fake"})
+    with pytest.raises(ConfigError, match=r"github_token needs management_key"):
+        _load_raw(raw)
+
+
 def test_ohmycpa_master_key_must_be_hex64():
     raw = config_from("private.toml", **CLIPROXYAPI, **{"cliproxyapi.ohmycpa_master_key": "x" * 64})
     with pytest.raises(ConfigError, match=r"ohmycpa_master_key"):
