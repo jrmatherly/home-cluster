@@ -1,0 +1,78 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cpa-manager
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: cpa-manager
+  interval: 1h
+  values:
+    controllers:
+      cpa-manager:
+        # SQLite on one volume, and one manager per proxy usage queue.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/seakee/cpa-manager-plus
+              tag: v1.14.10@sha256:0e803f21d51aceea7b752686417bf57f40678d8068fe102ba23cb2a3afb414e1
+            env:
+              CPA_UPSTREAM_URL: http://cliproxyapi.llms.svc.cluster.local:8317
+            envFrom:
+              - secretRef:
+                  name: cpa-manager-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: &port 18317
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+    defaultPodOptions:
+      # The image sets no USER, so without this the manager runs as root.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      # The usage database and data.key, which encrypts the stored management
+      # key. The only copy.
+      data:
+        # The chart renames a lone claim when a second one appears.
+        forceRename: cpa-manager
+        retain: true
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        globalMounts:
+          - path: /data
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
