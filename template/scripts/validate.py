@@ -766,6 +766,20 @@ class Itsaplan(Model):
         return self
 
 
+class CliProxyApi(Model):
+    # CLIProxyAPI's remote-management key; the app replaces it with its bcrypt hash on the volume.
+    management_key: LongSecret = ""
+    # The one client key for the proxy, sent as a bearer token.
+    api_key: LongSecret = ""
+    # CPA-Manager-Plus's own login, the only way into the manager.
+    manager_admin_key: LongSecret = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "cliproxyapi", tuple(type(self).model_fields))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -831,6 +845,7 @@ class Config(Model):
     rustfs: RustFs = RustFs()
     langfuse: Langfuse = Langfuse()
     itsaplan: Itsaplan = Itsaplan()
+    cliproxyapi: CliProxyApi = CliProxyApi()
     localai: LocalAi = LocalAi()
     github_runner: GithubRunner = GithubRunner()
     nodes: list[Node]
@@ -1053,6 +1068,11 @@ class Config(Model):
     @property
     def itsaplan_enabled(self) -> bool:
         return self.itsaplan.better_auth_secret != ""
+
+    @computed_field
+    @property
+    def cliproxyapi_enabled(self) -> bool:
+        return self.cliproxyapi.management_key != ""
 
     @computed_field
     @property

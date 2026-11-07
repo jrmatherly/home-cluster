@@ -120,6 +120,7 @@ jobs:
           - partial-itsaplan
           - itsaplan-without-rustfs
           - itsaplan-without-backup
+          - partial-cliproxyapi
           - langfuse-bad-encryption-key
           - rustfs-duplicate-key
           - ai-kb-tracing-without-langfuse

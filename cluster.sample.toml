@@ -1258,6 +1258,38 @@ schematic_id = ""
 # rustfs_access_key = ""
 # rustfs_secret_key = ""
 
+# =============================================================================
+#    CLIProxyAPI, an OpenAI-, Anthropic- and Gemini-compatible proxy that pools
+#    subscription logins (Claude, Codex and others) behind one API key, served
+#    at https://llms.<domain.name>. Its management UI, CPA-Manager-Plus, is at
+#    https://llms-admin.<domain.name>. Both are on the internal gateway only.
+#    The manager's admin key is its only login, and the provider logins are
+#    added in the manager UI.
+#    Set all three fields to enable; leaving them blank skips it.
+# =============================================================================
+[cliproxyapi]
+
+# CLIProxyAPI's remote-management key, at least 32 characters. Git seeds it
+# into the app's config once; the app then replaces it with its bcrypt hash
+# on the volume, and the manager keeps the plaintext. Set all three fields
+# together, or none. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+
+# management_key = ""
+
+# The one client key for https://llms.<domain.name>, at least 32 characters.
+# Claude Code, Codex and the other clients send it as a bearer token. It is
+# written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+
+# api_key = ""
+
+# The manager's own login key, at least 32 characters. It is written to a
+# SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `echo "cpamp_$(openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 40)"`
+
+# manager_admin_key = ""
+
 
 # =============================================================================
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the

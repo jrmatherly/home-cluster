@@ -205,6 +205,11 @@ app_encryption_key = "fakefakefakefakefakefakefakefakefake"
 rustfs_access_key = "itsaplanfakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefakefake"
 
+[cliproxyapi]
+management_key = "fakefakefakefakefakefakefakefakefake"
+api_key = "fakefakefakefakefakefakefakefakefake"
+manager_admin_key = "cpamp_fakefakefakefakefakefakefakefake"
+
 [github_runner]
 token = "github_pat_fakefakefakefakefakefake"
 

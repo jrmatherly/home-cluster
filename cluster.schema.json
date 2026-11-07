@@ -227,6 +227,25 @@
       "title": "Cilium",
       "type": "object"
     },
+    "CliProxyApi": {
+      "additionalProperties": false,
+      "properties": {
+        "management_key": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "api_key": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "manager_admin_key": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        }
+      },
+      "title": "CliProxyApi",
+      "type": "object"
+    },
     "Dns": {
       "additionalProperties": false,
       "properties": {
@@ -1451,6 +1470,14 @@
         "app_encryption_key": "",
         "rustfs_access_key": "",
         "rustfs_secret_key": ""
+      }
+    },
+    "cliproxyapi": {
+      "$ref": "#/$defs/CliProxyApi",
+      "default": {
+        "management_key": "",
+        "api_key": "",
+        "manager_admin_key": ""
       }
     },
     "localai": {

@@ -969,6 +969,26 @@ def test_actual_budget_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
+CLIPROXYAPI = {
+    "cliproxyapi.management_key": "m" * 32,
+    "cliproxyapi.api_key": "a" * 32,
+    "cliproxyapi.manager_admin_key": "k" * 32,
+}
+
+
+def test_cliproxyapi_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).cliproxyapi_enabled is False
+    assert _load_raw(config_from("private.toml", **CLIPROXYAPI)).cliproxyapi_enabled is True
+
+
+def test_partial_cliproxyapi_names_missing_field():
+    raw = config_from("private.toml", **CLIPROXYAPI | {"cliproxyapi.api_key": None})
+    with pytest.raises(
+        ConfigError, match=r"cliproxyapi is partially configured.*\(missing: api_key\)"
+    ):
+        _load_raw(raw)
+
+
 MEDIA_KEYS = {
     f"media.{name}": "a" * 32
     for name in (
