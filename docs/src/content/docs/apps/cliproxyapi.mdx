@@ -66,7 +66,13 @@ The seed sets values the app needs:
 - `server.port: 8317`. Without it the app bound `:0`, and the probe on 8317 killed the pod (measured live, 2026-11-06).
 - `trusted-proxies` set to the pod CIDR, because the gateway forwards the client address and the app bans an address after five bad management keys.
 - `disable-control-panel: true`, which turns off the bundled panel the app would otherwise download from GitHub. `/management.html` is 404 on the proxy.
-- `usage-statistics-enabled: true`, which feeds the manager's usage pages.
+- `usage-statistics-enabled: true`, which feeds the manager's usage pages, and `redis-usage-queue-retention-seconds: 3600`, the maximum, so the proxy keeps an hour of usage in memory and a manager restart loses nothing (the default is 60 seconds).
+- `routing.cooldown.save-cooldown-status: true`, so a throttled login stays out of rotation across a restart.
+- `requests.nonstream-keepalive-interval: 30`, blank lines on long non-streaming answers. The gateway's request timeout is already unlimited, so this guards only its stream idle timeout (inferred, not measured).
+
+Left at the defaults on purpose: round-robin routing with one-hour session affinity (a Claude Code session stays on one login for its prompt cache), per-credential rather than per-model cooling (a Max plan's limits are per account), cloak mode `auto`, no header defaults or device-profile pinning, and request logging, plugins, pprof and commercial mode off. The Antigravity, quota-fallback and multimedia settings do not apply to Claude logins. The proxy refreshes its OAuth tokens every 15 minutes (measured from its start log).
+
+The manager runs with `USAGE_ACCOUNT_ACTIONS_ENABLED=true`, a record-only review queue of revoked or invalid logins. Auto-disable and the quota cooldown worker stay off: auto-disable is never reversed by a worker and needs a re-login, and the cooldown worker reads Codex and xAI signals only. The server Health Inspection covers Codex and xAI only, so its schedule stays disabled.
 
 The image has a Cmd and no Entrypoint, so the HelmRelease sets `command` to the binary and its `--config` flag; `args` alone would replace the binary.
 
@@ -128,6 +134,7 @@ manager's Credential Management page.
 
 ## Operations
 
+- Change proxy settings in the manager's Config Panel, which persists and reloads them. An edit to `/data/config.yaml` through `kubectl exec` is not picked up by the file watcher (measured 2026-11-07, with `sed -i` and with an in-place rewrite) until `kubectl rollout restart deploy/cliproxyapi -n llms`. `GET /v0/management/config` with the management key shows the live values.
 - A change to the seed in Git reaches a running proxy only if the volume's copy is deleted, because init containers run once per pod and only the `seed-config` init container mounts the seed. Delete the copy and restart, which re-seeds it. Every setting made in the UI is lost; the provider logins under `auths/` stay. Rotating `management_key` or `api_key` needs this re-seed: the manager picks up its new Secret on its own, the proxy's stored hash does not, and the two stop agreeing. Whether the manager accepts a changed management key once it has stored one is not checked.
 
     ```sh
