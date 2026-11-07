@@ -1,6 +1,6 @@
 #% if cliproxyapi_enabled %#
 ---
-# The gateways and the manager only. Egress stays open: the proxy dials the
+# The gateways and the two consoles only. Egress stays open: the proxy dials the
 # providers and its version checks on the internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -20,6 +20,11 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: cpa-manager
+        #% if ohmycpa_enabled %#
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: oh-my-cpa
+        #% endif %#
       ports:
         - protocol: TCP
           port: 8317

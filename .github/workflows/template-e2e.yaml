@@ -121,6 +121,7 @@ jobs:
           - itsaplan-without-rustfs
           - itsaplan-without-backup
           - partial-cliproxyapi
+          - ohmycpa-without-cliproxyapi
           - langfuse-bad-encryption-key
           - rustfs-duplicate-key
           - ai-kb-tracing-without-langfuse

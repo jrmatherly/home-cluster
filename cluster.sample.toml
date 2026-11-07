@@ -1292,6 +1292,16 @@ schematic_id = ""
 
 # manager_admin_key = ""
 
+# Oh-My-CPA, a second console for the same proxy at https://llms-mgmt.<domain.name>,
+# signed in with management_key. This is its at-rest encryption key for the
+# stored credentials and usage payloads, exactly 64 hex characters. Set it to
+# deploy the console; leave it blank to skip. Never change it once the console
+# has data, because nothing stored can be read without it. It is written to a
+# SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# ohmycpa_master_key = ""
+
 
 # =============================================================================
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the

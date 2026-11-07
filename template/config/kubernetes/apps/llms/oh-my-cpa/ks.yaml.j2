@@ -1,0 +1,21 @@
+#% if ohmycpa_enabled %#
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: oh-my-cpa
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/llms/oh-my-cpa/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: llms
+  wait: false
+#% endif %#

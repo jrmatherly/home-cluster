@@ -773,10 +773,17 @@ class CliProxyApi(Model):
     api_key: LongSecret = ""
     # CPA-Manager-Plus's own login, the only way into the manager.
     manager_admin_key: LongSecret = ""
+    # Oh-My-CPA's at-rest encryption key, 64 hex characters; set to deploy that
+    # second console. Never changed once it has data.
+    ohmycpa_master_key: str = Field(default="", pattern=r"^$|^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "cliproxyapi", tuple(type(self).model_fields))
+        _all_or_none(self, "cliproxyapi", ("management_key", "api_key", "manager_admin_key"))
+        if self.ohmycpa_master_key and not self.management_key:
+            raise ValueError(
+                "cliproxyapi.ohmycpa_master_key needs management_key, api_key and manager_admin_key"
+            )
         return self
 
 
@@ -1073,6 +1080,11 @@ class Config(Model):
     @property
     def cliproxyapi_enabled(self) -> bool:
         return self.cliproxyapi.management_key != ""
+
+    @computed_field
+    @property
+    def ohmycpa_enabled(self) -> bool:
+        return self.cliproxyapi.ohmycpa_master_key != ""
 
     @computed_field
     @property

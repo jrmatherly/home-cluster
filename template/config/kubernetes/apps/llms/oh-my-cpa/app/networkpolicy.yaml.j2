@@ -1,0 +1,21 @@
+#% if ohmycpa_enabled %#
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: oh-my-cpa
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: oh-my-cpa
+      app.kubernetes.io/controller: oh-my-cpa
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 8080
+#% endif %#

@@ -241,6 +241,12 @@
         "manager_admin_key": {
           "$ref": "#/$defs/LongSecret",
           "default": ""
+        },
+        "ohmycpa_master_key": {
+          "default": "",
+          "pattern": "^$|^[0-9a-f]{64}$",
+          "title": "Ohmycpa Master Key",
+          "type": "string"
         }
       },
       "title": "CliProxyApi",
@@ -1477,7 +1483,8 @@
       "default": {
         "management_key": "",
         "api_key": "",
-        "manager_admin_key": ""
+        "manager_admin_key": "",
+        "ohmycpa_master_key": ""
       }
     },
     "localai": {

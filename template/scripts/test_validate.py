@@ -989,6 +989,24 @@ def test_partial_cliproxyapi_names_missing_field():
         _load_raw(raw)
 
 
+def test_ohmycpa_enabled_by_master_key():
+    assert _load_raw(config_from("private.toml", **CLIPROXYAPI)).ohmycpa_enabled is False
+    raw = config_from("private.toml", **CLIPROXYAPI, **{"cliproxyapi.ohmycpa_master_key": "0" * 64})
+    assert _load_raw(raw).ohmycpa_enabled is True
+
+
+def test_ohmycpa_master_key_needs_cliproxyapi():
+    raw = config_from("private.toml", **{"cliproxyapi.ohmycpa_master_key": "0" * 64})
+    with pytest.raises(ConfigError, match=r"ohmycpa_master_key needs management_key"):
+        _load_raw(raw)
+
+
+def test_ohmycpa_master_key_must_be_hex64():
+    raw = config_from("private.toml", **CLIPROXYAPI, **{"cliproxyapi.ohmycpa_master_key": "x" * 64})
+    with pytest.raises(ConfigError, match=r"ohmycpa_master_key"):
+        _load_raw(raw)
+
+
 MEDIA_KEYS = {
     f"media.{name}": "a" * 32
     for name in (

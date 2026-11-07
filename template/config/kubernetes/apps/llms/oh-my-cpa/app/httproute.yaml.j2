@@ -1,0 +1,17 @@
+#% if ohmycpa_enabled %#
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: oh-my-cpa
+spec:
+  hostnames: ["llms-mgmt.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: oh-my-cpa
+          port: 8080
+#% endif %#
