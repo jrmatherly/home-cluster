@@ -1,0 +1,38 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: itsaplan-db
+spec:
+  # Each instance is pinned to a node by its local-path volume, so a second one
+  # lets a node go down without taking the app with it.
+  instances: 2
+  # A new app with no 7-day reading yet, so this follows the smallest clusters
+  # (ai-workspace-db, kener-db, matherlynet-db, reactive-resume-db).
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  # Switch the primary over to the replica on a roll, instead of a restart in place
+  # that refuses connections for up to the 180 s smart shutdown.
+  primaryUpdateMethod: switchover
+  # Counts schedulable nodes, because instance pods do not tolerate the control plane taint.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ImageCatalog
+    name: postgresql
+    major: 18
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: postgres-backup
+  storage:
+    storageClass: local-path
+    size: 5Gi

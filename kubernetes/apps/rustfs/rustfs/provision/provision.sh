@@ -30,3 +30,4 @@ provision() {
 }
 provision ai-kb ai-kb-files
 provision langfuse langfuse-events
+provision itsaplan itsaplan-attachments

@@ -1,0 +1,113 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: itsaplan
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: itsaplan
+  interval: 1h
+  # The first install waits for itsaplan-db, then the migrate init container
+  # applies every migration (175 at 1.10.0) and the api's readiness probe
+  # starts 60 s later, so Helm's default 5m can run out on a fresh cluster.
+  timeout: 10m
+  valuesFrom:
+    # CloudNativePG generates this Secret. The uri key is the whole libpq
+    # connection string, so no database password lives in sops.
+    - kind: Secret
+      name: itsaplan-db-app
+      valuesKey: uri
+      targetPath: externalDatabase.url
+    - kind: Secret
+      name: itsaplan-secret
+      valuesKey: values.yaml
+  values:
+    # The images set no USER; measured as 1001 on a read-only root in Docker.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+      seccompProfile: { type: RuntimeDefault }
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities: { drop: ["ALL"] }
+    api:
+      image:
+        repository: ghcr.io/croffasia/itsaplan-api
+        tag: 1.10.0@sha256:9f53d060db6594b2e51bc224183e8e8c60e544a1fd65dcd451c053568c642753
+      env:
+        API_URL: https://plan.${SECRET_DOMAIN}/api
+        APP_URL: https://plan.${SECRET_DOMAIN}
+        S3_BUCKET: itsaplan-attachments
+        S3_REGION: us-east-1
+        S3_FORCE_PATH_STYLE: "true"
+        # Otherwise the migrate init container dumps the database before an
+        # upgrade into the chart's emptyDir at /backups, which dies with the pod.
+        # itsaplan-db's WAL archiving and daily backup are the safety net.
+        SKIP_PRE_MIGRATION_BACKUP: "1"
+        TELEMETRY_DISABLED: "1"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    web:
+      image:
+        repository: ghcr.io/croffasia/itsaplan-web
+        tag: 1.10.0@sha256:be213d6861f66ac68320db2a1481c050bc811a740d558f5ebde576b34f78b289
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    worker:
+      image:
+        repository: ghcr.io/croffasia/itsaplan-worker
+        tag: 1.10.0@sha256:840650f1dc8cec4d82cf8cdc6fa5cd43aa82df1fc9a9f9213358e3c33688aed0
+      env:
+        TELEMETRY_DISABLED: "1"
+        DO_NOT_TRACK: "1"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+    # The Telegram bot, not used.
+    bot:
+      enabled: false
+    postgresql:
+      enabled: false
+    minio:
+      enabled: false
+    externalS3:
+      endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
+    # ingress and certificate stay at their defaults (off): the HTTPRoute is the route.
+  postRenderers:
+    - kustomize:
+        patches:
+          # next/image caches under .next/cache, and on a read-only root every
+          # optimized image logs an unhandledRejection and is re-optimized
+          # (measured in Docker). The chart has no volume value for the web.
+          # No namespace: the chart renders none, and a patch naming one matches nothing.
+          - patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: itsaplan-web
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: web
+                        volumeMounts:
+                          - name: next-cache
+                            mountPath: /app/apps/web/.next/cache
+                    volumes:
+                      - name: next-cache
+                        emptyDir: {}
