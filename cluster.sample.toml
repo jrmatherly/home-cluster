@@ -1226,6 +1226,38 @@ schematic_id = ""
 # rustfs_access_key = ""
 # rustfs_secret_key = ""
 
+# =============================================================================
+#    It's a Plan, an issue tracker and project board, served at
+#    https://plan.<domain.name> on the internal gateway. It has its own login:
+#    the first account registered becomes the instance admin, and a Pocket ID
+#    sign-in is added later in its god mode.
+#    Needs [postgres.backup] and [rustfs].
+#    Set all four fields to enable; leaving them blank skips it.
+# =============================================================================
+[itsaplan]
+
+# Signs sessions, at least 32 characters. Changing it signs everyone out.
+# Set all four fields together, or none. It is written to a SOPS-encrypted
+# Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+
+# better_auth_secret = ""
+
+# Encrypts the AI provider keys and integration credentials the app stores,
+# at least 32 characters. Never change it once set: the rows it encrypted
+# become unreadable. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+
+# app_encryption_key = ""
+
+# The app's own RustFS key pair, letters and digits, at least 16 and 32. The
+# provisioning Job creates the itsaplan-attachments bucket and scopes the pair
+# to it. They are written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 16` and `-hex 32`
+
+# rustfs_access_key = ""
+# rustfs_secret_key = ""
+
 
 # =============================================================================
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the

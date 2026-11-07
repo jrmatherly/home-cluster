@@ -199,6 +199,12 @@ clickhouse_password = "fakefakefakefakefakefakefake"
 rustfs_access_key = "langfusefakefake"
 rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 
+[itsaplan]
+better_auth_secret = "fakefakefakefakefakefakefakefakefake"
+app_encryption_key = "fakefakefakefakefakefakefakefakefake"
+rustfs_access_key = "itsaplanfakefake"
+rustfs_secret_key = "fakefakefakefakefakefakefakefakefake"
+
 [github_runner]
 token = "github_pat_fakefakefakefakefakefake"
 

@@ -361,6 +361,29 @@
       "title": "Ingress",
       "type": "object"
     },
+    "Itsaplan": {
+      "additionalProperties": false,
+      "properties": {
+        "better_auth_secret": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "app_encryption_key": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "rustfs_access_key": {
+          "$ref": "#/$defs/S3AccessKey",
+          "default": ""
+        },
+        "rustfs_secret_key": {
+          "$ref": "#/$defs/ApiKey",
+          "default": ""
+        }
+      },
+      "title": "Itsaplan",
+      "type": "object"
+    },
     "Kener": {
       "additionalProperties": false,
       "properties": {
@@ -1417,6 +1440,15 @@
         "oidc_client_id": "",
         "oidc_client_secret": "",
         "clickhouse_password": "",
+        "rustfs_access_key": "",
+        "rustfs_secret_key": ""
+      }
+    },
+    "itsaplan": {
+      "$ref": "#/$defs/Itsaplan",
+      "default": {
+        "better_auth_secret": "",
+        "app_encryption_key": "",
         "rustfs_access_key": "",
         "rustfs_secret_key": ""
       }

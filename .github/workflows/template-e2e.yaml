@@ -117,6 +117,9 @@ jobs:
           - rustfs-short-secret
           - partial-langfuse
           - langfuse-without-rustfs
+          - partial-itsaplan
+          - itsaplan-without-rustfs
+          - itsaplan-without-backup
           - langfuse-bad-encryption-key
           - rustfs-duplicate-key
           - ai-kb-tracing-without-langfuse

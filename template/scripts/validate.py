@@ -750,6 +750,22 @@ class Langfuse(Model):
         return self
 
 
+class Itsaplan(Model):
+    # Signs sessions. Changing it signs everyone out.
+    better_auth_secret: LongSecret = ""
+    # Encrypts the AI provider keys and integration credentials the app stores.
+    # Never change it once set: the rows it encrypted become unreadable.
+    app_encryption_key: LongSecret = ""
+    # The app's own RustFS key pair; the provisioning Job scopes it to the itsaplan-attachments bucket.
+    rustfs_access_key: S3AccessKey = ""
+    rustfs_secret_key: ApiKey = ""
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(self, "itsaplan", tuple(type(self).model_fields))
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -814,6 +830,7 @@ class Config(Model):
     ai_kb: AiKb = AiKb()
     rustfs: RustFs = RustFs()
     langfuse: Langfuse = Langfuse()
+    itsaplan: Itsaplan = Itsaplan()
     localai: LocalAi = LocalAi()
     github_runner: GithubRunner = GithubRunner()
     nodes: list[Node]
@@ -1034,6 +1051,11 @@ class Config(Model):
 
     @computed_field
     @property
+    def itsaplan_enabled(self) -> bool:
+        return self.itsaplan.better_auth_secret != ""
+
+    @computed_field
+    @property
     def github_runner_enabled(self) -> bool:
         return self.github_runner.token != ""
 
@@ -1058,6 +1080,15 @@ class Config(Model):
                     "bucket": "langfuse-events",
                     "access_key": self.langfuse.rustfs_access_key,
                     "secret_key": self.langfuse.rustfs_secret_key,
+                }
+            )
+        if self.itsaplan_enabled:
+            consumers.append(
+                {
+                    "name": "itsaplan",
+                    "bucket": "itsaplan-attachments",
+                    "access_key": self.itsaplan.rustfs_access_key,
+                    "secret_key": self.itsaplan.rustfs_secret_key,
                 }
             )
         return consumers
@@ -1318,6 +1349,16 @@ class Config(Model):
             raise ValueError(
                 "langfuse.rustfs_access_key requires rustfs: Langfuse writes every event "
                 "to its bucket there"
+            )
+        if self.itsaplan_enabled and not self.postgres_backup_enabled:
+            raise ValueError(
+                "itsaplan requires postgres.backup: its database is a CloudNativePG cluster "
+                "backed up there"
+            )
+        if self.itsaplan_enabled and not self.rustfs_enabled:
+            raise ValueError(
+                "itsaplan.rustfs_access_key requires rustfs: attachments are stored in its "
+                "bucket there"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(

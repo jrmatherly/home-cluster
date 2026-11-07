@@ -1,0 +1,39 @@
+#% if itsaplan_enabled %#
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: itsaplan
+spec:
+  hostnames: ["plan.${SECRET_DOMAIN}"]
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    # The api lives under /api on the web's host, so the session cookie stays
+    # __Host- on this hostname. The prefix is removed, so better-auth is reached
+    # at /api/api/auth/... and the api's own routes at /api/...
+    - matches:
+        - path: { type: PathPrefix, value: /api }
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: itsaplan-api
+          port: 3000
+    # OAuth discovery for MCP clients, served by the api at the root.
+    - matches:
+        - path: { type: PathPrefix, value: /.well-known/oauth-authorization-server }
+        - path: { type: PathPrefix, value: /.well-known/oauth-protected-resource }
+        - path: { type: PathPrefix, value: /.well-known/openid-configuration }
+      backendRefs:
+        - name: itsaplan-api
+          port: 3000
+    - backendRefs:
+        - name: itsaplan-web
+          port: 3001
+#% endif %#

@@ -1,0 +1,29 @@
+#% if itsaplan_enabled %#
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: itsaplan
+spec:
+  dependsOn:
+    - name: cloudnative-pg
+      namespace: cnpg-system
+    - name: plugin-barman-cloud
+      namespace: cnpg-system
+    # The api checks its bucket, so the key pair has to exist first.
+    - name: rustfs-provision
+      namespace: rustfs
+  interval: 1h
+  path: ./kubernetes/apps/itsaplan/itsaplan/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: itsaplan
+  wait: false
+#% endif %#

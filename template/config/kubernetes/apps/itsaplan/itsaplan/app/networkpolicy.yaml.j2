@@ -1,0 +1,32 @@
+#% if itsaplan_enabled %#
+---
+# The gateway is the only intended path, and the app reads the client address
+# from X-Forwarded-For. The web's server side and the worker reach the api
+# through SERVICE_URL_API.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: itsaplan
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: itsaplan
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3001
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: itsaplan
+      ports:
+        - protocol: TCP
+          port: 3000
+#% endif %#
