@@ -32,6 +32,10 @@ spec:
             image: *image
             # The image has a Cmd and no Entrypoint, so args alone would replace the binary.
             command: ["/CLIProxyAPI/CLIProxyAPI", "--config", "/data/config.yaml"]
+            env:
+              # Plugins persist their state under ~/.cli-proxy-api; without HOME that is "/" and
+              # read-only (claude-seat-pacer's history, measured 2026-11-07).
+              HOME: /data
             probes:
               liveness: &probe
                 enabled: true
