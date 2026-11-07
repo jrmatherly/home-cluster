@@ -148,6 +148,8 @@ manager's Credential Management page.
 - NetworkPolicies admit the `network` namespace on each app's port, and the proxy also admits the manager's pods on 8317.
 - The Config Panel's Source File Editor shows the proxy's config with the client key in plaintext to anyone signed in to the manager, so the admin key is the only wall around that key.
 - Log stamps read +08:00. The image bakes `TZ=Asia/Shanghai`, and a `TZ` env did not change them (measured live).
+- Every proxy setting tuned by hand goes into the seed in Git as well, because a redeploy re-seeds from it. Manager settings go in its HelmRelease env, which locks them in the UI.
+- Usage Maintenance: automatic archive retention stays off (default). One user's events fit the volume for a long time (4.6 MB after the first day), and the first archive deletion freezes the manager's priced-model structure. Offline compaction needs the manager stopped: scale `cpa-manager` to zero, run `cpa-manager-plus compact-usage --db-path /data/usage.sqlite` in a pod on its claim as uid 1000 with free space at least the database size, then scale back to one. Not rehearsed.
 - Not done: no volume backup, so the OAuth tokens and the manager's `data.key` exist only on their volumes.
 
 ## Verify
