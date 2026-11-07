@@ -1,0 +1,82 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: oh-my-cpa
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: oh-my-cpa
+  interval: 1h
+  values:
+    controllers:
+      oh-my-cpa:
+        # SQLite in WAL mode on one volume, so one replica.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: wiziscool/oh-my-cpa
+              tag: v0.3.24@sha256:ce1b017c01b99fc24eb7961b73006fe9181a99e6219bc507542c736cc563384e
+            env:
+              OMCPA_CPA_BASE_URL: http://cliproxyapi.llms.svc.cluster.local:8317
+              OMCPA_PUBLIC_URL: https://llms-mgmt.${SECRET_DOMAIN}
+              # The gateway forwards the client address.
+              OMCPA_TRUSTED_PROXY_CIDRS: "10.42.0.0/16"
+              # The proxy broadcasts usage to every subscriber, so both consoles ingest; a
+              # pull mode would see nothing while another console subscribes. It retries
+              # once a second while the proxy is away, so no wait-for-proxy init container.
+              OMCPA_USAGE_INGEST_MODE: subscribe
+              # The updater needs the Docker socket.
+              OMCPA_UPDATER_ENABLED: "false"
+            envFrom:
+              - secretRef:
+                  name: oh-my-cpa-secret
+            probes:
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/healthz
+                    port: &port 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *probe
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+    defaultPodOptions:
+      # The image's own uid, set by its USER.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      # The SQLite database, the only copy. The app writes nothing outside /data.
+      data:
+        # The chart renames a lone claim when a second one appears.
+        forceRename: oh-my-cpa
+        retain: true
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        globalMounts:
+          - path: /data

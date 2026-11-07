@@ -10,3 +10,4 @@ resources:
   - ./namespace.yaml
   - ./cliproxyapi/ks.yaml
   - ./cpa-manager/ks.yaml
+  - ./oh-my-cpa/ks.yaml

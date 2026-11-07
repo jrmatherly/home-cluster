@@ -19,6 +19,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: cpa-manager
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: oh-my-cpa
       ports:
         - protocol: TCP
           port: 8317
