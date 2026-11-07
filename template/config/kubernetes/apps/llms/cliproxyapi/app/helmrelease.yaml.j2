@@ -31,7 +31,8 @@ spec:
         containers:
           app:
             image: *image
-            args: ["--config", "/data/config.yaml"]
+            # The image has a Cmd and no Entrypoint, so args alone would replace the binary.
+            command: ["/CLIProxyAPI/CLIProxyAPI", "--config", "/data/config.yaml"]
             env:
               # The image bakes in Asia/Shanghai.
               TZ: Etc/UTC
