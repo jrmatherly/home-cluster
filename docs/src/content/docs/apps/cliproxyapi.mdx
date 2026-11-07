@@ -86,9 +86,7 @@ Measured 2026-11-07: three Claude accounts were added this way in a row, each in
 
 ## Clients
 
-Taken from the project's own guide, not yet exercised here.
-
-Claude Code, in `~/.claude/settings.json`:
+Claude Code, in the user's `~/.claude/settings.json` (never a project's committed `.claude/settings.json`). Claude Code's gateway docs say the base URL carries no `/v1` and `ANTHROPIC_AUTH_TOKEN` goes out as `Authorization: Bearer` (read 2026-11-07):
 
 ```json
 {
@@ -99,17 +97,23 @@ Claude Code, in `~/.claude/settings.json`:
 }
 ```
 
-Codex, in `~/.codex/config.toml`, with `CLIPROXY_API_KEY=<api_key>` in the shell environment:
+Codex needs a Codex login in the proxy first (none added yet). Then, from CLIProxyAPI's own Codex page
+(read 2026-11-07, not yet tried here), `~/.codex/config.toml`:
 
 ```toml
-model_provider = "cliproxy"
+model_provider = "cliproxyapi"
 
-[model_providers.cliproxy]
-name = "CLIProxyAPI"
+[model_providers.cliproxyapi]
+name = "OpenAI"
 base_url = "https://llms.${SECRET_DOMAIN}/v1"
-env_key = "CLIPROXY_API_KEY"
+http_headers = { "X-Api-Key" = "<api_key>" }
 wire_api = "responses"
+requires_openai_auth = true
+supports_websockets = true
 ```
+
+`env_key = "<VAR>"` is the official alternative to the literal header, and `wire_api` has only the
+value `responses`.
 
 From the LAN, this lists the models of the logins added:
 
