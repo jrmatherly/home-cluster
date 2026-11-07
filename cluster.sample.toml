@@ -1278,8 +1278,10 @@ schematic_id = ""
 # management_key = ""
 
 # The one client key for https://llms.<domain.name>, at least 32 characters.
-# Claude Code, Codex and the other clients send it as a bearer token. It is
-# written to a SOPS-encrypted Secret.
+# Claude Code, Codex and the other clients send it as a bearer token. Like
+# management_key it is seeded once: a change here reaches a running proxy only
+# by re-seeding, which resets every setting made in the manager UI except the
+# provider logins. It is written to a SOPS-encrypted Secret.
 # OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
 
 # api_key = ""

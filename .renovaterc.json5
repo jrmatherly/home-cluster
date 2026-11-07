@@ -154,6 +154,8 @@
         "!quay.io/go-skynet/local-ai-backends",
         "!docker.io/rustfs/rc",
         "!ghcr.io/pegaprox/pegaprox",
+        "!eceasy/cli-proxy-api",
+        "!ghcr.io/seakee/cpa-manager-plus",
         "!ghcr.io/home-operations/sonarr",
         "!ghcr.io/home-operations/radarr",
         "!ghcr.io/home-operations/prowlarr",

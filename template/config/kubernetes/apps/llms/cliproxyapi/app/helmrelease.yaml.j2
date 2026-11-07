@@ -76,10 +76,13 @@ spec:
         size: 1Gi
         globalMounts:
           - path: /data
+      # Only the init container sees the plaintext keys; the app keeps a hash.
       seed:
         type: secret
         name: cliproxyapi-secret
-        globalMounts:
-          - path: /seed
-            readOnly: true
+        advancedMounts:
+          cliproxyapi:
+            seed-config:
+              - path: /seed
+                readOnly: true
 #% endif %#

@@ -15,11 +15,24 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
-        containers:
-          app:
-            image:
+        initContainers:
+          # The collector probes the proxy once at start and keeps HTTP polling (two
+          # requests a second) when the proxy is down then, so wait for it first.
+          wait-for-proxy:
+            image: &image
               repository: ghcr.io/seakee/cpa-manager-plus
               tag: v1.14.10@sha256:0e803f21d51aceea7b752686417bf57f40678d8068fe102ba23cb2a3afb414e1
+            command:
+              - sh
+              - -c
+              - 'until wget -qO- http://cliproxyapi.llms.svc.cluster.local:8317/healthz; do echo "waiting for the proxy"; sleep 5; done'
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *image
             env:
               CPA_UPSTREAM_URL: http://cliproxyapi.llms.svc.cluster.local:8317
             envFrom:
@@ -36,10 +49,7 @@ spec:
                   periodSeconds: 10
                   timeoutSeconds: 5
               readiness: *probe
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+            securityContext: *securityContext
             resources:
               requests:
                 cpu: 50m
