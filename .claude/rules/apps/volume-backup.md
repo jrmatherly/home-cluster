@@ -3,7 +3,9 @@ paths:
     - "template/config/kubernetes/apps/pegaprox/pegaprox/app/backup-*"
     - "template/config/kubernetes/apps/network-optimizer/network-optimizer/app/backup-*"
     - "template/config/kubernetes/apps/rustfs/rustfs/app/backup-*"
+    - "template/config/kubernetes/apps/career-ops/*/app/backup-*"
     - "kubernetes/apps/pegaprox/pegaprox/app/backup-*"
+    - "kubernetes/apps/career-ops/*/app/backup-*"
     - "kubernetes/apps/network-optimizer/network-optimizer/app/backup-*"
     - "kubernetes/apps/rustfs/rustfs/app/backup-*"
 ---
