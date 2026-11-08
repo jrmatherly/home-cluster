@@ -1,0 +1,14 @@
+#% if career_ops_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: career-ops
+
+components:
+  - ../../components/sops
+
+resources:
+  - ./namespace.yaml
+  - ./career-ops/ks.yaml
+  - ./publish/ks.yaml
+#% endif %#

@@ -1,0 +1,16 @@
+#% if career_ops_enabled %#
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./backup-cronjob.yaml
+  - ./backup-secret.sops.yaml
+  - ./helmrelease.yaml
+  - ./httproute.yaml
+  - ./networkpolicy.yaml
+  - ./ocirepository.yaml
+  - ./oidc-secret.sops.yaml
+  - ./scan-cronjob.yaml
+  - ./secret.sops.yaml
+  - ./securitypolicy.yaml
+#% endif %#
