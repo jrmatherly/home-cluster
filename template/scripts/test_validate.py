@@ -1056,6 +1056,15 @@ def test_career_ops_requires_allowed_emails():
         _load_raw(raw)
 
 
+def test_career_ops_publish_api_key_is_optional_but_needs_the_section():
+    assert _load_raw(config_from("private.toml", **CAREER_OPS)).career_ops.publish_api_key == ""
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_api_key": "cops_fake"})
+    assert _load_raw(raw).career_ops.publish_api_key == "cops_fake"
+    raw = config_from("private.toml", **{"career_ops.publish_api_key": "cops_fake"})
+    with pytest.raises(ConfigError, match=r"publish_api_key requires oidc_client_secret"):
+        _load_raw(raw)
+
+
 def test_career_ops_requires_pocket_id():
     raw = config_from("private.toml", **CAREER_OPS | {"pocket_id.encryption_key": None})
     with pytest.raises(ConfigError, match=r"career_ops requires pocket_id"):

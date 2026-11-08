@@ -807,6 +807,9 @@ class CareerOps(Model):
     publish_oidc_client_secret: Secret = ""
     # Who may sign in to the publish account page and mint API keys.
     publish_allowed_emails: list[EmailAddress] = []
+    # A key minted on that page after the first deploy; the dashboard's share
+    # features read it from the pod env, so it cannot be set before the service runs.
+    publish_api_key: Secret = ""
     # Also attach the dashboard route to the external gateway.
     public: bool = False
 
@@ -833,6 +836,11 @@ class CareerOps(Model):
         if self.publish_allowed_emails and not self.oidc_client_secret:
             raise ValueError(
                 "career_ops.publish_allowed_emails requires oidc_client_secret: career-ops only "
+                "runs when the client is set"
+            )
+        if self.publish_api_key and not self.oidc_client_secret:
+            raise ValueError(
+                "career_ops.publish_api_key requires oidc_client_secret: career-ops only "
                 "runs when the client is set"
             )
         return self

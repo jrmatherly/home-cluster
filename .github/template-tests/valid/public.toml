@@ -221,6 +221,7 @@ publish_auth_secret = "fakefakefakefakefakefakefakefakefake"
 publish_oidc_client_id = "fake-publish"
 publish_oidc_client_secret = "fake-publish-secret"
 publish_allowed_emails = ["me@example.com"]
+publish_api_key = "cops_fakefakefakefakefakefake"
 public = true
 
 [github_runner]

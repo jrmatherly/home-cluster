@@ -1375,6 +1375,14 @@ schematic_id = ""
 
 # publish_allowed_emails = []
 
+# An API key for the dashboard's share features, minted after the first deploy:
+# sign in at https://cv.<domain.name>/account with Pocket ID (type the URL,
+# the share pages do not link it) and create a key; it is shown once. Setting
+# it restarts the dashboard pod. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: "cops_..."
+
+# publish_api_key = ""
+
 # Also serves the dashboard on the external gateway, so the internet reaches
 # it. Needs pocket_id.public = true, because a visitor from the internet must
 # reach the Pocket ID login.
