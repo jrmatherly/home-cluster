@@ -127,7 +127,7 @@
       ignoreTests: true,
     },
     {
-      description: "Move the career-ops digests the same way, but on the weekend only: every digest bump rolls the web pod under Recreate, which kills an in-flight 800 s evaluation or scan, and two bumps landed within minutes of the first deploy (2026-11-08). ignoreTests for the same reason as the docs image, since career-ops's own repository built and tested each image on main",
+      description: "Move the career-ops digests the same way, but on the weekend only, with automergeSchedule too, because an existing branch is otherwise updated and merged outside schedule (updateNotScheduled). Each bump rolls its Deployment under Recreate, which in the web pod kills an in-flight 800 s evaluation or scan; two bumps landed within minutes of the first deploy on Saturday evening 2026-11-07, inside this window, so the gate confines restarts to the weekend rather than preventing them. ignoreTests for the same reason as the docs image, since career-ops's own repository built and tested each image on main",
       matchDatasources: ["docker"],
       matchPackageNames: [
         "ghcr.io/jrmatherly/career-ops-server",
@@ -135,6 +135,7 @@
       ],
       matchUpdateTypes: ["pinDigest", "digest"],
       schedule: ["every weekend"],
+      automergeSchedule: ["every weekend"],
       automerge: true,
       ignoreTests: true,
     },
@@ -160,7 +161,7 @@
       platformAutomerge: false,
     },
     {
-      description: "Tier 1 automerge, digest: a rebuild of the same tag, behind Flate on the weekend like the patch rule. The LocalAI images move inside their grouped PR, rustfs rc is pre-1.0 and its Job log once carried a secret, pegaprox and the Servarr builds are never automerged (references/apps.md), the shared Postgres image rolls all eight CloudNativePG clusters at once, and the docs and career-ops images keep their own branch rule above, which this later rule would override",
+      description: "Tier 1 automerge, digest: a rebuild of the same tag, behind Flate on the weekend like the patch rule. The LocalAI images move inside their grouped PR, rustfs rc is pre-1.0 and its Job log once carried a secret, pegaprox and the Servarr builds are never automerged (references/apps.md), the shared Postgres image rolls all eight CloudNativePG clusters at once, and the docs and career-ops images keep their own branch rules above, which this later rule would override",
       matchFileNames: ["kubernetes/**", "template/config/kubernetes/**"],
       matchDatasources: ["docker"],
       matchUpdateTypes: ["digest"],
