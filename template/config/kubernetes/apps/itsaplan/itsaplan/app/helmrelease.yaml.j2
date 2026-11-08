@@ -84,6 +84,12 @@ spec:
       enabled: false
     postgresql:
       enabled: false
+    # A placeholder so flate can render the chart offline, which requires a
+    # database when postgresql is off; the valuesFrom targetPath above
+    # overwrites it, inline values included, with the CloudNativePG Secret at
+    # reconcile time.
+    externalDatabase:
+      url: postgresql://flate-placeholder
     minio:
       enabled: false
     externalS3:

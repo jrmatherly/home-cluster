@@ -44,7 +44,10 @@ jobs:
 
       - name: Run Flate
         id: flate
-        run: flate test all -p ./kubernetes/flux/cluster
+        # Three HelmReleases read their database URI from a Secret CloudNativePG
+        # generates in the cluster, which is never in Git; the flag soft-skips
+        # those valuesFrom refs instead of blocking the release.
+        run: flate test all --allow-missing-secrets -p ./kubernetes/flux/cluster
 
   success:
     if: ${{ !cancelled() }}

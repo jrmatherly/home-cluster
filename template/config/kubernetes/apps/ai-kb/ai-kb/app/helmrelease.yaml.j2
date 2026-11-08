@@ -10,6 +10,11 @@ spec:
     name: ai-kb
   interval: 1h
   valuesFrom:
+    # First, so everything below overwrites it: placeholders that let flate
+    # render the chart offline (flate-defaults.yaml).
+    - kind: ConfigMap
+      name: ai-kb-flate-defaults
+      valuesKey: values.yaml
     # CloudNativePG generates this Secret.
     - kind: Secret
       name: ai-kb-db-app

@@ -1,0 +1,20 @@
+#% if ai_kb_enabled %#
+---
+# Placeholders for the values the chart marks required and that flate cannot
+# read: the database password comes from the Secret CloudNativePG generates,
+# and the rest sit in the sops Secret, whose keys flate sees as absent. This
+# ConfigMap is the first valuesFrom entry, so every later entry overwrites it
+# (Flux merges valuesFrom in order), and the cluster never runs on these values.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-kb-flate-defaults
+data:
+  values.yaml: |
+    secrets:
+      dbPassword: flate-placeholder
+      jwtSecret: flate-placeholder
+      redisPassword: flate-placeholder
+    neo4j:
+      password: flate-placeholder
+#% endif %#
