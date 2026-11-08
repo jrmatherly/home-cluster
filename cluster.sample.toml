@@ -1312,6 +1312,76 @@ schematic_id = ""
 
 
 # =============================================================================
+#    career-ops, a job-search dashboard, at https://career.<domain.name> on the
+#    internal gateway, and also on the external gateway with public = true.
+#    Pocket ID on the gateway is its only login. Its publish service serves
+#    shared CV pages at https://cv.<domain.name> on the external gateway, with
+#    its own Pocket ID sign-in on the account page. Both keep their data on
+#    local-path volumes, backed up nightly to the [volume_backup] bucket.
+#    Needs [pocket_id], [volume_backup] and an ingress mode other than none.
+#
+#    Create two OIDC clients in the Pocket ID admin UI first: one with the
+#    callback URL https://career.<domain.name>/oauth2/callback, restricted to
+#    the cluster_admins group, and one with the callback URL
+#    https://cv.<domain.name>/api/auth/callback/pocket-id. Set every field
+#    below except public to enable; leaving them blank skips it.
+# =============================================================================
+[career_ops]
+
+# Client ID of the dashboard's OIDC client in Pocket ID.
+# OPTIONAL.
+
+# oidc_client_id = ""
+
+# Client secret of that client. Pocket ID shows it once, when the client is
+# created. Set every field in this section together, or none. It is written to
+# a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# oidc_client_secret = ""
+
+# The Claude login the dashboard's scans run with, from `claude setup-token`
+# on the Mac. It lasts one year. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# claude_oauth_token = ""
+
+# Signs the share pages' access cookies and feedback links, at least 32
+# characters. Changing it logs every visitor out and breaks every feedback
+# link. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# publish_secret = ""
+
+# Better Auth's secret for the publish account page, at least 32 characters.
+# Changing it signs everyone out. It is written to a SOPS-encrypted Secret.
+# OPTIONAL. Example: the output of `openssl rand -hex 32`
+
+# publish_auth_secret = ""
+
+# Client ID and secret of the publish account page's OIDC client in Pocket
+# ID. Pocket ID must report email_verified for the accounts below. The secret
+# is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# publish_oidc_client_id = ""
+# publish_oidc_client_secret = ""
+
+# The email addresses allowed to sign in to https://cv.<domain.name>/account
+# and mint API keys. Anyone else is refused at sign-in.
+# REQUIRED when the section is set. Example: ["me@example.com"]
+
+# publish_allowed_emails = []
+
+# Also serves the dashboard on the external gateway, so the internet reaches
+# it. Needs pocket_id.public = true, because a visitor from the internet must
+# reach the Pocket ID login.
+# OPTIONAL. Default: false
+
+# public = false
+
+
+# =============================================================================
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the
 #    weekly update-apps workflow uses for its apply job (`runs-on: home-cluster`).
 #    The runner registers at repository scope, scales from zero and runs one

@@ -212,6 +212,17 @@ manager_admin_key = "cpamp_fakefakefakefakefakefakefakefake"
 ohmycpa_master_key = "0000000000000000000000000000000000000000000000000000000000000000"
 github_token = "github_pat_fakefakefakefakefakefake"
 
+[career_ops]
+oidc_client_id = "fake-career-ops"
+oidc_client_secret = "fake-career-ops-secret"
+claude_oauth_token = "fake-claude-oauth-token"
+publish_secret = "fakefakefakefakefakefakefakefakefake"
+publish_auth_secret = "fakefakefakefakefakefakefakefakefake"
+publish_oidc_client_id = "fake-publish"
+publish_oidc_client_secret = "fake-publish-secret"
+publish_allowed_emails = ["me@example.com"]
+public = true
+
 [github_runner]
 token = "github_pat_fakefakefakefakefakefake"
 
