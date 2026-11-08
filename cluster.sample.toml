@@ -1318,7 +1318,9 @@ schematic_id = ""
 #    shared CV pages at https://cv.<domain.name> on the external gateway, with
 #    its own Pocket ID sign-in on the account page. Both keep their data on
 #    local-path volumes, backed up nightly to the [volume_backup] bucket.
-#    Needs [pocket_id], [volume_backup] and an ingress mode other than none.
+#    Needs [pocket_id], [volume_backup] and ingress.mode "cloudflare-tunnel",
+#    because the publish service reads each visitor's address from the header
+#    Cloudflare sets.
 #
 #    Create two OIDC clients in the Pocket ID admin UI first: one with the
 #    callback URL https://career.<domain.name>/oauth2/callback, restricted to

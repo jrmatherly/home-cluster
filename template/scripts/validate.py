@@ -1454,10 +1454,10 @@ class Config(Model):
             raise ValueError(
                 "career_ops requires pocket_id: Pocket ID is the dashboard's only login"
             )
-        if self.career_ops_enabled and self.ingress.mode == "none":
+        if self.career_ops_enabled and self.ingress.mode != "cloudflare-tunnel":
             raise ValueError(
-                "career_ops requires ingress.mode other than 'none': the share pages are "
-                "served on the external gateway"
+                "career_ops requires ingress.mode 'cloudflare-tunnel': the publish service "
+                "trusts the client address header Cloudflare sets"
             )
         if self.career_ops_enabled and not self.volume_backup_enabled:
             raise ValueError(
