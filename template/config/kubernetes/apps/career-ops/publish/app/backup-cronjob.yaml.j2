@@ -1,0 +1,119 @@
+#% if career_ops_enabled %#
+---
+# The database is the only copy of the shares, their snapshots and the comments.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: publish-volume-backup
+spec:
+  schedule: "10 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # The app's own image for node:sqlite. Read-write, because SQLite cannot
+            # open a WAL database read-only once the app has removed its -shm file;
+            # local-path keeps this pod on the app's node, so WAL locking holds.
+            - name: snapshot
+              image: ghcr.io/jrmatherly/career-ops-publish:latest@sha256:9a9ccfbadb1b4b1f66d0071540b51db56312be5230bb86970d9b6d88382cbff2
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  node -e '
+                  const fs = require("node:fs");
+                  const { DatabaseSync } = require("node:sqlite");
+                  // Opening a missing file would create it on the volume.
+                  fs.statSync("/data/publish.db");
+                  const src = new DatabaseSync("/data/publish.db", { timeout: 30000 });
+                  src.prepare("VACUUM INTO ?").run("/work/publish.db");
+                  src.close();
+                  const d = new DatabaseSync("/work/publish.db", { readOnly: true });
+                  if (Object.values(d.prepare("pragma integrity_check").get())[0] !== "ok") throw new Error("integrity_check failed");
+                  // An app that lost its volume starts empty. Fail here, before the prune, so the good copies stay.
+                  if (d.prepare("select count(*) as n from shares").get().n < 1) throw new Error("no shares");
+                  d.close();
+                  '
+                  # One -C and one member, which BusyBox tar handles.
+                  tar -czf /work/out.tar.gz -C /work publish.db
+                  tar -tzf /work/out.tar.gz > /tmp/members
+                  grep -qxF publish.db /tmp/members
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: docker.io/rustfs/rc:v0.1.37@sha256:7e93fd410a8fe51514f89373e093392c92095b98dc6140335fcfe956810c4c80
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
+                  # A folder per app, so this prune never removes the career-ops tars a failing career-ops job left.
+                  rc object copy /work/out.tar.gz "s3/$BUCKET/volumes/career-ops/publish/publish-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+                  # Reached only after a good upload. Files, not pipes, so a failed step fails the run.
+                  rc object find "s3/$BUCKET/volumes/career-ops/publish/" --older 7d --json > /tmp/found
+                  jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
+                  cat /tmp/expired
+                  xargs -r -n1 rc object remove --force < /tmp/expired
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: publish-volume-backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: publish-data
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+#% endif %#

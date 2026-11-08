@@ -1,0 +1,23 @@
+#% if career_ops_enabled %#
+---
+# Only the gateway may reach the service, because it trusts the client address
+# header from the pod CIDR.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: publish
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: publish
+      app.kubernetes.io/controller: publish
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+      ports:
+        - protocol: TCP
+          port: 8080
+#% endif %#
