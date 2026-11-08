@@ -14,6 +14,8 @@ Measured 2026-11-07 in the worktree, from the repository root.
 | The publish snapshot logic under Node 24.22.2 (the image's version) on a scratch WAL database              | passes with one share, refuses an empty `shares` table with `no shares`                                                                                                                    |
 | `oxfmt --check .`                                                                                          | clean                                                                                                                                                                                      |
 
+`just configure` against the real cluster config (2026-11-08, after the operator filled `[career_ops]`): render, sops encryption, kubeconform and topf all passed; the only working-tree change was the new `kubernetes/apps/career-ops/` tree (23 files, every `*.sops.yaml` encrypted), and the 44 re-encrypted unchanged sops files were restored before the commit.
+
 Not measured: the career-ops tar step and the publish container's start under a read-only root (no Docker daemon here, so neither image ran). The curl image digest was read with `crane digest` outside the sandbox (2026-11-08).
 
 ## Live and perf lanes (pending the operator's secrets)
