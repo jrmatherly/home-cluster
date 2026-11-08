@@ -32,7 +32,7 @@ spec:
               # which Cloudflare overwrites; the leftmost x-forwarded-for entry is
               # whatever the visitor sent.
               PUBLISH_TRUSTED_PROXIES: "10.42.0.0/16"
-              POCKET_ID_CLIENT_ID: "o9ZrIDIYQYDHaLMVd5XzhJs66ob40Dof"
+              POCKET_ID_CLIENT_ID: "419f6d61-f244-47b1-be03-956f2493fc83"
               POCKET_ID_DISCOVERY_URL: https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
             envFrom:
               - secretRef:
