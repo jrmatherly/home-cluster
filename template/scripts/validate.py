@@ -790,6 +790,54 @@ class CliProxyApi(Model):
         return self
 
 
+class CareerOps(Model):
+    # The Pocket ID client the gateway signs dashboard users in with
+    # (callback https://career.<domain>/oauth2/callback).
+    oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    oidc_client_secret: Secret = ""
+    # From `claude setup-token` on the Mac; lasts one year.
+    claude_oauth_token: Secret = ""
+    # Signs share-page cookies and feedback links; rotating it logs every visitor out.
+    publish_secret: LongSecret = ""
+    # Better Auth's secret for the publish account page; rotating it signs everyone out.
+    publish_auth_secret: LongSecret = ""
+    # The second Pocket ID client, for the publish account page
+    # (callback https://cv.<domain>/api/auth/callback/pocket-id).
+    publish_oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
+    publish_oidc_client_secret: Secret = ""
+    # Who may sign in to the publish account page and mint API keys.
+    publish_allowed_emails: list[EmailAddress] = []
+    # Also attach the dashboard route to the external gateway.
+    public: bool = False
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        _all_or_none(
+            self,
+            "career_ops",
+            (
+                "oidc_client_id",
+                "oidc_client_secret",
+                "claude_oauth_token",
+                "publish_secret",
+                "publish_auth_secret",
+                "publish_oidc_client_id",
+                "publish_oidc_client_secret",
+            ),
+        )
+        if self.oidc_client_secret and not self.publish_allowed_emails:
+            raise ValueError(
+                "career_ops.publish_allowed_emails is required: nobody could sign in to the "
+                "publish account page"
+            )
+        if self.publish_allowed_emails and not self.oidc_client_secret:
+            raise ValueError(
+                "career_ops.publish_allowed_emails requires oidc_client_secret: career-ops only "
+                "runs when the client is set"
+            )
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -856,6 +904,7 @@ class Config(Model):
     langfuse: Langfuse = Langfuse()
     itsaplan: Itsaplan = Itsaplan()
     cliproxyapi: CliProxyApi = CliProxyApi()
+    career_ops: CareerOps = CareerOps()
     localai: LocalAi = LocalAi()
     github_runner: GithubRunner = GithubRunner()
     nodes: list[Node]
@@ -1088,6 +1137,12 @@ class Config(Model):
     @property
     def ohmycpa_enabled(self) -> bool:
         return self.cliproxyapi.ohmycpa_master_key != ""
+
+    # Gates the career-ops namespace: the dashboard and the publish service.
+    @computed_field
+    @property
+    def career_ops_enabled(self) -> bool:
+        return self.career_ops.oidc_client_secret != ""
 
     @computed_field
     @property
@@ -1394,6 +1449,30 @@ class Config(Model):
             raise ValueError(
                 "itsaplan.rustfs_access_key requires rustfs: attachments are stored in its "
                 "bucket there"
+            )
+        if self.career_ops_enabled and not self.pocket_id_enabled:
+            raise ValueError(
+                "career_ops requires pocket_id: Pocket ID is the dashboard's only login"
+            )
+        if self.career_ops_enabled and self.ingress.mode == "none":
+            raise ValueError(
+                "career_ops requires ingress.mode other than 'none': the share pages are "
+                "served on the external gateway"
+            )
+        if self.career_ops_enabled and not self.volume_backup_enabled:
+            raise ValueError(
+                "career_ops requires volume_backup: the data volume is the only copy of the tracker"
+            )
+        if self.career_ops.public and not self.career_ops_enabled:
+            raise ValueError(
+                "career_ops.public requires oidc_client_secret: career-ops only runs when "
+                "the client is set"
+            )
+        # pocket_id.public already requires an ingress, so no separate ingress check.
+        if self.career_ops.public and not self.pocket_id.public:
+            raise ValueError(
+                "career_ops.public requires pocket_id.public: a visitor from the internet "
+                "must reach the Pocket ID login"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(

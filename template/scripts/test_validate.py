@@ -1013,6 +1013,77 @@ def test_ohmycpa_master_key_must_be_hex64():
         _load_raw(raw)
 
 
+VOLUME_BACKUP = POSTGRES_BACKUP | {
+    "volume_backup.bucket": "fake-volumes",
+    "volume_backup.access_key": "fakev",
+    "volume_backup.secret_key": "fakev",
+}
+CAREER_OPS = (
+    POCKET_ID
+    | VOLUME_BACKUP
+    | {
+        "career_ops.oidc_client_id": "fake",
+        "career_ops.oidc_client_secret": "fake",
+        "career_ops.claude_oauth_token": "fake",
+        "career_ops.publish_secret": "p" * 32,
+        "career_ops.publish_auth_secret": "a" * 32,
+        "career_ops.publish_oidc_client_id": "fake-publish",
+        "career_ops.publish_oidc_client_secret": "fake",
+        "career_ops.publish_allowed_emails": ["me@example.com"],
+    }
+)
+
+
+def test_career_ops_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).career_ops_enabled is False
+    assert _load_raw(config_from("private.toml", **CAREER_OPS)).career_ops_enabled is True
+
+
+def test_partial_career_ops_names_missing_field():
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.claude_oauth_token": None})
+    with pytest.raises(
+        ConfigError, match=r"career_ops is partially configured.*\(missing: claude_oauth_token\)"
+    ):
+        _load_raw(raw)
+
+
+def test_career_ops_requires_allowed_emails():
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_allowed_emails": None})
+    with pytest.raises(ConfigError, match=r"career_ops\.publish_allowed_emails is required"):
+        _load_raw(raw)
+    raw = config_from("private.toml", **{"career_ops.publish_allowed_emails": ["me@example.com"]})
+    with pytest.raises(ConfigError, match=r"publish_allowed_emails requires oidc_client_secret"):
+        _load_raw(raw)
+
+
+def test_career_ops_requires_pocket_id():
+    raw = config_from("private.toml", **CAREER_OPS | {"pocket_id.encryption_key": None})
+    with pytest.raises(ConfigError, match=r"career_ops requires pocket_id"):
+        _load_raw(raw)
+
+
+def test_career_ops_requires_volume_backup():
+    raw = config_from("private.toml", **CAREER_OPS)
+    del raw["volume_backup"]
+    with pytest.raises(ConfigError, match=r"career_ops requires volume_backup"):
+        _load_raw(raw)
+
+
+def test_career_ops_requires_ingress():
+    raw = config_from("private.toml", **CAREER_OPS | {"ingress.mode": "none"})
+    with pytest.raises(ConfigError, match=r"career_ops requires ingress\.mode other than 'none'"):
+        _load_raw(raw)
+
+
+def test_career_ops_public_requires_public_pocket_id():
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.public": True})
+    with pytest.raises(ConfigError, match=r"career_ops\.public requires pocket_id\.public"):
+        _load_raw(raw)
+    raw = config_from("private.toml", **{"career_ops.public": True})
+    with pytest.raises(ConfigError, match=r"career_ops\.public requires oidc_client_secret"):
+        _load_raw(raw)
+
+
 MEDIA_KEYS = {
     f"media.{name}": "a" * 32
     for name in (

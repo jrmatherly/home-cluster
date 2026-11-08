@@ -195,6 +195,58 @@
       "title": "Bgp",
       "type": "object"
     },
+    "CareerOps": {
+      "additionalProperties": false,
+      "properties": {
+        "oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Oidc Client Id",
+          "type": "string"
+        },
+        "oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "claude_oauth_token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "publish_secret": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "publish_auth_secret": {
+          "$ref": "#/$defs/LongSecret",
+          "default": ""
+        },
+        "publish_oidc_client_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9._~-]*$",
+          "title": "Publish Oidc Client Id",
+          "type": "string"
+        },
+        "publish_oidc_client_secret": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
+        "publish_allowed_emails": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EmailAddress"
+          },
+          "title": "Publish Allowed Emails",
+          "type": "array"
+        },
+        "public": {
+          "default": false,
+          "title": "Public",
+          "type": "boolean"
+        }
+      },
+      "title": "CareerOps",
+      "type": "object"
+    },
     "Cidr": {
       "format": "ipv4network",
       "type": "string"
@@ -1491,6 +1543,20 @@
         "manager_admin_key": "",
         "ohmycpa_master_key": "",
         "github_token": ""
+      }
+    },
+    "career_ops": {
+      "$ref": "#/$defs/CareerOps",
+      "default": {
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "claude_oauth_token": "",
+        "publish_secret": "",
+        "publish_auth_secret": "",
+        "publish_oidc_client_id": "",
+        "publish_oidc_client_secret": "",
+        "publish_allowed_emails": [],
+        "public": false
       }
     },
     "localai": {
