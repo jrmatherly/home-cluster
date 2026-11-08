@@ -18,9 +18,21 @@ Measured 2026-11-07 in the worktree, from the repository root.
 
 Not measured: the career-ops tar step and the publish container's start under a read-only root (no Docker daemon here, so neither image ran). The curl image digest was read with `crane digest` outside the sandbox (2026-11-08).
 
-## Live and perf lanes (pending the operator's secrets)
+## Live lanes, first pass (2026-11-08 01:25 to 01:35Z, after the operator merged PR 135 as 7c93804)
 
-The ten live lanes and the perf lane of the contract need the `[career_ops]` section in the cluster config. They run after the operator supplies:
+| Lane                   | Result                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy                 | Flux applied 7c93804; both HelmReleases Ready; pods `career-ops` (k8s-worker-1) and `publish` (k8s-gpu-1) 1/1 Running; the three claims Bound; the three CronJobs present. Both HTTPRoutes Accepted and ResolvedRefs; the SecurityPolicy "accepted".                                                                              |
+| 2 (redirect half)      | `GET https://career.<domain>/` through the gateway returns 302 to `https://auth.<domain>/authorize` with `redirect_uri=https://career.<domain>/oauth2/callback` and scopes `openid profile email groups`. The sign-in itself still needs a browser.                                                                               |
+| 4                      | The 01:30Z tick Job completed; the web pod answered `{"accepted":true}`; `/api/scheduler` shows `source: external` and `lastRun` 01:30:02Z; `/data/data/scheduled-jobs.json` and its `.tick` marker appeared. `pipeline.md` cannot gain rows until the data root is migrated.                                                     |
+| 7 (equivalent)         | Renovate's digest automerge landed new image pins minutes after the merge (main 15c9187 and 51b193b, matching `crane digest` of both `latest` tags), so Flux rolled both Deployments under `Recreate`: the new pods came Ready, `/data` kept its files, and no `*.lock*` directory remained. The explicit pod delete was not run. |
+| 10                     | `node /app/doctor.mjs --json` inside the web pod reports the data root (onboarding needed, four files missing on the empty volume), `active_cli: claude`, and the plugin list.                                                                                                                                                    |
+| publish start          | The log shows `No migrations needed` and `listening on 0.0.0.0:8080, database /data/publish.db`, so the read-only root with `HOME=/tmp` works. `GET https://cv.<domain>/` is 404 and `/account` is 401, both from the service.                                                                                                    |
+| 1, 3, 5, 6, 8, 9, perf | Not run: 1, 5, 6 and 8 need the migrated data root and a browser sign-in; 3 needs a pod in another namespace, which the permission classifier refuses this session; 9 fails by design until `/data/data/applications.md` exists; the perf lane needs the Mac baseline and the signed-in page.                                     |
+
+## Remaining lanes (pending the data migration and a browser sign-in)
+
+The `[career_ops]` section is filled (2026-11-08) and the apps are live. The section below is kept as the record of what the operator supplied:
 
 | Field                                                  | Where it comes from                                                                                                                                      |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
