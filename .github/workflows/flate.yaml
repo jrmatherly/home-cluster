@@ -44,9 +44,12 @@ jobs:
 
       - name: Run Flate
         id: flate
-        # Three HelmReleases read their database URI from a Secret CloudNativePG
+        # Three HelmReleases read a database value from a Secret CloudNativePG
         # generates in the cluster, which is never in Git; the flag soft-skips
-        # those valuesFrom refs instead of blocking the release.
+        # those valuesFrom refs instead of blocking the release. It also skips
+        # every other missing valuesFrom or source-auth Secret, so a misspelled
+        # name now passes here unless the chart marks the value required.
+        # Replace with --supply once a flate release carries it.
         run: flate test all --allow-missing-secrets -p ./kubernetes/flux/cluster
 
   success:
