@@ -1,0 +1,106 @@
+#% if career_ops_enabled %#
+---
+# The data volume is the only copy of the tracker, reports and CVs.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: volume-backup
+spec:
+  schedule: "50 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # The app's own image for its GNU tar; BusyBox tar drops all but the last -C.
+            - name: snapshot
+              image: ghcr.io/jrmatherly/career-ops-server:latest@sha256:4dfeffb94f3f6606f19072e3b461d1fd639c397ad07358c8286452d88928b2e1
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  # An app that lost its volume starts empty. Fail here, before the prune, so the good copies stay.
+                  [ -f /data/data/applications.md ]
+                  rc=0
+                  tar -czf /work/out.tar.gz -C /data . || rc=$?
+                  # GNU tar exits 1 when a file changed as it read, which is fine here; 2 is a real failure.
+                  [ "$rc" -le 1 ]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: upload
+              image: docker.io/rustfs/rc:v0.1.37@sha256:7e93fd410a8fe51514f89373e093392c92095b98dc6140335fcfe956810c4c80
+              command: ["sh", "-eu", "-c"]
+              args:
+                - |
+                  # Built here so the keys are never on a command line or in the pod spec.
+                  export RC_HOST_s3="https://$ACCESS_KEY:$SECRET_KEY@$ENDPOINT_HOST"
+                  # A folder per app, so this prune never removes the publish tars a failing publish job left.
+                  rc object copy /work/out.tar.gz "s3/$BUCKET/volumes/career-ops/career-ops/career-ops-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+                  # Reached only after a good upload. Files, not pipes, so a failed step fails the run.
+                  rc object find "s3/$BUCKET/volumes/career-ops/career-ops/" --older 7d --json > /tmp/found
+                  jq -r --arg prefix "s3/$BUCKET/" '.matches[] | $prefix + .key' /tmp/found > /tmp/expired
+                  cat /tmp/expired
+                  xargs -r -n1 rc object remove --force < /tmp/expired
+              env:
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: volume-backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: career-ops-data
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+#% endif %#

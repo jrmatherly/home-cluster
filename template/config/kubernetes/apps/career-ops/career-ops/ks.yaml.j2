@@ -1,0 +1,21 @@
+#% if career_ops_enabled %#
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: career-ops
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/career-ops/career-ops/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: career-ops
+  wait: false
+#% endif %#

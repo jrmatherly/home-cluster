@@ -1,0 +1,26 @@
+#% if career_ops_enabled %#
+---
+# The gateway is the access control: the app admits any client that sends
+# Host: localhost, so only the gateway and the scan tick may reach it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: career-ops
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: career-ops
+      app.kubernetes.io/controller: web
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+        - podSelector:
+            matchLabels:
+              career-ops.io/role: scan-tick
+      ports:
+        - protocol: TCP
+          port: 3000
+#% endif %#

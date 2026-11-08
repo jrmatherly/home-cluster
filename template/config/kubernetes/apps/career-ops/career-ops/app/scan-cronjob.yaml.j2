@@ -1,0 +1,55 @@
+#% if career_ops_enabled %#
+---
+# The scheduler runs inside the web pod; this only asks it to check for due scans.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: career-ops-scan-tick
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      # Retries through a Recreate rollout of the web pod, so an image update does
+      # not leave a failed Job and a standing KubeJobFailed alert.
+      backoffLimit: 4
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            career-ops.io/role: scan-tick
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: tick
+              image: docker.io/curlimages/curl:8.17.0@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40
+              # The request guard always admits a loopback Host.
+              command:
+                - curl
+                - -fsS
+                - -X
+                - POST
+                - -H
+                - "Host: localhost"
+                - http://career-ops-web.career-ops.svc:3000/api/scheduler
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
+#% endif %#
