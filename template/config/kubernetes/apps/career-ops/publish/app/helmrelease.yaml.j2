@@ -29,12 +29,12 @@ spec:
               PUBLISH_BASE_URL: https://cv.${SECRET_DOMAIN}
               # The service matches peers exactly today, so the CIDR takes effect
               # only once career-ops matches CIDRs; until then every visitor keys as
-              # the gateway pod.
+              # the gateway pod. The header stays the image default, cf-connecting-ip,
+              # which Cloudflare overwrites; the leftmost x-forwarded-for entry is
+              # whatever the visitor sent.
               PUBLISH_TRUSTED_PROXIES: "#{ kubernetes.pod_cidr }#"
-              PUBLISH_CLIENT_IP_HEADER: x-forwarded-for
               POCKET_ID_CLIENT_ID: "#{ career_ops.publish_oidc_client_id }#"
               POCKET_ID_DISCOVERY_URL: https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration
-              PUBLISH_ALLOWED_EMAILS: "#{ career_ops.publish_allowed_emails | join(',') }#"
             envFrom:
               - secretRef:
                   name: publish-secret

@@ -1071,7 +1071,7 @@ def test_career_ops_requires_volume_backup():
 
 def test_career_ops_requires_ingress():
     raw = config_from("private.toml", **CAREER_OPS | {"ingress.mode": "none"})
-    with pytest.raises(ConfigError, match=r"career_ops requires ingress\.mode other than 'none'"):
+    with pytest.raises(ConfigError, match=r"career_ops requires ingress\.mode 'cloudflare-tunnel'"):
         _load_raw(raw)
 
 

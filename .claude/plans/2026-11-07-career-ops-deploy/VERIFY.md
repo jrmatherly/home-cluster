@@ -31,6 +31,8 @@ The ten live lanes and the perf lane of the contract need the `[career_ops]` sec
 
 Then: `just configure`, restore the unchanged sops files, commit, push, watch Flux, run the lanes, save the review-gate screenshots under `private/review/`.
 
+After the first deploy, for the dashboard's share features: sign in at `cv.<domain>/account`, mint an API key, and write `PUBLISH_URL=https://cv.<domain>` and `PUBLISH_API_KEY=cops_...` into `/data/.env` on the `career-ops-data` claim. Expect both backup CronJobs to fail (and `KubeJobFailed` to fire) until `/data/data/applications.md` and a first share exist.
+
 ## Operator checks before the first deploy
 
 - Node floor 22.16+ on the server image: `docker run --rm ghcr.io/jrmatherly/career-ops-server:latest node --version` (not measured here: the Docker daemon was not running in this session).
