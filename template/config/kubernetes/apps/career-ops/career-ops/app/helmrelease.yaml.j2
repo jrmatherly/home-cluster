@@ -28,6 +28,10 @@ spec:
               CAREER_OPS_WEB_ALLOWED_HOSTS: career.${SECRET_DOMAIN}
               CAREER_OPS_SCHEDULER: external
               CAREER_OPS_SCHEDULER_DESCRIPTION: CronJob career-ops-scan-tick, every 15 minutes
+              #% if career_ops.anthropic_base_url %#
+              # The Claude CLI calls this CLIProxyAPI Service in place of Anthropic; its key is in the Secret.
+              ANTHROPIC_BASE_URL: "#{ career_ops.anthropic_base_url }#"
+              #% endif %#
               #% if career_ops.publish_api_key %#
               # The share features read these from the env before the data root's .env.
               PUBLISH_URL: https://cv.${SECRET_DOMAIN}
