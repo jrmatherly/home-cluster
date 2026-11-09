@@ -27,6 +27,8 @@ spec:
               CAREER_OPS_WEB_ALLOWED_HOSTS: career.${SECRET_DOMAIN}
               CAREER_OPS_SCHEDULER: external
               CAREER_OPS_SCHEDULER_DESCRIPTION: CronJob career-ops-scan-tick, every 15 minutes
+              # The Claude CLI calls this CLIProxyAPI Service in place of Anthropic; its key is in the Secret.
+              ANTHROPIC_BASE_URL: "http://cliproxyapi.llms.svc.cluster.local:8317"
               # The share features read these from the env before the data root's .env.
               PUBLISH_URL: https://cv.${SECRET_DOMAIN}
             envFrom:
