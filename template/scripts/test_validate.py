@@ -1040,10 +1040,65 @@ def test_career_ops_enabled_only_when_configured():
 
 
 def test_partial_career_ops_names_missing_field():
-    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.claude_oauth_token": None})
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_secret": None})
     with pytest.raises(
-        ConfigError, match=r"career_ops is partially configured.*\(missing: claude_oauth_token\)"
+        ConfigError, match=r"career_ops is partially configured.*\(missing: publish_secret\)"
     ):
+        _load_raw(raw)
+
+
+PROXY = {
+    "career_ops.claude_oauth_token": None,
+    "career_ops.anthropic_base_url": "http://cliproxyapi.llms.svc.cluster.local:8317",
+    "career_ops.anthropic_auth_token": "sk-fake",
+}
+
+
+def test_career_ops_proxy_pair_replaces_oauth_token():
+    career_ops = _load_raw(config_from("private.toml", **CAREER_OPS | PROXY)).career_ops
+    assert career_ops.claude_oauth_token == ""
+    assert career_ops.anthropic_base_url == "http://cliproxyapi.llms.svc.cluster.local:8317"
+    assert career_ops.anthropic_auth_token == "sk-fake"
+
+
+def test_career_ops_proxy_token_without_url_refused():
+    raw = config_from(
+        "private.toml", **CAREER_OPS | PROXY | {"career_ops.anthropic_base_url": None}
+    )
+    with pytest.raises(ConfigError, match=r"anthropic_auth_token requires anthropic_base_url"):
+        _load_raw(raw)
+    raw = config_from(
+        "private.toml", **CAREER_OPS | PROXY | {"career_ops.anthropic_auth_token": None}
+    )
+    with pytest.raises(ConfigError, match=r"anthropic_base_url requires anthropic_auth_token"):
+        _load_raw(raw)
+    raw = config_from("private.toml", **{"career_ops.anthropic_auth_token": "sk-fake"})
+    with pytest.raises(ConfigError, match=r"anthropic_auth_token requires oidc_client_secret"):
+        _load_raw(raw)
+
+
+def test_career_ops_proxy_url_needs_no_trailing_slash():
+    raw = config_from(
+        "private.toml",
+        **CAREER_OPS | PROXY | {"career_ops.anthropic_base_url": "http://cliproxyapi:8317/"},
+    )
+    with pytest.raises(ConfigError, match=r"anthropic_base_url"):
+        _load_raw(raw)
+
+
+def test_career_ops_proxy_and_oauth_refused():
+    raw = config_from(
+        "private.toml", **CAREER_OPS | PROXY | {"career_ops.claude_oauth_token": "fake"}
+    )
+    with pytest.raises(
+        ConfigError, match=r"set claude_oauth_token or the anthropic_base_url pair, not both"
+    ):
+        _load_raw(raw)
+
+
+def test_career_ops_needs_one_claude_credential():
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.claude_oauth_token": None})
+    with pytest.raises(ConfigError, match=r"career_ops needs one Claude credential"):
         _load_raw(raw)
 
 

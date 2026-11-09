@@ -212,6 +212,16 @@
           "$ref": "#/$defs/Secret",
           "default": ""
         },
+        "anthropic_base_url": {
+          "default": "",
+          "pattern": "^(https?://\\S*[^/\\s])?$",
+          "title": "Anthropic Base Url",
+          "type": "string"
+        },
+        "anthropic_auth_token": {
+          "$ref": "#/$defs/Secret",
+          "default": ""
+        },
         "publish_secret": {
           "$ref": "#/$defs/LongSecret",
           "default": ""
@@ -1555,6 +1565,8 @@
         "oidc_client_id": "",
         "oidc_client_secret": "",
         "claude_oauth_token": "",
+        "anthropic_base_url": "",
+        "anthropic_auth_token": "",
         "publish_secret": "",
         "publish_auth_secret": "",
         "publish_oidc_client_id": "",

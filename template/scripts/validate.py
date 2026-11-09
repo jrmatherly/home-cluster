@@ -795,8 +795,13 @@ class CareerOps(Model):
     # (callback https://career.<domain>/oauth2/callback).
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
     oidc_client_secret: Secret = ""
-    # From `claude setup-token` on the Mac; lasts one year.
+    # From `claude setup-token` on the Mac; lasts one year. Set this or the proxy pair below.
     claude_oauth_token: Secret = ""
+    # The in-cluster CLIProxyAPI Service the pod's Claude CLI calls instead of
+    # Anthropic, with no /v1 (http://cliproxyapi.llms.svc.cluster.local:8317).
+    anthropic_base_url: str = Field(default="", pattern=r"^(https?://\S*[^/\s])?$")
+    # A client api_key from [cliproxyapi], sent as the bearer to that URL.
+    anthropic_auth_token: Secret = ""
     # Signs share-page cookies and feedback links; rotating it logs every visitor out.
     publish_secret: LongSecret = ""
     # Better Auth's secret for the publish account page; rotating it signs everyone out.
@@ -821,7 +826,6 @@ class CareerOps(Model):
             (
                 "oidc_client_id",
                 "oidc_client_secret",
-                "claude_oauth_token",
                 "publish_secret",
                 "publish_auth_secret",
                 "publish_oidc_client_id",
@@ -833,15 +837,32 @@ class CareerOps(Model):
                 "career_ops.publish_allowed_emails is required: nobody could sign in to the "
                 "publish account page"
             )
-        if self.publish_allowed_emails and not self.oidc_client_secret:
+        if not self.oidc_client_secret:
+            for name in (
+                "publish_allowed_emails",
+                "publish_api_key",
+                "claude_oauth_token",
+                "anthropic_base_url",
+                "anthropic_auth_token",
+            ):
+                if getattr(self, name):
+                    raise ValueError(
+                        f"career_ops.{name} requires oidc_client_secret: career-ops only "
+                        "runs when the client is set"
+                    )
+        # Exactly one Claude credential: the OAuth token, or the proxy URL and its key.
+        elif self.anthropic_auth_token and not self.anthropic_base_url:
+            raise ValueError("career_ops.anthropic_auth_token requires anthropic_base_url")
+        elif self.anthropic_base_url and not self.anthropic_auth_token:
+            raise ValueError("career_ops.anthropic_base_url requires anthropic_auth_token")
+        elif self.claude_oauth_token and self.anthropic_base_url:
             raise ValueError(
-                "career_ops.publish_allowed_emails requires oidc_client_secret: career-ops only "
-                "runs when the client is set"
+                "career_ops: set claude_oauth_token or the anthropic_base_url pair, not both"
             )
-        if self.publish_api_key and not self.oidc_client_secret:
+        elif not self.claude_oauth_token and not self.anthropic_base_url:
             raise ValueError(
-                "career_ops.publish_api_key requires oidc_client_secret: career-ops only "
-                "runs when the client is set"
+                "career_ops needs one Claude credential: claude_oauth_token or "
+                "anthropic_base_url with anthropic_auth_token"
             )
         return self
 
