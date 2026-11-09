@@ -64,7 +64,7 @@ spec:
       web:
         image:
           repository: docker.io/langfuse/langfuse
-          tag: 4.75.0@sha256:23378ae8cdf1d92b647d68b81c0d0cea3632b43e9fbcbe9b765420af9c9c8662
+          tag: 4.77.0@sha256:2b47d0ae63ae737996a58cc03536a73230c809a2371c230c9bea4b7653a0b6a0
         pod:
           additionalEnv:
             - name: LANGFUSE_DEFAULT_ORG_ID
@@ -98,7 +98,7 @@ spec:
       worker:
         image:
           repository: docker.io/langfuse/langfuse-worker
-          tag: 4.75.0@sha256:5fd09700a8af5328f3ef004ca8ce5602f6e799aba13da5054d9b18ba1724533e
+          tag: 4.77.0@sha256:1bc3597ff4c953e98ff9ee474a7d634e97664e4df298fdf20f13ecc834c89438
         # The probe checks Postgres through langfuse-db-rw, which flips during a CNPG instance
         # restart; three kills on 2026-10-30 were that, not the worker.
         livenessProbe:
