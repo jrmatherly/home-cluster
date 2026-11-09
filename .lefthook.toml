@@ -47,7 +47,7 @@ glob = [".claude/skills/cluster-guard/**/*"]
 run = "claude plugin test .claude/skills/cluster-guard"
 
 [pre-commit.commands.scrub-docs]
-glob = ["docs/src/content/**/*"]
+glob = ["docs/src/content/**/*", "docs/public/**/*"]
 run = "docs/scrub-check.sh {staged_files}"
 
 [pre-commit.commands.claude-md-size]

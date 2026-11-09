@@ -6,7 +6,7 @@
 # Prints file:line and the rule, never the matched text, so a CI log cannot
 # leak what the page did.
 #
-#   docs/scrub-check.sh [file...]            default: every file under docs/src/content
+#   docs/scrub-check.sh [file...]            default: every file under docs/src/content and docs/public
 #   SCRUB_DENYLIST=path docs/scrub-check.sh  default: private/scrub-denylist.txt
 #
 # A denylist named in the environment must exist and have an entry: the image
@@ -19,7 +19,7 @@ denylist="${SCRUB_DENYLIST:-private/scrub-denylist.txt}"
 files=()
 for f in "$@"; do [ -f "$f" ] && files+=("$f"); done
 if [ "$#" -eq 0 ]; then
-    while IFS= read -r f; do files+=("$f"); done < <(find docs/src/content -type f | sort)
+    while IFS= read -r f; do files+=("$f"); done < <(find docs/src/content docs/public -type f | sort)
 fi
 [ "${#files[@]}" -gt 0 ] || exit 0
 
