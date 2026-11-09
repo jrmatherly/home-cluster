@@ -19,7 +19,7 @@ spec:
           app:
             image:
               repository: ghcr.io/jrmatherly/career-ops-publish
-              tag: latest@sha256:93caa87f88a0f0e8189be067d087f88fd959d2a631c9f6f9e27a6eab341da06d
+              tag: latest@sha256:3b64a7d183ace9c0db04d7819dbceaffda27dae16477a06e269669988cb842b0
             env:
               # The image's /home/node is read-only here; anything the auth CLI
               # caches goes to the tmp volume.
