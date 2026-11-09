@@ -10,6 +10,12 @@ A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork 
 Talos, Kubernetes, Flux and bootstrap config. Sources: the repo's `CLAUDE.md` and `README.md`,
 `cluster.sample.toml`, `template/config/`, and the private host and node-maintenance guides.
 
+![The request path from a browser through Cloudflare, the Envoy gateway and Pocket ID to an app, the GitOps path from the operator's Mac through GitHub and Flux, and the backups to R2](/diagrams/architecture.svg)
+
+One request path and one change path, drawn from the templates at a pinned commit. Traffic
+enters only through the Cloudflare tunnel and the gateway's Pocket ID sign-in, and change enters
+only through Git and Flux. The other app namespaces follow the same pattern as the one shown.
+
 ## Hosts and nodes
 
 Three standalone Proxmox VE hosts run the nodes. They do not form a Proxmox cluster, because a

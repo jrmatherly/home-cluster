@@ -11,6 +11,10 @@ The documentation lives in [`docs/`](./docs) and is served from the cluster itse
 hosts, the architecture, the decisions behind it and the runbooks, in placeholders rather than real
 addresses, because this repository is public.
 
+<p align="center">
+  <img src="docs/public/diagrams/architecture.svg" alt="Architecture: the request path from a browser through Cloudflare, the Envoy gateway and Pocket ID to an app, the GitOps path from the operator's Mac through GitHub and Flux, and the backups to R2" width="100%">
+</p>
+
 ## What runs here
 
 - **Platform:** Talos Linux, Cilium with BGP to the gateway, Flux, cert-manager, Envoy Gateway,
