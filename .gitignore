@@ -53,3 +53,6 @@ Thumbs.db
 
 # etcd snapshots hold every object in the cluster
 *.snapshot
+
+# Archify diagram candidates and receipts; exports go to private/ and docs/ by hand
+.archify/
