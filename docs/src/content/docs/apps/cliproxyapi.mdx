@@ -109,7 +109,7 @@ The career-ops dashboard's Claude CLI can use the proxy too. In `cluster.toml`, 
 `anthropic_base_url` to the in-cluster Service, `http://cliproxyapi.llms.svc.cluster.local:8317`,
 and `anthropic_auth_token` to `<api_key>`, in place of `claude_oauth_token`. The pod then gets
 `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`, and the proxy's NetworkPolicy admits the
-dashboard's pod. Not yet measured live.
+dashboard's pod. Measured 2026-11-09: the pod answered a one-word `claude -p` through the proxy.
 
 Codex needs a Codex login in the proxy first (none added yet). Then, from CLIProxyAPI's own Codex page
 (read 2026-11-07, not yet tried here), `~/.codex/config.toml`:
