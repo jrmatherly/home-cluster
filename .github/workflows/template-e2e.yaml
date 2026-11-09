@@ -129,6 +129,9 @@ jobs:
           - ai-kb-searxng-without-section
           - career-ops-without-pocket-id
           - career-ops-without-volume-backup
+          - career-ops-proxy-token-without-url
+          - career-ops-proxy-and-oauth
+          - career-ops-no-claude-credential
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -1325,8 +1325,10 @@ schematic_id = ""
 #    Create two OIDC clients in the Pocket ID admin UI first: one with the
 #    callback URL https://career.<domain.name>/oauth2/callback, restricted to
 #    the cluster_admins group, and one with the callback URL
-#    https://cv.<domain.name>/api/auth/callback/pocket-id. Set every field
-#    below except public to enable; leaving them blank skips it.
+#    https://cv.<domain.name>/api/auth/callback/pocket-id. To enable, set
+#    every field below except public and publish_api_key, with one Claude
+#    credential: claude_oauth_token, or the anthropic_base_url pair.
+#    Leaving them blank skips it.
 # =============================================================================
 [career_ops]
 
@@ -1336,8 +1338,7 @@ schematic_id = ""
 # oidc_client_id = ""
 
 # Client secret of that client. Pocket ID shows it once, when the client is
-# created. Set every field in this section together, or none. It is written to
-# a SOPS-encrypted Secret.
+# created. It is written to a SOPS-encrypted Secret.
 # OPTIONAL.
 
 # oidc_client_secret = ""
@@ -1347,6 +1348,22 @@ schematic_id = ""
 # OPTIONAL.
 
 # claude_oauth_token = ""
+
+# The in-cluster CLIProxyAPI Service the dashboard's Claude CLI calls in place
+# of Anthropic, so scans draw on the pooled [cliproxyapi] seats. This pair
+# replaces claude_oauth_token: set the token or the pair, never both. The URL
+# carries no /v1 and no trailing slash, and the proxy's NetworkPolicy admits
+# the dashboard pod.
+# OPTIONAL. Example: "http://cliproxyapi.llms.svc.cluster.local:8317"
+
+# anthropic_base_url = ""
+
+# The client key the dashboard sends to that URL as a bearer token: the
+# api_key in [cliproxyapi], or a second key minted in the CLIProxyAPI manager
+# console. It is written to a SOPS-encrypted Secret.
+# OPTIONAL.
+
+# anthropic_auth_token = ""
 
 # Signs the share pages' access cookies and feedback links, at least 32
 # characters. Changing it logs every visitor out and breaks every feedback
