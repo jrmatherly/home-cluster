@@ -850,16 +850,14 @@ class CareerOps(Model):
                         f"career_ops.{name} requires oidc_client_secret: career-ops only "
                         "runs when the client is set"
                     )
+            return self
         # Exactly one Claude credential: the OAuth token, or the proxy URL and its key.
-        elif self.anthropic_auth_token and not self.anthropic_base_url:
-            raise ValueError("career_ops.anthropic_auth_token requires anthropic_base_url")
-        elif self.anthropic_base_url and not self.anthropic_auth_token:
-            raise ValueError("career_ops.anthropic_base_url requires anthropic_auth_token")
-        elif self.claude_oauth_token and self.anthropic_base_url:
+        _all_or_none(self, "career_ops", ("anthropic_base_url", "anthropic_auth_token"))
+        if self.claude_oauth_token and self.anthropic_base_url:
             raise ValueError(
                 "career_ops: set claude_oauth_token or the anthropic_base_url pair, not both"
             )
-        elif not self.claude_oauth_token and not self.anthropic_base_url:
+        if not self.claude_oauth_token and not self.anthropic_base_url:
             raise ValueError(
                 "career_ops needs one Claude credential: claude_oauth_token or "
                 "anthropic_base_url with anthropic_auth_token"

@@ -1061,16 +1061,18 @@ def test_career_ops_proxy_pair_replaces_oauth_token():
     assert career_ops.anthropic_auth_token == "sk-fake"
 
 
-def test_career_ops_proxy_token_without_url_refused():
+def test_career_ops_proxy_half_pair_refused():
     raw = config_from(
         "private.toml", **CAREER_OPS | PROXY | {"career_ops.anthropic_base_url": None}
     )
-    with pytest.raises(ConfigError, match=r"anthropic_auth_token requires anthropic_base_url"):
+    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: anthropic_base_url\)"):
         _load_raw(raw)
     raw = config_from(
         "private.toml", **CAREER_OPS | PROXY | {"career_ops.anthropic_auth_token": None}
     )
-    with pytest.raises(ConfigError, match=r"anthropic_base_url requires anthropic_auth_token"):
+    with pytest.raises(
+        ConfigError, match=r"partially configured.*\(missing: anthropic_auth_token\)"
+    ):
         _load_raw(raw)
     raw = config_from("private.toml", **{"career_ops.anthropic_auth_token": "sk-fake"})
     with pytest.raises(ConfigError, match=r"anthropic_auth_token requires oidc_client_secret"):

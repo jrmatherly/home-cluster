@@ -1,6 +1,6 @@
 # Negative fixture: [career_ops] set with the proxy key without its URL.
 # Expected to be rejected by the career_ops Claude credential check.
-# expect: career_ops.anthropic_auth_token requires anthropic_base_url
+# expect: career_ops is partially configured: set anthropic_base_url and anthropic_auth_token together (missing: anthropic_base_url)
 [network]
 node_cidr = "10.10.10.0/24"
 
