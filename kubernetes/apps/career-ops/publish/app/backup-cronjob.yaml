@@ -43,8 +43,9 @@ spec:
                   src.close();
                   const d = new DatabaseSync("/work/publish.db", { readOnly: true });
                   if (Object.values(d.prepare("pragma integrity_check").get())[0] !== "ok") throw new Error("integrity_check failed");
-                  // An app that lost its volume starts empty. Fail here, before the prune, so the good copies stay.
-                  if (d.prepare("select count(*) as n from shares").get().n < 1) throw new Error("no shares");
+                  // An app that lost its volume starts with no user. Fail here, before the prune, so the good copies stay.
+                  // Not shares: an account with its API key and no share yet is worth keeping.
+                  if (d.prepare("select count(*) as n from user").get().n < 1) throw new Error("no user");
                   d.close();
                   '
                   # One -C and one member, which BusyBox tar handles.
