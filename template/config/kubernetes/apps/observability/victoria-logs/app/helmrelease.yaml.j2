@@ -23,9 +23,11 @@ spec:
       resources:
         requests:
           cpu: 50m
-          memory: 128Mi
+          memory: 256Mi
         limits:
-          memory: 1Gi
+          # 1Gi was OOM-killed 14 s into the first start, when eight collectors sent their
+          # backlog at once (2026-11-11); it idles near 290Mi.
+          memory: 2Gi
       serviceMonitor:
         enabled: true
 #% endif %#
