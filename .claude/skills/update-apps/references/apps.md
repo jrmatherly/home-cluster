@@ -368,7 +368,7 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `version:`.
 - **claude-code-action** runs the research job in `.github/workflows/update-apps.yaml`. It is a GitHub Action,
   so it is reviewed by hand from its Renovate PR. A bump of its SHA also moves the Claude Code version that job
-  runs, because the action pins that version in `src/entrypoints/run.ts` (measured, 2.1.310 at v1.0.262). Read
+  runs, because the action pins that version in `src/entrypoints/run.ts` (measured, 2.1.322 at v1.0.271). Read
   the Claude Code changelog for permission and headless changes before merging it.
 
 ## Wait for the release
