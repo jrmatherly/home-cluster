@@ -40,17 +40,14 @@ jobs:
           fetch-depth: 0
 
       - name: Install Flate
-        uses: home-operations/flate/action@631b76b69c4e58c6f4d1cb01e23616fa61aebafa # v0.6.5
+        uses: home-operations/flate/action@bbb6ebc344da051752dbdb1b413860ceffcfb63d # v0.7.3
 
       - name: Run Flate
         id: flate
-        # Three HelmReleases read a database value from a Secret CloudNativePG
-        # generates in the cluster, which is never in Git; the flag soft-skips
-        # those valuesFrom refs instead of blocking the release. It also skips
-        # every other missing valuesFrom or source-auth Secret, so a misspelled
-        # name now passes here unless the chart marks the value required.
-        # Replace with --supply once a flate release carries it.
-        run: flate test all --allow-missing-secrets -p ./kubernetes/flux/cluster
+        # flate reads no SOPS-encrypted value, and CloudNativePG generates the
+        # *-db-app Secrets in the cluster, so the supply file holds placeholders
+        # for the Secrets a valuesFrom names. Any other missing Secret blocks.
+        run: flate test all --supply .github/flate/supply.yaml -p ./kubernetes/flux/cluster
 
   success:
     if: ${{ !cancelled() }}

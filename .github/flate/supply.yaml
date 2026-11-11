@@ -1,0 +1,60 @@
+---
+# Placeholder Secrets for flate's --supply in the Flate workflow. flate reads no
+# SOPS-encrypted value, and CloudNativePG generates the *-db-app Secrets in the
+# cluster, so a valuesFrom reference to either would block its HelmRelease.
+# Supplied objects only satisfy references; flate never renders or applies them.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-kb-db-app
+  namespace: ai-kb
+stringData:
+  password: flate-placeholder
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-auth
+  namespace: ai-kb
+stringData:
+  password: flate-placeholder
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-kb-secret
+  namespace: ai-kb
+stringData:
+  values.yaml: "{}"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: itsaplan-db-app
+  namespace: itsaplan
+stringData:
+  uri: postgresql://app:flate-placeholder@itsaplan-db-rw.itsaplan.svc:5432/app
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: itsaplan-secret
+  namespace: itsaplan
+stringData:
+  values.yaml: "{}"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: matherlynet-db-app
+  namespace: matherlynet
+stringData:
+  uri: postgresql://app:flate-placeholder@matherlynet-db-rw.matherlynet.svc:5432/app
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: matherlynet-secret
+  namespace: matherlynet
+stringData:
+  values.yaml: "{}"
