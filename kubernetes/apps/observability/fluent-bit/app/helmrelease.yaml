@@ -104,6 +104,12 @@ spec:
               http_listen: 0.0.0.0
               http_port: 2020
               health_check: on
+            parsers:
+              # The address arrives as tcp://<node address>:<ephemeral port>; with the port
+              # in a stream field every reconnect would open a new stream.
+              - name: node_address
+                format: regex
+                regex: '^tcp://(?<node_address>[^:]+):\d+$'
             pipeline:
               inputs:
                 - name: kubernetes_events
@@ -115,11 +121,19 @@ spec:
                   tag: talos.services
                   port: 5170
                   format: json
+                  # The node tag is the sender's own claim; the address is the connection's.
+                  source_address_key: source_address
                 - name: tcp
                   tag: talos.kernel
                   port: 5171
                   format: json
                   source_address_key: source_address
+              filters:
+                - name: parser
+                  match: talos.*
+                  key_name: source_address
+                  parser: node_address
+                  reserve_data: on
               outputs:
                 - name: http
                   match: kube.events
@@ -133,14 +147,14 @@ spec:
                   match: talos.services
                   host: victoria-logs.observability.svc.cluster.local
                   port: 9428
-                  uri: /insert/jsonline?_stream_fields=source,node,talos-service&_msg_field=msg&_time_field=talos-time&extra_fields=source=talos
+                  uri: /insert/jsonline?_stream_fields=source,node,node_address,talos-service&_msg_field=msg&_time_field=talos-time&extra_fields=source=talos
                   format: json_lines
                   json_date_key: false
                 - name: http
                   match: talos.kernel
                   host: victoria-logs.observability.svc.cluster.local
                   port: 9428
-                  uri: /insert/jsonline?_stream_fields=source,source_address&_msg_field=msg&_time_field=talos-time&extra_fields=source=talos-kernel
+                  uri: /insert/jsonline?_stream_fields=source,node_address&_msg_field=msg&_time_field=talos-time&extra_fields=source=talos-kernel
                   format: json_lines
                   json_date_key: false
     persistence:
