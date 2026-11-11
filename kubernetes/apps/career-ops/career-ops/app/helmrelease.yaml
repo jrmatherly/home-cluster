@@ -20,7 +20,7 @@ spec:
           app:
             image:
               repository: ghcr.io/jrmatherly/career-ops-server
-              tag: latest@sha256:5fdf910eb21b6342637806a488db8d82a268dd8420fa161e041f524834520f38
+              tag: latest@sha256:29ffcae71eb69a1d37fc16957168ad0207c3aeb0a99a7d55a2756630b996e672
             env:
               CAREER_OPS_ROOT: /data
               # A host name here also makes the server bind 0.0.0.0.
