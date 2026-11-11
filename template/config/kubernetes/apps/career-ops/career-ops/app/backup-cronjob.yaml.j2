@@ -28,7 +28,7 @@ spec:
           initContainers:
             # The app's own image for its GNU tar; BusyBox tar drops all but the last -C.
             - name: snapshot
-              image: ghcr.io/jrmatherly/career-ops-server:latest@sha256:ee8a8d110302ca0d918b8df8fd453bc25738705247f0f4baa57af06c0191511b
+              image: ghcr.io/jrmatherly/career-ops-server:latest@sha256:5fdf910eb21b6342637806a488db8d82a268dd8420fa161e041f524834520f38
               command: ["sh", "-eu", "-c"]
               args:
                 - |
