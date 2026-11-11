@@ -189,9 +189,12 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   pods of every Postgres cluster it manages, one cluster at a time with a switchover, so update it when a short
   database interruption is acceptable. Read the upgrade notes for the target version first.
 - **plugin-barman-cloud** takes the Postgres backups and archives WAL. It must run in the operator's namespace,
-  and it talks to the operator over mutual TLS with certificates from cert-manager. It needs operator 1.26 or
+  and it talks to the operator over mutual TLS with certificates from cert-manager. It needs operator 1.30 or
   newer, and its notes name any higher minimum: check that before updating either one. The chart also sets the
-  sidecar image that runs in every backed-up Postgres pod.
+  sidecar image that runs in every backed-up Postgres pod, so a new plugin version rolls every backed-up
+  Cluster at once (cloudnative-pg/plugin-barman-cloud#1151), and the one-instance `ai-kb-db` goes down while
+  it restarts. Push it together with a Postgres catalog image change when both are pending, so the clusters
+  roll once.
 - **kube-prometheus-stack** ships the Prometheus Operator CRDs and replaces them on every install and upgrade,
   so it, not the bootstrap `prometheus-operator-crds` pin, decides the CRD version on a running cluster. Follow
   the CRD section of `breaking-changes.md`, and read the chart's upgrade notes for each major version crossed:
