@@ -1,0 +1,18 @@
+#% if observability_enabled %#
+# Talos ships its service logs (kubelet, etcd, containerd, machined) and the kernel log as JSON
+# lines to fluent-bit's NodePorts, which Cilium's socket load balancer serves on loopback. The
+# service lines carry no host name, hence the tag; KmsgLogConfig has no tags, so a kernel line
+# is told apart by the node address fluent-bit records.
+machine:
+  logging:
+    destinations:
+      - endpoint: tcp://127.0.0.1:30170/
+        format: json_lines
+        extraTags:
+          node: "{{ .Node.Host }}"
+---
+apiVersion: v1alpha1
+kind: KmsgLogConfig
+name: victoria-logs
+url: tcp://127.0.0.1:30171/
+#% endif %#
