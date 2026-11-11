@@ -136,7 +136,12 @@ reaches etcd through the control-plane node addresses. Prometheus keeps 14 days,
 `influxdb` is InfluxDB 2, with org `home` and an empty bucket `proxmox` from its first start, because
 the Proxmox hosts write nothing there; Network Optimizer writes to two buckets of its own, created by
 hand. Grafana and InfluxDB have routes on the internal gateway. Policies admit only known callers to
-Alertmanager, Prometheus, Grafana and InfluxDB.
+Alertmanager, Prometheus, Grafana, InfluxDB and VictoriaLogs.
+
+`victoria-logs-collector` runs on every node, control planes included, and ships each pod's logs to
+`victoria-logs`, which keeps 30 days capped at 15GiB, so a finished or deleted pod's output stays
+readable. The store has no authentication and no route; Grafana reads it through its VictoriaLogs
+data source.
 
 Grafana plugins come in two ways. The bundled data source plugins update through the chart's
 `shadowBundledPlugins: true` and `preinstall_auto_update`; never list them in `preinstall`,
@@ -199,6 +204,8 @@ section or field that renders it; "always" means it renders for every config.
 | `network-optimizer` | `network-optimizer`      | `[network_optimizer]`                                  | internal                                                    | Audits and monitors the UniFi network, writes to InfluxDB              |
 | `observability`     | `kube-prometheus-stack`  | `[observability]`                                      | internal                                                    | Prometheus, Alertmanager and Grafana                                   |
 | `observability`     | `influxdb`               | `[observability]`                                      | internal                                                    | InfluxDB 2 for Network Optimizer's time series                         |
+| `observability`     | `victoria-logs`          | `[observability]`                                      | none                                                        | VictoriaLogs, every pod's logs kept 30 days, read in Grafana           |
+| `observability`     | `victoria-logs-collector` | `[observability]`                                     | none                                                        | DaemonSet that ships each node's pod logs to VictoriaLogs              |
 | `pegaprox`          | `pegaprox`               | `[pegaprox]`                                           | internal                                                    | Web UI for Proxmox, SQLite on a `local-path` volume                    |
 | `radar`             | `radar`                  | `[radar]`                                              | internal                                                    | Kubernetes UI, acts as the signed-in user through impersonation        |
 | `reactive-resume`   | `reactive-resume`        | `[reactive_resume]`                                    | external                                                    | Resume builder, uploads to an S3 bucket                                |

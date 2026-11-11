@@ -2,6 +2,7 @@
 #% set grafana_plugins = {
   "yesoreyeram-infinity-datasource": true,
   "canvas": true,
+  "victoriametrics-logs-datasource": true,
   "grafana-github-datasource": observability.github_app_id != "",
   "grafana-sentry-datasource": observability.sentry_org != "",
   "grafana-llm-app": nvidia_enabled,
@@ -231,6 +232,10 @@ spec:
         - name: Infinity
           type: yesoreyeram-infinity-datasource
           access: proxy
+        - name: VictoriaLogs
+          type: victoriametrics-logs-datasource
+          access: proxy
+          url: http://victoria-logs.observability.svc.cluster.local:9428
         #% if grafana_plugins["grafana-github-datasource"] %#
         - name: GitHub
           type: grafana-github-datasource

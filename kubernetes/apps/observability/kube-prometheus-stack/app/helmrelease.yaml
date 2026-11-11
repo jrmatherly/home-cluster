@@ -145,6 +145,7 @@ spec:
       plugins:
         - yesoreyeram-infinity-datasource
         - canvas
+        - victoriametrics-logs-datasource
         - grafana-github-datasource
         - grafana-sentry-datasource
         - grafana-llm-app
@@ -201,6 +202,10 @@ spec:
         - name: Infinity
           type: yesoreyeram-infinity-datasource
           access: proxy
+        - name: VictoriaLogs
+          type: victoriametrics-logs-datasource
+          access: proxy
+          url: http://victoria-logs.observability.svc.cluster.local:9428
         - name: GitHub
           type: grafana-github-datasource
           access: proxy
