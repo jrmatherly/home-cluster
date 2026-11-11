@@ -128,7 +128,7 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
 - **Bump `digest` means the tag did not move but its digest did.** Renovate opens a PR for it (a rebuilt
   base image, usually). The tier 1 rules in `.renovaterc.json5` merge it on their own on the weekend once
   Flate passes, unless it is a LocalAI, rustfs rc, pegaprox, Servarr or shared Postgres image (stated, the
-  digest rule; the Postgres digest rolls all eight clusters, so it waits for a hand merge). They
+  digest rule; the Postgres digest rolls every CloudNativePG cluster, so it waits for a hand merge). They
   merge patch PRs the same way for the apps in the "Tier 1 automerge, patch" allowlist, and the docs digest
   merges at once as a branch. A PR still open on Monday is one Flate failed, one no tier 1 rule covers, or
   one under three days old. A digest-only PR needs no research beyond reading what the rebuild changed; merge

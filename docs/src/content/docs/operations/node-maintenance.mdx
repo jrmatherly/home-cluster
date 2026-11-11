@@ -29,7 +29,7 @@ wherever they landed), and LocalAI, which needs the GPU only gpu-1 has. `just ta
 lists all three kinds before you touch anything. Pinned pods sit Pending while the node is down
 and schedule by themselves when it is back. That is expected, not a failure.
 
-Postgres: there are eight CloudNativePG clusters (`ai-kb-db`, `ai-workspace-db`, `kener-db`,
+Postgres: there are nine CloudNativePG clusters (`ai-kb-db`, `ai-workspace-db`, `itsaplan-db`, `kener-db`,
 `langfuse-db`, `matherlynet-db`, `pocket-id-db`, `radar-db`, `reactive-resume-db`), and each but
 `ai-kb-db` has two instances, kept on different nodes by required anti-affinity. A change to a
 Cluster or its image rolls the replica, then switches over (`primaryUpdateMethod: switchover`, about

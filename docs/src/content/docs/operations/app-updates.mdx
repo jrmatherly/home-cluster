@@ -26,7 +26,7 @@ Renovate merges, on the weekend and only once Flate passes on the pull request:
 
 - Digest updates under `kubernetes/**`. A digest update is a rebuild of the same tag. The rule
   leaves out LocalAI, the `rustfs/rc` image, PegaProx, the Servarr images and the shared Postgres
-  image. The Postgres pin rolls all eight CloudNativePG clusters at once, so its pull request waits
+  image. The Postgres pin rolls every CloudNativePG cluster at once, so its pull request waits
   for a hand merge in a window. The first took under two minutes, by switchover on the seven
   two-instance clusters (measured 2026-11-02).
 - Patch updates for the apps on the allowlist in the patch rule, once the release is three days old:

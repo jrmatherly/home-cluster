@@ -161,7 +161,7 @@
       platformAutomerge: false,
     },
     {
-      description: "Tier 1 automerge, digest: a rebuild of the same tag, behind Flate on the weekend like the patch rule. The LocalAI images move inside their grouped PR, rustfs rc is pre-1.0 and its Job log once carried a secret, pegaprox and the Servarr builds are never automerged (references/apps.md), the shared Postgres image rolls all eight CloudNativePG clusters at once, and the docs and career-ops images keep their own branch rules above, which this later rule would override",
+      description: "Tier 1 automerge, digest: a rebuild of the same tag, behind Flate on the weekend like the patch rule. The LocalAI images move inside their grouped PR, rustfs rc is pre-1.0 and its Job log once carried a secret, pegaprox and the Servarr builds are never automerged (references/apps.md), the shared Postgres image rolls every CloudNativePG cluster at once, and the docs and career-ops images keep their own branch rules above, which this later rule would override",
       matchFileNames: ["kubernetes/**", "template/config/kubernetes/**"],
       matchDatasources: ["docker"],
       matchUpdateTypes: ["digest"],
