@@ -7,7 +7,7 @@ spec:
   chart:
     spec:
       chart: rustfs
-      version: 1.0.4
+      version: 1.0.5
       sourceRef:
         kind: HelmRepository
         name: rustfs
@@ -21,7 +21,7 @@ spec:
     image:
       rustfs:
         repository: ghcr.io/rustfs/rustfs
-        tag: 1.0.4@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
+        tag: 1.0.5@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74
       initImage:
         repository: docker.io/library/busybox
         tag: stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
