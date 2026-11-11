@@ -108,7 +108,7 @@ flate_passes() {
     git worktree add --detach "$tree" origin/main >/dev/null 2>&1
     git -C "$tree" apply "$tmp/pr-$1.diff"
     out=$(flate test all -p "$tree/kubernetes/flux/cluster" -n "$2" --no-progress \
-        --cache-dir "${FLATE_CACHE_DIR:-$tmp/flate-cache}" --allow-missing-secrets 2>&1 || true)
+        --cache-dir "${FLATE_CACHE_DIR:-$tmp/flate-cache}" --supply "$tree/.github/flate/supply.yaml" 2>&1 || true)
     git worktree remove --force "$tree" >/dev/null 2>&1 || true
     grep -qE "✓ +(HelmRelease|Kustomization) +$2/$3\$" <<<"$out" && ! grep -qE "✗ .* $2/$3( |\$)" <<<"$out"
 }
