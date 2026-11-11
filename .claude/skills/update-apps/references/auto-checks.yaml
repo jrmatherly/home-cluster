@@ -124,6 +124,13 @@ apps:
     wait: 60
     checks:
       - kubectl -n observability rollout status ds/victoria-logs-collector --timeout=10m
+  fluent-bit:
+    namespace: observability
+    kind: HelmRelease
+    name: fluent-bit
+    wait: 60
+    checks:
+      - kubectl -n observability rollout status deploy/fluent-bit --timeout=10m
   actual-budget:
     namespace: actual-budget
     kind: HelmRelease

@@ -129,6 +129,10 @@ spec:
                   format: json
                   source_address_key: source_address
               filters:
+                # A sender's own node_address must not stand in for the parsed one.
+                - name: modify
+                  match: talos.*
+                  remove: node_address
                 - name: parser
                   match: talos.*
                   key_name: source_address
