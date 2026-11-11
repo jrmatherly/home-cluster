@@ -8,6 +8,7 @@ components:
 
 resources:
   - ./namespace.yaml
+  - ./fluent-bit/ks.yaml
   - ./influxdb/ks.yaml
   - ./kube-prometheus-stack/ks.yaml
   - ./victoria-logs/ks.yaml

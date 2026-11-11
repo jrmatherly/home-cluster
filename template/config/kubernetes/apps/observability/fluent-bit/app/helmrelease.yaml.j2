@@ -1,0 +1,120 @@
+#% if observability_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: fluent-bit
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: fluent-bit
+  interval: 1h
+  values:
+    controllers:
+      fluent-bit:
+        # One replica: two would each store every event.
+        strategy: Recreate
+        serviceAccount:
+          identifier: fluent-bit
+        containers:
+          app:
+            image:
+              repository: ghcr.io/fluent/fluent-bit
+              tag: 5.2.0
+            args: ["--config=/fluent-bit/etc/fluent-bit.yaml"]
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v1/health
+                    port: &port 2020
+                  periodSeconds: 10
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+    defaultPodOptions:
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+    serviceAccount:
+      fluent-bit: {}
+    rbac:
+      roles:
+        fluent-bit:
+          type: ClusterRole
+          rules:
+            - apiGroups: ["", "events.k8s.io"]
+              resources: ["events"]
+              verbs: ["get", "list", "watch"]
+      bindings:
+        fluent-bit:
+          type: ClusterRoleBinding
+          roleRef:
+            identifier: fluent-bit
+          subjects:
+            - identifier: fluent-bit
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    serviceMonitor:
+      app:
+        endpoints:
+          - port: http
+            path: /api/v2/metrics/prometheus
+    configMaps:
+      config:
+        data:
+          # Kubernetes drops an Event after an hour; this stores each one in VictoriaLogs beside
+          # the pod logs, under the stream field source=kubernetes-events.
+          fluent-bit.yaml: |
+            service:
+              http_server: on
+              http_listen: 0.0.0.0
+              http_port: 2020
+              health_check: on
+            pipeline:
+              inputs:
+                - name: kubernetes_events
+                  tag: kube.events
+                  # shortcut: the cursor is in an emptyDir, so a new pod may store the last
+                  # hour's events a second time; give it a claim if duplicates matter.
+                  db: /data/events.db
+              outputs:
+                - name: http
+                  match: kube.events
+                  host: victoria-logs.observability.svc.cluster.local
+                  port: 9428
+                  uri: /insert/jsonline?_stream_fields=source,involvedObject.namespace&_msg_field=message&_time_field=date&extra_fields=source=kubernetes-events
+                  format: json_lines
+                  json_date_key: date
+                  json_date_format: iso8601
+    persistence:
+      config:
+        type: configMap
+        identifier: config
+        globalMounts:
+          - path: /fluent-bit/etc/fluent-bit.yaml
+            subPath: fluent-bit.yaml
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /data
+#% endif %#
