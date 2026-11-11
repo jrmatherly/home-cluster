@@ -1,0 +1,31 @@
+#% if observability_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-logs
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: victoria-logs
+  interval: 1h
+  values:
+    server:
+      fullnameOverride: victoria-logs
+      retentionPeriod: 30d
+      # The claim is a local-path directory with no quota, so this cap is what stops the store
+      # filling /var on its node. The store keeps the last two days whatever the cap and checks
+      # it periodically, hence 15 of 20.
+      retentionDiskSpaceUsage: 15GiB
+      persistentVolume:
+        storageClassName: local-path
+        size: 20Gi
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 1Gi
+      serviceMonitor:
+        enabled: true
+#% endif %#

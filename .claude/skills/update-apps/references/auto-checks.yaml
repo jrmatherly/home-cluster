@@ -110,6 +110,20 @@ apps:
     wait: 60
     checks:
       - curl -fsS https://influxdb.$CLUSTER_DOMAIN/health | grep -q '"status":"pass"'
+  victoria-logs:
+    namespace: observability
+    kind: HelmRelease
+    name: victoria-logs
+    wait: 60
+    checks:
+      - kubectl -n observability rollout status sts/victoria-logs --timeout=10m
+  victoria-logs-collector:
+    namespace: observability
+    kind: HelmRelease
+    name: victoria-logs-collector
+    wait: 60
+    checks:
+      - kubectl -n observability rollout status ds/victoria-logs-collector --timeout=10m
   actual-budget:
     namespace: actual-budget
     kind: HelmRelease

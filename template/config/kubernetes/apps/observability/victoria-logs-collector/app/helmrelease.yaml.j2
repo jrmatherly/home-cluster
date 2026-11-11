@@ -1,0 +1,30 @@
+#% if observability_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-logs-collector
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: victoria-logs-collector
+  interval: 1h
+  values:
+    remoteWrite:
+      - url: http://victoria-logs.observability.svc.cluster.local:9428
+        # The buffer is a hostPath under /var/lib/vl-collector, otherwise capped only by free disk.
+        maxDiskUsagePerURL: 1GiB
+    tolerations:
+      # The control planes' static pods log to /var/log/pods too.
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    podMonitor:
+      enabled: true
+#% endif %#

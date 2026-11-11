@@ -1,0 +1,23 @@
+---
+# The store has no authentication, so only this namespace (the collector, Grafana and
+# Prometheus) and the API server's pod proxy reach it, and it gets no gateway route.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: victoria-logs
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: victoria-logs-single
+  ingress:
+    - fromEndpoints:
+        - {}
+      toPorts:
+        - ports:
+            - port: "9428"
+              protocol: TCP
+    - fromEntities: ["kube-apiserver"]
+      toPorts:
+        - ports:
+            - port: "9428"
+              protocol: TCP
