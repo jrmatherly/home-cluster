@@ -70,19 +70,34 @@ spec:
             - identifier: fluent-bit
     service:
       app:
+        controller: fluent-bit
         ports:
           http:
             port: *port
+      # Talos dials these on 127.0.0.1 from the host; the policy keeps the LAN out.
+      talos:
+        controller: fluent-bit
+        type: NodePort
+        ports:
+          services:
+            port: 5170
+            nodePort: 30170
+          kernel:
+            port: 5171
+            nodePort: 30171
     serviceMonitor:
       app:
+        service:
+          identifier: app
         endpoints:
           - port: http
             path: /api/v2/metrics/prometheus
     configMaps:
       config:
         data:
-          # Kubernetes drops an Event after an hour; this stores each one in VictoriaLogs beside
-          # the pod logs, under the stream field source=kubernetes-events.
+          # Kubernetes drops an Event after an hour, and Talos keeps its service and kernel logs
+          # in memory only. Each lands in VictoriaLogs beside the pod logs, told apart by the
+          # stream field source: kubernetes-events, talos or talos-kernel.
           fluent-bit.yaml: |
             service:
               http_server: on
@@ -96,15 +111,38 @@ spec:
                   # shortcut: the cursor is in an emptyDir, so a new pod may store the last
                   # hour's events a second time; give it a claim if duplicates matter.
                   db: /data/events.db
+                - name: tcp
+                  tag: talos.services
+                  port: 5170
+                  format: json
+                - name: tcp
+                  tag: talos.kernel
+                  port: 5171
+                  format: json
+                  source_address_key: source_address
               outputs:
                 - name: http
                   match: kube.events
                   host: victoria-logs.observability.svc.cluster.local
                   port: 9428
-                  uri: /insert/jsonline?_stream_fields=source,involvedObject.namespace&_msg_field=message&_time_field=date&extra_fields=source=kubernetes-events
+                  uri: /insert/jsonline?_stream_fields=source,involvedObject.namespace&_msg_field=message&_time_field=date&extra_fields=source=kubernetes-events&ignore_fields=metadata.managedFields
                   format: json_lines
                   json_date_key: date
                   json_date_format: iso8601
+                - name: http
+                  match: talos.services
+                  host: victoria-logs.observability.svc.cluster.local
+                  port: 9428
+                  uri: /insert/jsonline?_stream_fields=source,node,talos-service&_msg_field=msg&_time_field=talos-time&extra_fields=source=talos
+                  format: json_lines
+                  json_date_key: false
+                - name: http
+                  match: talos.kernel
+                  host: victoria-logs.observability.svc.cluster.local
+                  port: 9428
+                  uri: /insert/jsonline?_stream_fields=source,source_address&_msg_field=msg&_time_field=talos-time&extra_fields=source=talos-kernel
+                  format: json_lines
+                  json_date_key: false
     persistence:
       config:
         type: configMap

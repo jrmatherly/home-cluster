@@ -1,0 +1,26 @@
+---
+# The Talos inputs take unauthenticated lines, so only the nodes themselves reach them: a host
+# dialing the NodePort on loopback arrives as the host or remote-node entity, and a LAN client
+# as world. Prometheus scrapes 2020 from this namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: fluent-bit
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: fluent-bit
+  ingress:
+    - fromEntities: ["host", "remote-node"]
+      toPorts:
+        - ports:
+            - port: "5170"
+              protocol: TCP
+            - port: "5171"
+              protocol: TCP
+    - fromEndpoints:
+        - {}
+      toPorts:
+        - ports:
+            - port: "2020"
+              protocol: TCP
