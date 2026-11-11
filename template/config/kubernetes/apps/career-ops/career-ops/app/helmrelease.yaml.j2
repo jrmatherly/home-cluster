@@ -54,7 +54,18 @@ spec:
                         value: localhost
                   periodSeconds: 10
                   timeoutSeconds: 5
-              readiness: *probe
+              # A recreated claim binds to a new empty volume and /api/healthz never reads
+              # /data, so the pod stays unready until the tracker exists (the backup job's
+              # sentinel). Restore a backup into the running pod, or create the file for a
+              # fresh install.
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["test", "-f", "/data/data/applications.md"]
+                  periodSeconds: 10
+                  timeoutSeconds: 5
               startup:
                 enabled: true
                 custom: true

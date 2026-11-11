@@ -1359,8 +1359,10 @@ schematic_id = ""
 # anthropic_base_url = ""
 
 # The client key the dashboard sends to that URL as a bearer token: the
-# api_key in [cliproxyapi], or a second key minted in the CLIProxyAPI manager
-# console. It is written to a SOPS-encrypted Secret.
+# api_key in [cliproxyapi], or a key of its own, which the proxy's seed config
+# then lists as a second client key so the usage pages show the dashboard's
+# traffic apart. A proxy that already runs takes a new key from the manager
+# console, not from the seed. It is written to a SOPS-encrypted Secret.
 # OPTIONAL.
 
 # anthropic_auth_token = ""
