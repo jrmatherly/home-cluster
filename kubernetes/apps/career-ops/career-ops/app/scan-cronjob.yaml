@@ -35,6 +35,9 @@ spec:
               command:
                 - curl
                 - -fsS
+                # The body has no trailing newline, and the log collector drops an unfinished line.
+                - -w
+                - \n
                 - -X
                 - POST
                 - -H
