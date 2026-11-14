@@ -58,7 +58,7 @@ spec:
     web:
       image:
         repository: ghcr.io/croffasia/itsaplan-web
-        tag: 1.10.0@sha256:be213d6861f66ac68320db2a1481c050bc811a740d558f5ebde576b34f78b289
+        tag: 1.11.0@sha256:3c91cc0b7735eb579ca2bc281948512fce6d1a7bb7fa31ed1117bfc972d2819c
       resources:
         requests:
           cpu: 50m
