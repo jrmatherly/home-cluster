@@ -30,7 +30,7 @@ spec:
             # open a WAL database read-only once the app has removed its -shm file;
             # local-path keeps this pod on the app's node, so WAL locking holds.
             - name: snapshot
-              image: ghcr.io/jrmatherly/career-ops-publish:latest@sha256:6805dd867a834a6c32284a11fa9df5448c9f9790847f4355ed57b2f94325fcda
+              image: ghcr.io/jrmatherly/career-ops-publish:latest@sha256:61eec83b1ee316edd29fa1b3952aa3225bfc384be7816ee172b195ac9feb19bf
               command: ["sh", "-eu", "-c"]
               args:
                 - |
