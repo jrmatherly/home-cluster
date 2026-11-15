@@ -1,0 +1,67 @@
+---
+title: It's a Plan
+description: Take It's a Plan from the templates in Git to a working issue tracker with a Pocket ID sign-in and an admin account.
+sidebar:
+  order: 21
+---
+
+This guide takes It's a Plan from the templates in Git to a working issue tracker, with Pocket ID as the way in. It's a Plan is an issue tracker and project board where AI agents can be members. The deployment itself is in Git: the `[itsaplan]` section of `cluster.toml` and `kubernetes/apps/itsaplan/`. It is a proof of concept, started 2026-11-06 on chart 1.10.0.
+
+It is served at `https://plan.${SECRET_DOMAIN}` on the internal gateway only, so the LAN reaches it and the internet does not. The api lives under `/api` on the same host. The HTTPRoute strips that prefix on the way to the api, so the public sign-in path is `/api/api/auth/...`. Keeping one hostname also keeps the session cookie on `plan.${SECRET_DOMAIN}` alone.
+
+## Fill the section
+
+The section needs `[postgres.backup]` and `[rustfs]` to be set. Generate its four secrets, put them in the `[itsaplan]` section of `cluster.toml`, and set all four together:
+
+```sh
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo   # better_auth_secret
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo   # app_encryption_key
+openssl rand -hex 16                                             # rustfs_access_key
+openssl rand -hex 32                                             # rustfs_secret_key
+```
+
+<Aside type="caution">
+Never change `app_encryption_key` once it is set. The app encrypts the provider keys it stores with it, and a new key makes them unreadable.
+</Aside>
+
+Then run `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push:
+
+```sh
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+```
+
+The `rustfs-provision` Job reruns, because its list of consumers changed. It creates the `itsaplan-attachments` bucket and an account scoped to it.
+
+## Watch the first rollout
+
+```sh
+kubectl get kustomization -n flux-system itsaplan
+kubectl get cluster -n itsaplan itsaplan-db
+kubectl logs -n itsaplan deploy/itsaplan-api -c migrate
+kubectl get pods -n itsaplan
+```
+
+The Kustomization is Ready, and the CloudNativePG cluster `itsaplan-db` is healthy with two instances. The `migrate` log ends with the migrations applied and no `CREATE EXTENSION` failure, because the `app` role cannot create extensions. The api, web and worker pods are Running. The Telegram bot is off, so it has no pod.
+
+## Register the admin
+
+Open `https://plan.${SECRET_DOMAIN}` from the LAN and register. The first account becomes the instance admin, the `god` role. Sign-up stays open to the LAN after that, until you close it in god mode.
+
+## Add the Pocket ID sign-in
+
+God mode has no menu link in 1.10.0, so type `https://plan.${SECRET_DOMAIN}/god`. The provider page is `/god/auth-provider`, and the registration and login switches are under `/god/authentication`.
+
+1. On `/god/auth-provider`, copy the redirect URI, `https://plan.${SECRET_DOMAIN}/api/api/auth/oauth2/callback/oidc`.
+2. In the Pocket ID admin UI, add an OIDC client with that callback URL. Copy its client ID and secret.
+3. Back on `/god/auth-provider`, paste the discovery URL `https://auth.${SECRET_DOMAIN}/.well-known/openid-configuration`, the client ID and the secret. Name the button and turn it on.
+4. Turn on **Trust addresses from sign-in providers** only if Pocket ID is the only place accounts come from.
+5. Sign in once with Pocket ID. Then, under `/god/authentication`, turn email and password sign-in off and set registration to `invite only` or `closed`. Pocket ID and passkeys are then the only ways in.
+
+The provider settings live in the app's database, so nothing in Git changes. The app refuses outbound requests to private addresses, but it did not block discovery against `auth.${SECRET_DOMAIN}` (measured 2026-11-06).
+
+## Known limits
+
+- It is internal only, so GitHub webhooks cannot reach it, and pull request linking does not work.
+- The Telegram bot is off.
+- The `itsaplan-attachments` bucket has no nightly copy to R2 yet. A `[volume_backup]` entry could add one. The database is covered by CloudNativePG's WAL archive and its daily backup at 06:00 UTC.
+- Egress has no NetworkPolicy. The app's own guard refuses private targets, with `SSRF_ALLOWED_HOSTS` for exceptions.
