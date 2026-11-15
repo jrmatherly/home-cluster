@@ -19,7 +19,7 @@ spec:
           app:
             image:
               repository: ghcr.io/pegaprox/pegaprox
-              tag: 1.4.1@sha256:8d295a524a52f0b923616a3eb415ff6422fe62beba5bb441f35c75d8985f1add
+              tag: 1.5.0@sha256:67a0e4942a8e997f3b0b40063ed5d2ad457dd20e1fcae294f08528ee9e2f7c00
             env:
               # The gateway terminates TLS.
               PEGAPROX_BEHIND_PROXY: "true"
