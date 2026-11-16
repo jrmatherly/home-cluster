@@ -19,7 +19,7 @@ spec:
           app:
             image:
               repository: ghcr.io/jrmatherly/oh-my-cpa
-              tag: v1.0.0@sha256:e5bac00b7c8b6dc89de56ea69dc997e8378e8ddadd06dfaefcb65d4c81bd6b5c
+              tag: v1.0.1@sha256:5010041f72ae78a5607bd1c1a3d74619e423f64e3997a1e07745f5a562491cef
             env:
               OMCPA_CPA_BASE_URL: http://cliproxyapi.llms.svc.cluster.local:8317
               OMCPA_PUBLIC_URL: https://llms-mgmt.${SECRET_DOMAIN}
