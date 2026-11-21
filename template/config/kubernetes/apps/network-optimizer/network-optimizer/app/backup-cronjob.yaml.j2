@@ -31,7 +31,7 @@ spec:
             # WAL database read-only once the app has stopped and removed its -shm file;
             # local-path keeps this pod on the app's node, so WAL locking holds.
             - name: snapshot
-              image: ghcr.io/ozark-connect/network-optimizer:2.11.4@sha256:e8665c2384bfaac7801f6b8d7f6d4881640023df56c6540d3fdde78c550d05d5
+              image: ghcr.io/ozark-connect/network-optimizer:2.11.6@sha256:bfd0131286aae84446e1ca087525d81232199e20c4a2b249bd10cd6e73632c98
               command: ["sh", "-eu", "-c"]
               args:
                 - |
