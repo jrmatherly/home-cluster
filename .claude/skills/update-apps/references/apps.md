@@ -282,7 +282,11 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   `kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -U postgres -d app -c "SET ROLE app; ALTER EXTENSION pg_search UPDATE TO '<version>'"`
   (peer auth refuses `-U app` on the socket), then check `SELECT extversion FROM pg_extension WHERE extname='pg_search'`
   equals `SELECT * FROM paradedb.version_info()`. ParadeDB's upgrade page calls the step required even when
-  the `pg_search--<old>--<new>.sql` script is empty.
+  the `pg_search--<old>--<new>.sql` script is empty. An extension build can need a newer Postgres minor than
+  the catalog runs: pg_search 0.26.8 refuses to load on 18.6 (`undefined symbol: heap_datum_check`, measured
+  2026-11-21), and `ai-kb-db` preloads it, so the one instance would not start. Ship the catalog image
+  first, and the extension in its own push once every cluster runs the new minor (0.26.8 went out that way
+  on 2026-11-21, after 18.7). Roll back in the reverse order.
 - **rustfs** released 1.0.0 to 1.0.3 in a month, and its chart and image share a version. The chart's `main`
   runs ahead of the published tarball, so read `values.yaml` from the tarball of the new version, not from Git.
   It runs standalone on one `local-path` volume, which an upgrade keeps (the chart marks the claim
