@@ -1256,6 +1256,34 @@ schematic_id = ""
 
 
 # =============================================================================
+#    Firecrawl, a web scraping API (scrape, crawl, map, search and extract),
+#    self-hosted at https://firecrawl.<domain.name> on the internal gateway
+#    and at firecrawl-api.firecrawl.svc.cluster.local:3002 inside the cluster.
+#    The self-hosted API has no login and takes no API key, so everything on
+#    the LAN can call it; a NetworkPolicy admits only the gateways and
+#    It's a Plan inside the cluster. Needs [cliproxyapi], which runs the model
+#    for extract, and [redis]. Search uses the AI KB SearXNG when
+#    ai_kb.searxng is on, and DuckDuckGo otherwise. Screenshots and page
+#    actions need Firecrawl's closed Fire-engine and do not work.
+#
+#    The vault item `firecrawl` holds POSTGRES_PASSWORD, at least 24 letters
+#    and digits, for the queue database that lives and dies with its pod.
+# =============================================================================
+[firecrawl]
+
+# Deploys Firecrawl.
+# OPTIONAL. Default: false
+
+# enabled = false
+
+# The model CLIProxyAPI runs for extract and JSON-format scrapes: any name
+# https://llms.<domain.name>/v1/models lists. Needs enabled.
+# OPTIONAL. Default: "claude-sonnet-5-5"
+
+# model = "claude-sonnet-5-5"
+
+
+# =============================================================================
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the
 #    weekly update-apps workflow uses for its apply job (`runs-on: home-cluster`).
 #    The runner registers at repository scope, scales from zero and runs one

@@ -139,6 +139,7 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("career_ops.claude_oauth_token", "career_ops_oauth", SECRET),
     ("career_ops.anthropic_auth_token", "career_ops_proxy", SECRET),
     ("career_ops.publish_api_key", "career_ops.publish", SECRET),
+    ("firecrawl.postgres_password", "firecrawl_enabled", ALNUM_24),
     ("localai.api_key", "nvidia_enabled", API_KEY),
     ("localai.oidc_client_secret", "localai_webui_enabled", SECRET),
     ("github_runner.token", "github_runner_enabled", SECRET),

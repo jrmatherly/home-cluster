@@ -168,6 +168,9 @@ publish = true
 publish_oidc_client_id = "fake-publish"
 public = true
 
+[firecrawl]
+enabled = true
+
 [github_runner]
 enabled = true
 

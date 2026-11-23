@@ -92,6 +92,8 @@ jobs:
           - itsaplan-without-rustfs
           - itsaplan-without-backup
           - ohmycpa-without-cliproxyapi
+          - firecrawl-without-cliproxyapi
+          - firecrawl-without-redis
           - ai-kb-tracing-without-langfuse
           - ai-kb-neo4j-without-section
           - ai-kb-searxng-without-section

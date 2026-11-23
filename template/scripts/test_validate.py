@@ -695,6 +695,32 @@ def test_cliproxyapi_option_needs_cliproxyapi(field):
         _load_raw(raw)
 
 
+FIRECRAWL = CLIPROXYAPI | REDIS | {"firecrawl.enabled": True}
+
+
+def test_firecrawl_enabled_only_when_configured():
+    assert _load_raw(config_from("private.toml")).firecrawl_enabled is False
+    assert _load_raw(config_from("private.toml", **FIRECRAWL)).firecrawl_enabled is True
+
+
+def test_firecrawl_needs_cliproxyapi():
+    raw = config_from("private.toml", **REDIS, **{"firecrawl.enabled": True})
+    with pytest.raises(ConfigError, match="firecrawl requires cliproxyapi"):
+        _load_raw(raw)
+
+
+def test_firecrawl_needs_redis():
+    raw = config_from("private.toml", **CLIPROXYAPI, **{"firecrawl.enabled": True})
+    with pytest.raises(ConfigError, match="firecrawl requires redis"):
+        _load_raw(raw)
+
+
+def test_firecrawl_model_needs_enabled():
+    raw = config_from("private.toml", **{"firecrawl.model": "claude-haiku-5-5"})
+    with pytest.raises(ConfigError, match=r"firecrawl\.model requires enabled"):
+        _load_raw(raw)
+
+
 VOLUME_BACKUP = POSTGRES_BACKUP | {"volume_backup.enabled": True}
 CAREER_OPS = (
     POCKET_ID

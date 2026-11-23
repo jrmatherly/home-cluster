@@ -113,6 +113,7 @@ def test_disabled_feature_needs_nothing():
         ({"itsaplan_enabled": True}, "itsaplan/APP_ENCRYPTION_KEY"),
         ({"cliproxyapi_enabled": True}, "cliproxyapi/API_KEY"),
         ({"career_ops_enabled": True}, "career-ops/PUBLISH_ALLOWED_EMAILS"),
+        ({"firecrawl_enabled": True}, "firecrawl/POSTGRES_PASSWORD"),
     ],
 )
 def test_enabled_feature_needs_its_fields(config, field):

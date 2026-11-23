@@ -302,6 +302,24 @@
       "title": "EtcdBackup",
       "type": "object"
     },
+    "Firecrawl": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "model": {
+          "default": "claude-sonnet-5-5",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "title": "Firecrawl",
+      "type": "object"
+    },
     "Fqdn": {
       "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$",
       "type": "string"
@@ -1290,6 +1308,13 @@
         "publish_oidc_client_id": "",
         "publish": false,
         "public": false
+      }
+    },
+    "firecrawl": {
+      "$ref": "#/$defs/Firecrawl",
+      "default": {
+        "enabled": false,
+        "model": "claude-sonnet-5-5"
       }
     },
     "localai": {

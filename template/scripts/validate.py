@@ -588,6 +588,21 @@ class CareerOps(Model):
         return self
 
 
+FIRECRAWL_MODEL = "claude-sonnet-5-5"
+
+
+class Firecrawl(Model):
+    enabled: bool = False
+    # The model CLIProxyAPI runs for extract and JSON-format scrapes (MODEL_NAME).
+    model: str = Field(default=FIRECRAWL_MODEL, pattern=r"^[A-Za-z0-9._-]+$")
+
+    @model_validator(mode="after")
+    def check(self) -> Self:
+        if self.model != FIRECRAWL_MODEL and not self.enabled:
+            raise ValueError("firecrawl.model requires enabled")
+        return self
+
+
 class Node(Model):
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$|^[a-z0-9]$")
     address: IPv4Address
@@ -655,6 +670,7 @@ class Config(Model):
     itsaplan: Itsaplan = Itsaplan()
     cliproxyapi: CliProxyApi = CliProxyApi()
     career_ops: CareerOps = CareerOps()
+    firecrawl: Firecrawl = Firecrawl()
     localai: LocalAi = LocalAi()
     github_runner: GithubRunner = GithubRunner()
     nodes: list[Node]
@@ -887,6 +903,11 @@ class Config(Model):
     @property
     def career_ops_enabled(self) -> bool:
         return self.career_ops.enabled
+
+    @computed_field
+    @property
+    def firecrawl_enabled(self) -> bool:
+        return self.firecrawl.enabled
 
     @computed_field
     @property
@@ -1147,6 +1168,12 @@ class Config(Model):
             raise ValueError(
                 "career_ops.public requires pocket_id.public: a visitor from the internet "
                 "must reach the Pocket ID login"
+            )
+        if self.firecrawl_enabled and not self.cliproxyapi_enabled:
+            raise ValueError("firecrawl requires cliproxyapi: its extract feature calls the proxy")
+        if self.firecrawl_enabled and not self.redis_enabled:
+            raise ValueError(
+                "firecrawl requires redis: its cache and rate limits use the Redis component"
             )
         if self.network_optimizer_enabled and not self.observability_enabled:
             raise ValueError(

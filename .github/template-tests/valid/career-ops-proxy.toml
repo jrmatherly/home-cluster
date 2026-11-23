@@ -51,6 +51,9 @@ enabled = true
 enabled = true
 public = true
 
+[redis]
+enabled = true
+
 [cliproxyapi]
 enabled = true
 ohmycpa = true
@@ -62,6 +65,10 @@ enabled = true
 claude_credential = "proxy"
 anthropic_base_url = "http://cliproxyapi.llms.svc.cluster.local:8317"
 publish_oidc_client_id = "fake-publish"
+
+[firecrawl]
+enabled = true
+model = "claude-haiku-5-5"
 
 [[nodes]]
 name = "k8s-0"
