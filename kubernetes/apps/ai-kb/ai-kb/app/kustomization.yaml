@@ -7,6 +7,7 @@ components:
 resources:
   - ./cluster.yaml
   - ./configmap.yaml
+  - ./externalsecret.yaml
   - ./flate-defaults.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
@@ -15,4 +16,3 @@ resources:
   - ./networkpolicy-egress.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
-  - ./secret.sops.yaml

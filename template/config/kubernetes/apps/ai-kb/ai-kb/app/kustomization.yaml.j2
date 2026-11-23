@@ -10,6 +10,7 @@ resources:
 #% if nvidia_enabled %#
   - ./configmap.yaml
 #% endif %#
+  - ./externalsecret.yaml
   - ./flate-defaults.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
@@ -18,5 +19,4 @@ resources:
   - ./networkpolicy-egress.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
-  - ./secret.sops.yaml
 #% endif %#
