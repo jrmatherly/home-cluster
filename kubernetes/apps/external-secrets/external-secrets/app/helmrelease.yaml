@@ -1,0 +1,22 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: external-secrets
+  interval: 1h
+  values:
+    installCRDs: true
+    crds:
+      # Removing the chart must not delete the CRDs: that would delete every
+      # ExternalSecret and, with it, every Secret one owns.
+      annotations:
+        helm.sh/resource-policy: keep
+    leaderElect: true
+    webhook:
+      replicaCount: 2
+    serviceMonitor:
+      enabled: true

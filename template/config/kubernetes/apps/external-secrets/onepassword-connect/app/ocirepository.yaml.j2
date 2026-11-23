@@ -1,0 +1,15 @@
+#% if onepassword_enabled %#
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: onepassword-connect
+spec:
+  interval: 15m
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    tag: 2.4.3
+  url: oci://ghcr.io/1password/connect
+#% endif %#
