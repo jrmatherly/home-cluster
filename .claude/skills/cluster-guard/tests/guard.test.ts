@@ -185,6 +185,7 @@ test("op commands that print a secret are refused, the rest run", async ($, on) 
       "op run -- env",
       "op document get talos --vault vault",
       "op item get 1password --format json",
+      "op item --vault vault get 1password",
       "op --account work read op://vault/item/field",
       "bash -c 'op read op://vault/item/field'",
       "echo $(op read op://vault/item/field)",

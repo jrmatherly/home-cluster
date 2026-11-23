@@ -346,7 +346,7 @@ function printsOpSecret(ws: Word[]): boolean {
   const t = args.map((w) => w.text);
   return t.some(
     (w, i) =>
-      /^(?:read|inject|run)$/.test(w) || (/^(?:item|document)$/.test(w) && t[i + 1] === "get"),
+      /^(?:read|inject|run)$/.test(w) || (/^(?:item|document)$/.test(w) && t.slice(i + 1).includes("get")),
   );
 }
 
