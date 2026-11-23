@@ -127,7 +127,7 @@ def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
     # (check, output) -> fixtures, so one broken template reports once, not per fixture.
     failures: dict[tuple[str, str], list[str]] = {}
     r = run(
-        ["uv", "run", "--quiet", "--locked", "pytest", "template/scripts/test_validate.py", "-q"],
+        ["uv", "run", "--quiet", "--locked", "pytest", "template/scripts", "-q"],
         scratch,
         env,
     )
