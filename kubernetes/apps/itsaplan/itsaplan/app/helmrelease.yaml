@@ -37,7 +37,7 @@ spec:
     api:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-api
-        tag: 1.14.0@sha256:bcd89b628cd475d682d9ceae778142aad56d4f2972b9ecebf1b717e632402320
+        tag: 1.15.0@sha256:7a096e572ddc66ceda7086270b4d9610c5c431c758ac054a6d5faaad4fe1df92
       env:
         API_URL: https://plan.${SECRET_DOMAIN}/api
         APP_URL: https://plan.${SECRET_DOMAIN}
@@ -53,9 +53,9 @@ spec:
         SKIP_PRE_MIGRATION_BACKUP: "1"
         TELEMETRY_DISABLED: "1"
         # Lets the agents' Firecrawl tools call the in-cluster instance over plain http.
-        # No port: an entry with one matches nothing. Every outbound path of the app
-        # that reads this list trusts the host, webhooks and attachment import included.
-        SSRF_ALLOWED_HOSTS: http://firecrawl-api.firecrawl.svc.cluster.local
+        # No port: an entry with one matches nothing. Only the Firecrawl tools and the
+        # credential check read this list, and a chart before 1.15.0 drops the key.
+        FIRECRAWL_ALLOWED_HOSTS: http://firecrawl-api.firecrawl.svc.cluster.local
       resources:
         requests:
           cpu: 100m
@@ -65,7 +65,7 @@ spec:
     web:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-web
-        tag: 1.14.0@sha256:f2f52b56589a9094d9c721a0636a183606f51ddc8b90f14dfb7fd2f514af6481
+        tag: 1.15.0@sha256:8134083a0b16f74fa6ee563073ca5e26098ced33029345449e0cefcc4fc3584c
       resources:
         requests:
           cpu: 50m
@@ -75,7 +75,7 @@ spec:
     worker:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-worker
-        tag: 1.14.0@sha256:73de193ce316e518542c03923aaef95037b66bab73c37cb273428d6607b08053
+        tag: 1.15.0@sha256:1933b87ab36b1d2132ff2688caf6ae9a5a3abe0c849ce770805c9b50121535bc
       env:
         DO_NOT_TRACK: "1"
       resources:
