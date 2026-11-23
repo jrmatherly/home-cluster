@@ -99,7 +99,7 @@ Point a client at the instance with its base URL and the gateway key:
 - The SDKs take an `api_url` or `base_url` option beside the key.
 - A pod in the cluster uses the Service address. Its namespace has to be admitted by the `firecrawl-api` NetworkPolicy, which admits the `network` namespace, where the gateways run, and It's a Plan today.
 
-It's a Plan uses the instance from release 1.14.0 of its fork on. Its HelmRelease allow-lists the Service host for plain http, and the credential is added in the app: Team settings, Integrations, Firecrawl, with the Instance URL `http://firecrawl-api.firecrawl.svc.cluster.local:3002` and no API key. That allow-list entry is trusted by every outbound path of the app, webhook targets and attachment import included.
+It's a Plan uses the instance from release 1.14.0 of its fork on. Its HelmRelease allow-lists the Service host for plain http, and the credential is added in the app: Team settings, Integrations, Firecrawl, with the Instance URL `http://firecrawl-api.firecrawl.svc.cluster.local:3002` and no API key. Since release 1.15.0 the entry sits in `FIRECRAWL_ALLOWED_HOSTS`, which only the Firecrawl tools and the credential check read, so the host is not a permitted webhook target or attachment source.
 
 ## Updates
 
