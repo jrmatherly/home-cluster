@@ -66,6 +66,7 @@ template/
   scripts/plugin.py        makejinja Plugin: the validated config as template data
   scripts/secret_map.py    the 1Password item and field of each secret; secrets_check.py checks the vault
   scripts/test_validate.py pytest for the validator
+  scripts/test_doctor.py   pytest for the doctor check that no *.sops.* file is tracked
   resources/kubeconform.sh validation run by `just configure`
   mod.just                 `just template ...` recipes
 .github/template-tests/    valid/ and invalid/ cluster.toml fixtures, e2e/ helpers
