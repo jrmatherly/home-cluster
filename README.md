@@ -41,8 +41,8 @@ turns the matching namespace on.
 ## How a change lands
 
 1. Edit the `.j2` source under `template/config/`, never the rendered copy.
-2. `just configure` renders everything, encrypts every `*.sops.*` file, runs kubeconform on
-   `kubernetes/` and checks that topf can render `talos/`.
+2. `just configure` renders everything, runs kubeconform on `kubernetes/` and checks that topf can
+   render `talos/`.
 3. Commit and push. Flux reconciles `kubernetes/` from `main`, so the push is the deploy.
 
 Node operations go through `just talos` (`status`, `drain`, `stop-node`, `reboot-node`, `resume`,
@@ -51,8 +51,8 @@ primaries and switches one over before a node is drained.
 
 ## Tooling
 
-- [mise](https://mise.jdx.dev/) installs every pinned tool and points `KUBECONFIG`, `TALOSCONFIG`
-  and the sops keys at files inside the repository. Run `mise trust` and `mise install` once.
+- [mise](https://mise.jdx.dev/) installs every pinned tool and points `KUBECONFIG` and `TALOSCONFIG`
+  at files inside the repository. Run `mise trust` and `mise install` once.
 - [lefthook](https://github.com/evilmartians/lefthook) runs the pre-commit checks: oxfmt on
   JSON, YAML, Markdown and TOML, `just --fmt`, `mise fmt`, `mise lock`, zizmor, Ruff, shellcheck,
   markdownlint, a scrub of the documentation pages for private values, a size limit on
@@ -82,9 +82,10 @@ images/               recipes for the model images LocalAI mounts
 
 `cluster.toml`, `age.key`, `deploy.key`, `cloudflare-tunnel.json`, `flux-webhook-token.txt`,
 `kubeconfig`, `talos/talosconfig` and the `private/` directory are gitignored and never committed.
-A rebuild needs some of them, `age.key` above all, so
-[disaster recovery](./docs/src/content/docs/operations/disaster-recovery.mdx) lists which ones need
-a copy off these hosts. Every file with `.sops.` in its name is encrypted before it is committed.
+Every secret lives in a 1Password vault, the Talos secrets bundle included, so a rebuild needs that
+vault and `cluster.toml`.
+[Disaster recovery](./docs/src/content/docs/operations/disaster-recovery.mdx) lists what needs a
+copy off these hosts.
 
 ## License
 

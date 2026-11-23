@@ -91,8 +91,6 @@ def tool_env(scratch: Path) -> dict[str, str]:
         "PYTHONDONTWRITEBYTECODE": "1",
         # Reuse the repo's venv instead of building one per scratch copy.
         "UV_PROJECT_ENVIRONMENT": str(ROOT / ".venv"),
-        "SOPS_AGE_KEY_FILE": str(scratch / "age.key"),
-        "SOPS_CONFIG": str(scratch / ".sops.yaml"),
         "KUBECONFIG": str(scratch / "kubeconfig"),
         "TALOSCONFIG": str(scratch / "talos/talosconfig"),
     }
@@ -106,17 +104,6 @@ def make_scratch() -> Path:
             (scratch / path).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, scratch / path)
     return scratch
-
-
-def seed_secrets(scratch: Path, env: dict[str, str]) -> None:
-    run(["age-keygen", "-o", "age.key"], scratch, env).check_returncode()
-    run(
-        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "deploy.key"], scratch, env
-    ).check_returncode()
-    (scratch / "flux-webhook-token.txt").write_text("0" * 32 + "\n")
-    (scratch / "cloudflare-tunnel.json").write_text(
-        '{"AccountTag":"fake","TunnelSecret":"fake","TunnelID":"fake"}'
-    )
 
 
 def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
@@ -142,7 +129,6 @@ def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
     for fixture in sorted(FIXTURES.glob("*.toml"), key=lambda f: f.stem != FULL_FIXTURE):
         for rendered in RENDERED:
             shutil.rmtree(scratch / rendered, ignore_errors=True)
-        (scratch / ".sops.yaml").unlink(missing_ok=True)
         shutil.copy2(fixture, scratch / "cluster.toml")
 
         r = run(["uv", "run", "--quiet", "--locked", "--no-dev", "makejinja"], scratch, env)
@@ -150,7 +136,7 @@ def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
             failures.setdefault(("render", tail(r, 5)), []).append(fixture.name)
             continue
         r = run(
-            ["oxfmt", "--check", "./.sops.yaml", "./bootstrap", "./kubernetes", "./talos"],
+            ["oxfmt", "--check", "./bootstrap", "./kubernetes", "./talos"],
             scratch,
             env,
         )
@@ -199,7 +185,6 @@ def main() -> int:
     scratch = make_scratch()
     try:
         env = tool_env(scratch)
-        seed_secrets(scratch, env)
         failures, complete = check(scratch, env)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)

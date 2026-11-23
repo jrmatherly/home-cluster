@@ -8,7 +8,6 @@ set working-directory := '..'
 bootstrap_dir := justfile_dir() + '/bootstrap'
 kubernetes_dir := justfile_dir() + '/kubernetes'
 talos_dir := justfile_dir() + '/talos'
-sops_pathspec := "':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'"
 private_dir := justfile_dir() + '/.private'
 
 template_dir := justfile_dir() + '/template'
@@ -21,16 +20,10 @@ schema_file := justfile_dir() + '/cluster.schema.json'
 sample_config_file := justfile_dir() + '/cluster.sample.toml'
 validate_script := template_dir + '/scripts/validate.py'
 check_layout_script := template_dir + '/scripts/check_layout.py'
-deploy_key := justfile_dir() + '/deploy.key'
-webhook_token_file := justfile_dir() + '/flux-webhook-token.txt'
 
 [doc('Render and validate configuration files')]
 [group('template')]
-configure: check-layout render encrypt-secrets validate-kubernetes validate-talos
-    n="$(git status --porcelain --untracked-files=no -- {{ sops_pathspec }} | grep -c '^.M' || true)"
-    if [ "$n" -gt 0 ]; then
-        just log warn "$n *.sops.* files re-encrypted; if the secret inputs did not change, restore them with: git checkout -- {{ sops_pathspec }}"
-    fi
+configure: check-layout render validate-kubernetes validate-talos
 
 [doc('Check that cluster.toml keeps its sections in the order of cluster.sample.toml')]
 [group('template')]
@@ -65,9 +58,8 @@ doctor:
         fi
     fi
     config_json="$(just template config-json 2>/dev/null || true)"
-    just template doctor-check "age.key"                "$SOPS_AGE_KEY_FILE"          || rc=1
-    just template doctor-check "deploy.key"             "{{ deploy_key }}"            || rc=1
-    just template doctor-check "template/"              "{{ template_dir }}"          || rc=1
+    just template doctor-sops                                                         || rc=1
+    just template doctor-check "template/"             "{{ template_dir }}"          || rc=1
     just template doctor-check "makejinja.toml"         "{{ makejinja_config }}"      || rc=1
     just template doctor-check "validate.py"            "{{ validate_script }}"       || rc=1
     if [ -f "{{ config_file }}" ] && [ -f "{{ validate_script }}" ]; then
@@ -82,13 +74,10 @@ doctor:
     [ "$rc" = 0 ] && just log info "all good"
     exit "$rc"
 
-[doc('Initialize configuration files (cluster.toml, age key, deploy key, webhook token)')]
+[doc('Create cluster.toml from cluster.sample.toml, unless it exists')]
 [group('template')]
 init:
-    [ -f "{{ config_file }}" ]        || cp "{{ sample_config_file }}" "{{ config_file }}"
-    [ -f "$SOPS_AGE_KEY_FILE" ]       || age-keygen -pq --output "$SOPS_AGE_KEY_FILE"
-    [ -f "{{ deploy_key }}" ]         || ssh-keygen -t ed25519 -C "deploy-key" -f "{{ deploy_key }}" -q -P ""
-    [ -f "{{ webhook_token_file }}" ] || openssl rand -hex 16 > "{{ webhook_token_file }}"
+    [ -f "{{ config_file }}" ] || cp "{{ sample_config_file }}" "{{ config_file }}"
 
 # Editors resolve the #:schema directive in cluster.toml against this file;
 # the validator tests fail when it drifts from the pydantic model.
@@ -99,10 +88,10 @@ schema:
     oxfmt "{{ schema_file }}" > /dev/null
 
 [confirm("Remove all templated files and directories — continue? [y/N]")]
-[doc('Remove rendered files (bootstrap/, kubernetes/, talos/, .sops.yaml)')]
+[doc('Remove rendered files (bootstrap/, kubernetes/, talos/)')]
 [group('template')]
 reset:
-    rm -rf "{{ bootstrap_dir }}" "{{ kubernetes_dir }}" "{{ talos_dir }}" "{{ justfile_dir() }}/.sops.yaml"
+    rm -rf "{{ bootstrap_dir }}" "{{ kubernetes_dir }}" "{{ talos_dir }}"
 
 # tidy-archive moves template/ (this module's source) away, so it runs as a
 # subsequent dependency: the tidy script itself must spawn while the module
@@ -128,19 +117,17 @@ doctor-check label path:
         exit 1
     fi
 
+# Secrets live in 1Password, so a tracked *.sops.* file is a leftover.
+[no-exit-message]
 [private]
-encrypt-secrets:
-    find "{{ bootstrap_dir }}" "{{ kubernetes_dir }}" "{{ talos_dir }}" -type f -name '*.sops.*' -print0 \
-        | while IFS= read -r -d '' f; do
-            if ! status="$(sops filestatus "$f" | jq -r '.encrypted')"; then
-                just log fatal "could not read encryption status" file "$f"
-            fi
-            case "$status" in
-                false) sops encrypt --in-place "$f" ;;
-                true)  : ;;
-                *)     just log fatal "could not determine encryption status" file "$f" ;;
-            esac
-        done
+doctor-sops:
+    tracked="$(git ls-files ':(glob)**/*.sops.*')"
+    if [ -z "$tracked" ]; then
+        just log info "ok" check "no sops files"
+    else
+        just log error "sops files are tracked" files "$(echo $tracked)"
+        exit 1
+    fi
 
 [private]
 render:

@@ -1,14 +1,13 @@
 import type { Register } from "claude-code";
 
 const DIRS = ["bootstrap", "kubernetes", "talos"];
-const RENDERED = new RegExp(`^(?:(?:${DIRS.join("|")})(?:/|$)|\\.sops\\.yaml$)`);
+const RENDERED = new RegExp(`^(?:${DIRS.join("|")})(?:/|$)`);
 // A combined short-flag group that carries `i`: sed -i, sed -Ei, sed -i.bak, perl -pi.
 const INPLACE_SHORT = /^-[a-zA-Z]*i/;
-const SOPS_PATHSPEC = DIRS.map((d) => `:(top,glob)${d}/**/*.sops.*`);
 const NODE_OPS =
   /\bjust\b[^|;&]*\btalos(?:\s+|::)(?:apply|drain|stop-node|reboot-node|upgrade-node|apply-node|reset-node|upgrade-k8s|upgrade|reset)\b|\btalosctl\b.*\b(?:upgrade|upgrade-k8s|reset|apply-config|reboot|shutdown)\b|\btopf\s+(?:apply|upgrade|reset)\b|\bkubectl\b.*\bdrain\b/;
 const SECRET_FILES =
-  /\b(?:cluster\.toml|age\.key|deploy\.key|cloudflare-tunnel\.json|flux-webhook-token\.txt|kubeconfig|talosconfig)\b/;
+  /\b(?:cluster\.toml|age\.key|deploy\.key|cloudflare-tunnel\.json|flux-webhook-token\.txt|kubeconfig|talosconfig|secrets\.yaml)\b/;
 // What a glob in the repo root or talos/ could expand to.
 const SECRET_PATHS = [
   "cluster.toml",
@@ -18,13 +17,8 @@ const SECRET_PATHS = [
   "flux-webhook-token.txt",
   "kubeconfig",
   "talos/talosconfig",
+  "talos/secrets.yaml",
 ];
-const TRIGGER =
-  /\bjust\s+(?:template\s+)?configure\b|\bgit\s+(?:commit|add|restore|stash|checkout)\b/;
-const COMMIT = /\bgit\s+commit\b/;
-const COMMIT_ALL = /\bgit\s+commit\b.*\s(?:-[a-zA-Z]*a[a-zA-Z]*|--all)(?:\s|$)/;
-const CHURNED = /^(?:M.|.M) /;
-const STAGED = /^M/;
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const WRITE_OP = /^(?:\d*(?:>>?|>\||>&)|&>>?)$/;
@@ -351,10 +345,6 @@ function printsOpSecret(ws: Word[]): boolean {
   );
 }
 
-function count(porcelain: string, re: RegExp): number {
-  return porcelain.split("\n").filter((l) => re.test(l)).length;
-}
-
 export const register: Register = (on) => {
   on("tool.call", { tool: ["Edit", "Write"] }, async ($, e, next) => {
     const cwd = await $.session.cwd();
@@ -395,28 +385,7 @@ export const register: Register = (on) => {
         deny: "that writes a rendered file; edit the .j2 source under template/config/ and run just configure",
       };
     }
-    if (!TRIGGER.test(cmd)) return next(e);
-
-    const status = async () =>
-      (
-        await $.process.run(
-          ["git", "status", "--porcelain", "--untracked-files=no", "--", ...SOPS_PATHSPEC],
-          { cwd },
-        )
-      ).stdout;
-    // Counted before the commit runs, because afterwards the committed files are clean.
-    const committing = COMMIT.test(cmd)
-      ? count(await status(), COMMIT_ALL.test(cmd) ? CHURNED : STAGED)
-      : 0;
-    const result = await next(e);
-    const n = count(await status(), CHURNED);
-    $.ui.status(
-      n > 0
-        ? `${n} *.sops.* files re-encrypted; restore with git checkout unless the secret inputs changed`
-        : undefined,
-    );
-    if (committing > 0) $.ui.toast(`committing ${committing} re-encrypted sops files`);
-    return result;
+    return next(e);
   }).catch(($, e, next) =>
     next.called ? next(e) : { deny: "cluster-guard could not check the command" },
   );

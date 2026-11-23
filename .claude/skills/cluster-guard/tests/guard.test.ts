@@ -47,6 +47,7 @@ test("node maintenance is refused inside the UniFi window", async ($, on) => {
     [
       "just talos drain k8s-cp-2",
       "just talos apply",
+      "just talos topf apply --dry-run",
       "talosctl -n 192.0.2.22 reboot",
       "topf upgrade",
       "kubectl drain k8s-cp-2 --ignore-daemonsets",
@@ -81,6 +82,9 @@ test("a secrets file is readable only through the listed parsers, per command se
       'python3 -c "import tomllib" cluster.toml',
       "cp age.key /tmp/x",
       "cat kubeconfig | head -30",
+      "cat talos/secrets.yaml",
+      "cd talos && yq .certs secrets.yaml",
+      "cat talos/sec*",
       "cat cluster.toml; just template doctor",
       "cp age.key /tmp/x && taplo check x.toml",
     ],
@@ -298,7 +302,6 @@ test("writing a rendered file is refused with the source hint", async ($, on) =>
       "sops encrypt -i kubernetes/apps/x.sops.yaml",
       "yq --inplace '.a=1' kubernetes/apps/x.yaml",
       "perl -pi -e 's/a/b/' kubernetes/apps/x.yaml",
-      "echo x > .sops.yaml",
     ],
     /writes a rendered file/,
   );
@@ -318,36 +321,10 @@ test("writing a rendered file is refused with the source hint", async ($, on) =>
     "ls kubernetes/apps 2>/dev/null",
   ]);
 });
-test("a commit with staged sops churn sets the pinned line and toasts", async ($, on) => {
-  const seen = world(
-    on,
-    "M  kubernetes/apps/media/shared/app/secret.sops.yaml\nM  talos/all/10.sops.yaml\n",
-  );
-  await bash($, 'git commit -m "x"');
-  expect(seen.runs[0]).toEqual([
-    "git",
-    "status",
-    "--porcelain",
-    "--untracked-files=no",
-    "--",
-    ":(top,glob)bootstrap/**/*.sops.*",
-    ":(top,glob)kubernetes/**/*.sops.*",
-    ":(top,glob)talos/**/*.sops.*",
-  ]);
-  expect(seen.status[0]).toMatch(/^2 \*\.sops\.\* files re-encrypted/);
-  expect(seen.toasts[0]).toBe("committing 2 re-encrypted sops files");
-});
-test("git commit -a counts unstaged churn too, a plain commit does not", async ($, on) => {
-  const seen = world(on, " M kubernetes/apps/media/shared/app/secret.sops.yaml\n");
-  await bash($, 'git commit -m "x"');
-  await bash($, 'git commit -am "x"');
-  expect(seen.toasts).toEqual(["committing 1 re-encrypted sops files"]);
-});
-test("configure and restore refresh the pinned line; a clean tree clears it", async ($, on) => {
+test("configure and git commands run no status check and pin no line", async ($, on) => {
   const seen = world(on);
-  await bash($, "just configure");
-  await bash($, "git restore -- ':(glob)kubernetes/**/*.sops.*'");
-  await bash($, "ls");
-  expect(seen.status).toEqual([undefined, undefined]);
+  await allowed($, ["just configure", 'git commit -am "x"']);
+  expect(seen.runs).toEqual([]);
+  expect(seen.status).toEqual([]);
   expect(seen.toasts).toEqual([]);
 });

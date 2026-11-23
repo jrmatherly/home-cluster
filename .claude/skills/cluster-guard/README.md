@@ -1,16 +1,15 @@
 # cluster-guard
 
-A Claude Code hooks module for this repo. It refuses four things before the tool runs:
+A Claude Code hooks module for this repo. It refuses three things before the tool runs:
 
-- **Rendered files.** An Edit or Write under `bootstrap/`, `kubernetes/` or `talos/`, or on the
-  root `.sops.yaml`, is refused with a pointer to the `.j2` source. So is a Bash command that
-  writes there: a redirect target, a file given to `tee`, the destination of `cp`, `install` or
+- **Rendered files.** An Edit or Write under `bootstrap/`, `kubernetes/` or `talos/` is
+  refused with a pointer to the `.j2` source. So is a Bash command that writes there: a redirect target, a file given to `tee`, the destination of `cp`, `install` or
   `rsync` (or either end of `mv`, which removes its source), or a file given to `sd`, `sed -i`,
   `perl -pi`, `yq -i`/`--inplace` or `sops -i`/`--in-place`, in relative, `./`, `$PWD` or absolute
   form, quoted or not. Reading a rendered file
   and sending the result elsewhere is allowed.
 - **Secrets files.** A Bash command segment that names `cluster.toml`, `age.key`, `deploy.key`,
-  `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig` or `talosconfig` is refused
+  `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig`, `talosconfig` or `secrets.yaml` (the Talos bundle) is refused
   unless that segment runs `template/scripts/validate.py`, `template/scripts/check_layout.py`, a
   `just template` recipe or `taplo check`. One shell tokenizer resolves quotes and reads nested
   shells, `eval` and command substitutions as commands, so a quoted, globbed or spliced name is
@@ -20,10 +19,6 @@ A Claude Code hooks module for this repo. It refuses four things before the tool
   `reset-node`, the all-node `upgrade` and `reset`, `talosctl` with
   `upgrade`, `reset`, `apply-config`, `reboot` or `shutdown`, `topf` with `apply`, `upgrade` or
   `reset`, and `kubectl drain`.
-- **sops churn.** After `just configure`, `git add`, `git commit`, `git restore`, `git stash` or
-  `git checkout`, it counts the modified `*.sops.*` files under the three rendered directories and
-  shows the count on a pinned line, or clears it. A commit that carries them (staged, or any with
-  `-a`) also raises a toast.
 
 ## Checks
 

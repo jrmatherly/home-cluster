@@ -15,7 +15,7 @@ spec:
   timeout: 10m
   valuesFrom:
     # CloudNativePG generates this Secret. The uri key is the whole libpq
-    # connection string, so no database password lives in sops.
+    # connection string, so no database password lives in the vault.
     - kind: Secret
       name: itsaplan-db-app
       valuesKey: uri
