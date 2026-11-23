@@ -55,8 +55,8 @@ spec:
               HOST: 0.0.0.0
               PORT: &apiPort 3002
               ENV: local
-              # Database authentication needs Supabase. The NetworkPolicy and the internal
-              # gateway are the boundary instead.
+              # Database authentication needs SQL functions upstream does not publish. The
+              # gateway's API key and the NetworkPolicy are the boundary instead.
               USE_DB_AUTHENTICATION: "false"
               REDIS_PASSWORD:
                 valueFrom:
@@ -198,6 +198,9 @@ spec:
             image:
               repository: ghcr.io/firecrawl/nuq-postgres
               tag: latest@sha256:d719b36160eac2fcbe16dc7e7360ddb9c82c40ea5da183d07bf4a755c6a0b2ae
+            # The image's nuq.sql keeps 4GB of WAL allocated and lets it reach 16GB, more
+            # than the volume holds. The command line overrides postgresql.auto.conf.
+            args: ["-c", "min_wal_size=256MB", "-c", "max_wal_size=2GB"]
             env:
               POSTGRES_USER: postgres
               POSTGRES_DB: postgres
@@ -275,13 +278,18 @@ spec:
       api:
         service:
           identifier: api
+        # Two paths on one port: without the label both write the same `up` series.
         endpoints:
           - port: metrics
             path: /admin/metrics
             interval: 60s
+            relabelings: &metricsPath
+              - sourceLabels: ["__metrics_path__"]
+                targetLabel: metrics_path
           - port: metrics
             path: /admin/nuq-metrics
             interval: 60s
+            relabelings: *metricsPath
     #% endif %#
     # A pod that fills a volume past its limit is evicted, which empties the queue.
     persistence:

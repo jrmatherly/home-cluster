@@ -44,10 +44,11 @@ One release holds four workloads, and the namespace has its own Redis.
 
 ## Fill the section
 
-The section needs `[cliproxyapi]` and `[redis]`. Generate the queue database password, put it in the vault item `firecrawl` under the label `POSTGRES_PASSWORD` ([External Secrets and 1Password](/apps/external-secrets/)), and set `enabled = true` in the `[firecrawl]` section of `cluster.toml`:
+The section needs `[cliproxyapi]` and `[redis]`. Generate the queue database password and the gateway key, put them in the vault item `firecrawl` under the labels `POSTGRES_PASSWORD` and `GATEWAY_API_KEY` ([External Secrets and 1Password](/apps/external-secrets/)), and set `enabled = true` in the `[firecrawl]` section of `cluster.toml`. Both fields have to exist before the push: without the gateway key its Secret is never built and the route refuses every request.
 
 ```sh
 openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo   # POSTGRES_PASSWORD
+openssl rand -hex 24                                            # GATEWAY_API_KEY
 ```
 
 `model` names the model CLIProxyAPI runs for extract. It defaults to `claude-sonnet-5-5`, and any name the proxy lists at `/v1/models` works.
@@ -62,25 +63,28 @@ kubectl get externalsecret,helmrelease,pods -n firecrawl
 kubectl logs -n firecrawl deploy/firecrawl-api | grep -i -E "ACCESS_REFUSED|ECONNREFUSED|EROFS|EACCES"
 ```
 
-The Kustomization and the HelmRelease are Ready, both ExternalSecrets are synced, and five pods are Running: the four workloads and `redis-0`. The `grep` prints nothing.
+The Kustomization and the HelmRelease are Ready, the four ExternalSecrets are synced (`firecrawl`, `firecrawl-gateway-keys`, `redis-auth` and `cluster-secrets`), and five pods are Running: the four workloads and `redis-0`. The `grep` prints nothing.
 
 ## Verify
 
-Check that the API answers, then run one scrape:
+Check that the gateway asks for the key and that the API answers, then run one scrape. `<token>` is the `GATEWAY_API_KEY` value:
 
 ```sh
-curl -s https://firecrawl.${SECRET_DOMAIN}/v0/health/readiness
+curl -s -o /dev/null -w '%{http_code}\n' https://firecrawl.${SECRET_DOMAIN}/v0/health/readiness
+curl -s -H 'Authorization: Bearer <token>' https://firecrawl.${SECRET_DOMAIN}/v0/health/readiness
 curl -s -m 75 -X POST https://firecrawl.${SECRET_DOMAIN}/v2/scrape \
+  -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":["markdown"],"timeout":60000}'
 ```
 
-The first answers `{"status":"ok"}`. That is a heartbeat only. The second answers `"success":true` with Markdown, and proves the queue, the workers and outbound access together.
+The first prints `401`, because it sends no key. The second answers `{"status":"ok"}`. That is a heartbeat only. The third answers `"success":true` with Markdown, and proves the queue, the workers and outbound access together.
 
 Extract goes through the model. Ask for a `json` format:
 
 ```sh
 curl -s -m 75 -X POST https://firecrawl.${SECRET_DOMAIN}/v2/scrape \
+  -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com","formats":[{"type":"json","prompt":"Give the page title"}],"timeout":60000}'
 ```

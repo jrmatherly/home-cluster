@@ -19,4 +19,6 @@ spec:
         name: firecrawl-gateway-keys
     extractFrom:
       - headers: ["Authorization"]
+    # Firecrawl ignores the key, so it stops at the gateway and stays out of its logs.
+    sanitize: true
 #% endif %#
