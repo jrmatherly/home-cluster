@@ -5,8 +5,8 @@ components:
   - ../../../../components/postgres
 resources:
   - ./cluster.yaml
+  - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
-  - ./secret.sops.yaml
