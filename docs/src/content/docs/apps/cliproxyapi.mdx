@@ -13,7 +13,7 @@ Using a subscription login through a proxy may breach the provider's terms of se
 
 Both apps run in the `llms` namespace, which enforces the `restricted` pod security level, and both are on the internal gateway only, with no gateway `SecurityPolicy`:
 
-- The proxy, `cliproxyapi`, at `https://llms.${SECRET_DOMAIN}` on port 8317. Clients send `api_key` as a bearer token.
+- The proxy, `cliproxyapi`, at `https://llms.${SECRET_DOMAIN}` on port 8317. Clients send `API_KEY` as a bearer token.
 - The manager, `cpa-manager`, at `https://llms-admin.${SECRET_DOMAIN}` on port 18317. Its admin key is its only login.
 
 Both images set no `USER`, so the pods set uid 1000, and both run on a read-only root (measured). Each has a 1Gi `local-path` volume at `/data`, kept when the claim is deleted, and each volume is the only copy of what it holds:
@@ -28,21 +28,21 @@ There is no volume backup, no metrics, and no provider API keys in the config. T
 Generate each value once:
 
 ```sh
-openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo               # management_key
-openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo               # api_key
-echo "cpamp_$(openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 40)"     # manager_admin_key
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo               # MANAGEMENT_KEY
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo               # API_KEY
+echo "cpamp_$(openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 40)"     # MANAGER_ADMIN_KEY
 ```
 
 Each is at least 32 characters. The manager's docs describe the key it generates when none is set as `cpamp_...`, so the example keeps that prefix. Whether a key set by hand needs it is not checked.
 
 ## cluster.toml
 
-Section `[cliproxyapi]`: the three values above, set together or not at all. It needs no other section. A fourth, optional `ohmycpa_master_key` (64 hex characters, never changed once set) deploys a second console, Oh-My-CPA, at `llms-mgmt.${SECRET_DOMAIN}`; see Operations. `just template scaffold cliproxyapi` adds the block in the sample's position with its keys commented.
+Section `[cliproxyapi]`: `enabled = true`. It needs no other section. The three values above go in the vault item `cliproxyapi`, under the labels in the comments ([External Secrets and 1Password](/apps/external-secrets/)). An optional `ohmycpa = true`, with the vault field `OHMYCPA_MASTER_KEY` (64 hex characters, never changed once set), deploys a second console, Oh-My-CPA, at `llms-mgmt.${SECRET_DOMAIN}`; see Operations. `just template scaffold cliproxyapi` adds the block in the sample's position with its keys commented.
 
 Then `just configure`, restore the sops files that did not change:
 
 ```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 Commit the rendered `kubernetes/apps/llms/`, then push. `just kube reconcile` makes Flux pull now.
@@ -80,7 +80,7 @@ The image has a Cmd and no Entrypoint, so the HelmRelease sets `command` to the 
 
 ## Sign in and first use
 
-Open `https://llms-admin.${SECRET_DOMAIN}` from the LAN and sign in with `manager_admin_key`. After sign-in the status page shows the collector running.
+Open `https://llms-admin.${SECRET_DOMAIN}` from the LAN and sign in with `MANAGER_ADMIN_KEY`. After sign-in the status page shows the collector running.
 
 Add the provider logins in the manager:
 
@@ -106,8 +106,9 @@ Claude Code, in the user's `~/.claude/settings.json` (never a project's committe
 ```
 
 The career-ops dashboard's Claude CLI can use the proxy too. In `cluster.toml`, `[career_ops]` sets
-`anthropic_base_url` to the in-cluster Service, `http://cliproxyapi.llms.svc.cluster.local:8317`,
-and `anthropic_auth_token` to `<api_key>`, in place of `claude_oauth_token`. The pod then gets
+`claude_credential = "proxy"` and `anthropic_base_url` to the in-cluster Service,
+`http://cliproxyapi.llms.svc.cluster.local:8317`, and the vault item `career-ops` holds
+`ANTHROPIC_AUTH_TOKEN`, set to `<api_key>`, in place of `CLAUDE_OAUTH_TOKEN`. The pod then gets
 `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`, and the proxy's NetworkPolicy admits the
 dashboard's pod. Measured 2026-11-09: the pod answered a one-word `claude -p` through the proxy.
 
@@ -143,7 +144,7 @@ manager's Credential Management page.
 ## Operations
 
 - Change proxy settings in the manager's Config Panel, which persists and reloads them. An edit to `/data/config.yaml` through `kubectl exec` is not picked up by the file watcher (measured 2026-11-07, with `sed -i` and with an in-place rewrite) until `kubectl rollout restart deploy/cliproxyapi -n llms`. `GET /v0/management/config` with the management key shows the live values.
-- A change to the seed in Git reaches a running proxy only if the volume's copy is deleted, because init containers run once per pod and only the `seed-config` init container mounts the seed. Delete the copy and restart, which re-seeds it. Every setting made in the UI is lost; the provider logins under `auths/` stay. Rotating `management_key` or `api_key` needs this re-seed: the manager picks up its new Secret on its own, the proxy's stored hash does not, and the two stop agreeing. Whether the manager accepts a changed management key once it has stored one is not checked.
+- A change to the seed in Git reaches a running proxy only if the volume's copy is deleted, because init containers run once per pod and only the `seed-config` init container mounts the seed. Delete the copy and restart, which re-seeds it. Every setting made in the UI is lost; the provider logins under `auths/` stay. Rotating `MANAGEMENT_KEY` or `API_KEY` in the vault needs this re-seed: the manager picks up its new Secret on its own, the proxy's stored hash does not, and the two stop agreeing. Whether the manager accepts a changed management key once it has stored one is not checked.
 
     ```sh
     kubectl exec -n llms deploy/cliproxyapi -c app -- rm /data/config.yaml
@@ -156,7 +157,7 @@ manager's Credential Management page.
 - Egress is open. The proxy dials the providers, and at start and every three hours it runs an antigravity version check and fetches the Grok CLI version from npm.
 - NetworkPolicies admit the `network` namespace on each app's port, and the proxy also admits the manager's pods on 8317.
 - The Config Panel's Source File Editor shows the proxy's config with the client key in plaintext to anyone signed in to the manager, so the admin key is the only wall around that key.
-- Settings set on 2026-11-07 after a review of every Config screen: three retry rounds with a 30 s cooldown wait (the loader applies no default when the keys are absent, and the reload log confirmed the proxy had been running with none), session rebind on quota errors only (a transient 5xx keeps a session on its login and its prompt cache), the Claude cloaking timezone, and file logging with a 100 MB cap. The log files land under the auth directory, because the image root is read-only, and `kubectl logs` goes quiet; both consoles' Logs pages read them. The request body limit stays unlimited: the proxy is internal and bearer-authenticated, and Oh-My-CPA warns that a cap below the config file's size makes its own saves fail. Oh-My-CPA's Config page shows 0 for every absent numeric key, so the management API, not the page, says what runs. An optional `github_token` in `[cliproxyapi]` (a fine-grained token with no permissions) lifts the plugin store's GitHub lookups off the unauthenticated rate limit.
+- Settings set on 2026-11-07 after a review of every Config screen: three retry rounds with a 30 s cooldown wait (the loader applies no default when the keys are absent, and the reload log confirmed the proxy had been running with none), session rebind on quota errors only (a transient 5xx keeps a session on its login and its prompt cache), the Claude cloaking timezone, and file logging with a 100 MB cap. The log files land under the auth directory, because the image root is read-only, and `kubectl logs` goes quiet; both consoles' Logs pages read them. The request body limit stays unlimited: the proxy is internal and bearer-authenticated, and Oh-My-CPA warns that a cap below the config file's size makes its own saves fail. Oh-My-CPA's Config page shows 0 for every absent numeric key, so the management API, not the page, says what runs. An optional `github = true` in `[cliproxyapi]`, with the vault field `GITHUB_TOKEN` (a fine-grained token with no permissions), lifts the plugin store's GitHub lookups off the unauthenticated rate limit.
 - Plugins. A store install writes the library under `plugins.dir` on the volume and loads it without a restart, but only once the pod has a `/tmp` emptyDir (the plugin host unpacks there) and `HOME` set to the data volume (plugins persist state under `~/.cli-proxy-api`); without them the plugin stays "enabled, not running" with a read-only filesystem error in the log (measured 2026-11-07). `claude-seat-pacer` runs here at its defaults, except a 15-minute usage poll (the default is 2 minutes; the plugin raises its staleness bound to 30 minutes on its own, and the rate-limit headers on live traffic keep busy seats current between polls): it paces new conversations across the seats of the top priority tier toward each seat's weekly plan, keeps its own session affinity, and defers to the proxy's strategy only when no seat is eligible. Its enable flag is mirrored in the seed; the library itself is not in Git.
 - Log stamps read +08:00. The image bakes `TZ=Asia/Shanghai`, and a `TZ` env did not change them (measured live).
 - Every proxy setting tuned by hand goes into the seed in Git as well, because a redeploy re-seeds from it. Manager settings go in its HelmRelease env, which locks them in the UI.

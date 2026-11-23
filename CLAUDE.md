@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork of `onedr0p/cluster-template`. You fill in one config file, `cluster.toml`, and makejinja renders it into the Talos, Kubernetes, Flux and bootstrap config.
+A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork of `onedr0p/cluster-template`. You fill in one config file, `cluster.toml`, and makejinja renders it into the Talos, Kubernetes, Flux and bootstrap config. `cluster.toml` holds no secret: External Secrets Operator reads each one from a 1Password vault (`.claude/rules/apps/external-secrets.md`). sops still encrypts two bootstrap Secrets and the Talos secrets bundle.
 
 - The repo is still at the template stage, so the template tooling is present. `just configure` has rendered `bootstrap/`, `kubernetes/`, `talos/` and `.sops.yaml`, and the cluster is bootstrapped and live. Flux reconciles `kubernetes/` from Git, so a config change reaches the cluster by re-rendering with `just configure`, then committing and pushing.
 - `just template tidy` ends the template stage. It moves all template tooling to `.private/<timestamp>/`, and you cannot undo it.
@@ -22,14 +22,15 @@ A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork 
 Template stage:
 
 - `just init` creates `cluster.toml` from `cluster.sample.toml`, plus `age.key`, `deploy.key` and `flux-webhook-token.txt`, skipping any that exist.
-- `just configure` renders with makejinja, sops-encrypts every `*.sops.*` file, runs kubeconform on `kubernetes/`, and checks that topf can render `talos/`.
+- `just configure` renders with makejinja, sops-encrypts the `*.sops.*` files under `bootstrap/` and `talos/`, runs kubeconform on `kubernetes/`, and checks that topf can render `talos/`.
 - `just template doctor` checks that the required files exist, that `cluster.toml` passes the schema, and that its sections follow the sample's order.
 - `just template check-layout` checks that `cluster.toml` keeps its sections in the order of `cluster.sample.toml`. `just configure` runs it first.
+- `just template secrets-check` checks the 1Password items against `template/scripts/secret_map.py` and prints item and field names, never a value. It calls `op`, so the owner runs it.
 - `just template schema` regenerates `cluster.schema.json` from the pydantic model.
 - `just template scaffold <section>` copies a section's block from `cluster.sample.toml` into `cluster.toml` in the sample's position, keys left commented, printing line numbers only, then runs `check-layout`.
 - `just template test-helmfile` renders the bootstrap Helm charts. It needs network access.
 - `just template reset` deletes the rendered output.
-- `uv run --locked pytest template/scripts/test_validate.py -q` runs the validator tests.
+- `uv run --locked pytest template/scripts -q` runs the validator and secret-map tests.
 - `uv run --locked --no-dev template/scripts/validate.py <file.toml>` validates one config and prints it as JSON.
 - `taplo check --schema "file://$PWD/cluster.schema.json" ./cluster.toml` checks the TOML against the schema.
 
@@ -55,14 +56,15 @@ makejinja.toml             inputs template/overrides + template/config, output .
 justfile                   root; loads template/mod.just and the rendered mod.just files
 template/
   config/                  *.j2 sources, mirrored into the repo root on render
-    bootstrap/             helmfile/ (crds, apps), sops secrets, mod.just
-    kubernetes/            apps/<namespace>/<app>/, components/sops, flux/cluster, mod.just
+    bootstrap/             helmfile/ (crds, apps), two sops secrets, onepassword.yaml, mod.just
+    kubernetes/            apps/<namespace>/<app>/, components/ (postgres, redis), flux/cluster, mod.just
     talos/                 all/ (numbered patches), control-plane/, topf.yaml.j2, mod.just
   overrides/               extra makejinja input; *.partial.yaml.j2 are not rendered
   scripts/validate.py      pydantic model of cluster.toml: defaults, cross-field checks
   scripts/check_layout.py  section order of cluster.toml against the sample
   scripts/scaffold.py      copies a section block from the sample into cluster.toml
-  scripts/plugin.py        makejinja Plugin: validated config as data; key and tunnel readers as functions
+  scripts/plugin.py        makejinja Plugin: validated config as data; age and deploy key readers as functions
+  scripts/secret_map.py    the 1Password item and field of each secret; secrets_check.py checks the vault
   scripts/test_validate.py pytest for the validator
   resources/kubeconform.sh validation run by `just configure`
   mod.just                 `just template ...` recipes
@@ -97,8 +99,9 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 - A `cluster.toml` schema change touches four places: `validate.py`, `cluster.sample.toml`, `cluster.schema.json` (from `just template schema`), and the test fixtures. `.claude/rules/validator.md` has the steps, and each invalid fixture carries a `# expect: <error message>` line that `test_invalid_fixture_rejected` matches. `cluster.sample.toml` is the layout of record: `cluster.toml` and the fixtures keep its section order and banner comments, a new section is scaffolded into `cluster.toml` by copying the sample's block into the same position, and `just template check-layout` fails a config whose sections are out of that order.
 - Rendered YAML has to be oxfmt-clean: the Stop hook runs `oxfmt --check .` on the whole tree and on every fixture's render, and the lefthook pre-commit hook formats staged files (the upstream CI step that checks it skips on this fork).
 - Facts about one app or platform area live in `.claude/rules/apps/<name>.md`, which load when you touch its templates: `localai`, `model-images`, `restart-reset`, `flux-alerts`, `cert-manager`, `network`, `github-runner`, `bootstrap-charts`, `storage`, `postgres`, `etcd-snapshot`, `observability`, `unifi-dns`, `pocket-id`, `radar`, `matherlynet`, `hubble`, `reactive-resume`, `redis`, `kener`, `network-optimizer`, `pegaprox`, `actual-budget`, `media`, `ai-workspace`, `ai-kb`, `rustfs`, `volume-backup`, `langfuse`, `itsaplan`, `cliproxyapi`, `docs-site`, `career-ops`, `external-secrets`. Read the file by hand before changing its section in `validate.py` or `cluster.sample.toml`, or when another app depends on it.
-- Every file with `.sops.` in its name is encrypted in place during `just configure`.
-- Re-running `just configure` re-encrypts every `*.sops.*` file with new ciphertext, even when the plaintext is unchanged, so they show as modified after any re-render. When the secret inputs did not change, restore them with `git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'` before committing. No `*.sops.*` file is left under `kubernetes/`, and a pathspec that matches nothing fails the whole checkout. Keep the directory prefixes: a bare `**/*.sops.*` also matches the `*.sops.*.j2` templates and discards uncommitted edits to them. `just configure` logs a warning with the count of re-encrypted `*.sops.*` files and this restore command (`sops_pathspec` in `template/mod.just`).
+- Every Secret under `kubernetes/` comes from an ExternalSecret (`externalsecret.yaml.j2` in the app folder) that reads a 1Password item. A flag or a non-secret field turns a section on, never a secret. `.claude/rules/apps/external-secrets.md` has the conventions.
+- sops covers three files: `bootstrap/deploy-key.sops.yaml`, `bootstrap/sops-age.sops.yaml` and `talos/secrets.sops.yaml`. `just configure` encrypts each in place.
+- Re-running `just configure` re-encrypts those three files with new ciphertext, even when the plaintext is unchanged, so they show as modified after any re-render. When the secret inputs did not change, restore them with `git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'` before committing. No `*.sops.*` file is left under `kubernetes/`, and a pathspec that matches nothing fails the whole checkout. Keep the directory prefixes: a bare `**/*.sops.*` also matches the `*.sops.*.j2` templates and discards uncommitted edits to them. `just configure` logs a warning with the count of re-encrypted `*.sops.*` files and this restore command (`sops_pathspec` in `template/mod.just`).
 
 <!-- END AUTO-MANAGED -->
 
@@ -114,7 +117,7 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 
 ## Best Practices
 
-- Never commit secrets or machine config. `.gitignore` covers `cluster.toml`, `age.key`, `deploy.key`, `flux-webhook-token.txt`, `cloudflare-tunnel.json`, `kubeconfig` and `talosconfig`.
+- Never commit secrets or machine config. A secret value goes in the vault, never in `cluster.toml` or a template. `.gitignore` covers `cluster.toml`, `age.key`, `deploy.key`, `flux-webhook-token.txt`, `cloudflare-tunnel.json`, `kubeconfig` and `talosconfig`.
 - The Stop hook (`.claude/hooks/stop.py`) blocks the end of a turn while template changes fail. It runs when anything under `template/`, the sample, the schema, `makejinja.toml`, `pyproject.toml`, `uv.lock`, `.oxfmtrc.json`, `.mise/` or `.github/template-tests/` differs from `main` (on `main` itself, from HEAD, so a committed break is not re-checked). It runs `oxfmt --check .` on the working tree, and in a scratch copy runs pytest, renders every valid fixture and format-checks the output, and runs kubeconform and topf on the `public` fixture only; kubeconform is skipped offline, a second Stop with the same unchanged failure is let through, and the hook fails open on its own errors. For workflow changes, run `zizmor --offline .github/workflows/*.yaml` yourself.
 - `.claude/settings.json` blocks reading the key files and asks before destructive commands: `reset`, `tidy`, `bootstrap`, `apply`, `upgrade`, `sops decrypt`, `kubectl delete`, and similar. rtk's Claude Code hook rewrites commands before those rules and the sandbox exclusions read them, so `exclude_commands` in `~/Library/Application Support/rtk/config.toml` must list `just`, `sops`, `gh`, `kubectl` and `helm` (measured 2026-10-31: without it a rewritten `gh pr close` skipped its `ask` rule). Serena's write tools are denied and `run_in_terminal` asks, because cluster-guard sees only Edit, Write and Bash. Don't work around a prompt, for example with `yes |` or `--yes`.
 - The `cluster-guard` mod (`.claude/skills/cluster-guard/`, see its README and `.claude/rules/cluster-guard.md`) is a hooks module. It refuses Edit, Write and Bash writes into the rendered `bootstrap/`, `kubernetes/` and `talos/` trees and the root `.sops.yaml`. It refuses any Bash command that names `cluster.toml`, `age.key`, `deploy.key`, `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig` or `talosconfig`, unless that command runs `validate.py`, `check_layout.py`, a `just template` recipe or `taplo check`. It refuses node maintenance (the `just talos` maintenance recipes, the all-node `upgrade` and `reset`, and raw `talosctl`, `topf` and `kubectl drain`) from 02:45 to 03:30 local, and it counts re-encrypted `*.sops.*` files after configure, add, commit, restore, stash and checkout. `.claude/settings.json` denies `Read(/cluster.toml)`, and the gitignored `.claude/settings.local.json` re-allows `./cluster.toml` for the sandbox so the parser path works.

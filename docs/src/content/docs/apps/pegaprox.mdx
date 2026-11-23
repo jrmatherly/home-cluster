@@ -26,11 +26,11 @@ Checked from outside the UI on 2026-10-06 (pod logs, Prometheus, the unauthentic
 | Confirm automations are off on each host | Done 2026-10-06 (the operator). |
 | Sign in with Pocket ID | Configured: the auth check reports `oidc_enabled: true`, the button text, authority `auth.${SECRET_DOMAIN}`, PKCE on. The viewer half of the role test waits for a second Pocket ID user; none exists on 2026-10-06. |
 | Install a plugin | Optional |
-| Metrics | Done 2026-10-06: `metrics_token` in `cluster.toml`, ServiceMonitor and the upstream dashboard. |
+| Metrics | Done 2026-10-06: the metrics token (now `metrics = true` and the vault field `METRICS_TOKEN`), ServiceMonitor and the upstream dashboard. |
 
 ## What PegaProx holds
 
-PegaProx keeps everything in one SQLite database on a `local-path` volume on `k8s-worker-3`. That includes the Proxmox account password, an API token it creates for that account with privilege separation off, every user, and the Pocket ID client secret. The database is encrypted with `db_key` from `cluster.toml`, and that key is the only way to read it. Never change the key. Keep a copy of it outside the repo. With [volume backups](/apps/volume-backup/) on, the volume has a nightly copy that needs `db_key` to read. Without them it has none: if `k8s-worker-3` is rebuilt, the hosts are added again, which takes minutes.
+PegaProx keeps everything in one SQLite database on a `local-path` volume on `k8s-worker-3`. That includes the Proxmox account password, an API token it creates for that account with privilege separation off, every user, and the Pocket ID client secret. The database is encrypted with `DB_KEY` from the vault item `pegaprox` ([External Secrets and 1Password](/apps/external-secrets/)), and that key is the only way to read it. Never change the key. With [volume backups](/apps/volume-backup/) on, the volume has a nightly copy that needs `DB_KEY` to read. Without them it has none: if `k8s-worker-3` is rebuilt, the hosts are added again, which takes minutes.
 
 Two things are deliberately off. PegaProx's automations (auto-migrate, dry-run, HA, scheduled actions) default to off, and they must stay off for anything that holds the Talos VMs, because stopping two control-plane VMs loses etcd quorum and stopping `k8s-worker-3` stops PegaProx itself. The syslog receiver on port 1514 starts with the server (docs) but the Service does not expose it; turn it off with the `syslog_enabled` switch in Settings, Server.
 
@@ -105,7 +105,7 @@ Then Settings, Server, Plugins, press Rescan and toggle the plugin on. Review th
 
 ## Optional: metrics
 
-PegaProx exposes Prometheus metrics at `/api/metrics`, gated by an API token from Settings, API Tokens, or open to the scrape network when "Allow unauthenticated /api/metrics" is enabled under Settings, Compliance (docs, Prometheus Exporter). Set up on 2026-10-06 through `metrics_token` in `cluster.toml`, which renders the ServiceMonitor, the NetworkPolicy rule for `observability` and the upstream dashboard.
+PegaProx exposes Prometheus metrics at `/api/metrics`, gated by an API token from Settings, API Tokens, or open to the scrape network when "Allow unauthenticated /api/metrics" is enabled under Settings, Compliance (docs, Prometheus Exporter). Set up on 2026-10-06. `metrics = true` in `[pegaprox]`, with the token in the vault field `METRICS_TOKEN`, renders the ServiceMonitor, the NetworkPolicy rule for `observability` and the upstream dashboard.
 
 ## Updates
 
@@ -114,7 +114,7 @@ Renovate opens a pull request for each new image tag. Never automerge them. Two 
 ## If you lose access
 
 - Lost admin password: sign in with Pocket ID if it is configured. Otherwise the docs' recovery is to remove the admin row from the database so the wizard reappears, which needs the key and a SQLCipher client; the simpler path is to delete the two PVCs in the `pegaprox` namespace, let the pod recreate them, and redo this guide.
-- Lost `db_key`: the same. The database cannot be read without it.
+- Lost `DB_KEY`: the same. The database cannot be read without it.
 - Pod will not start after a host change: nothing on the hosts can stop the pod. Check `kubectl -n pegaprox describe pod` for the volumes on `k8s-worker-3`.
 
 ## Sources

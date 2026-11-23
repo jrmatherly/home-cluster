@@ -5,7 +5,7 @@ sidebar:
   order: 10
 ---
 
-Radar is a Kubernetes UI with a timeline. It signs users in with Pocket ID itself and acts as the signed-in user through impersonation. This guide covers the OIDC client, the two `[radar]` fields, the role binding that decides what a user may do, the `radar-db` cluster, and the health check. The deployment itself is in Git: the `[radar]` section of `cluster.toml` and `kubernetes/apps/radar/`. Pocket ID itself is on the [Pocket ID](/apps/pocket-id/) page.
+Radar is a Kubernetes UI with a timeline. It signs users in with Pocket ID itself and acts as the signed-in user through impersonation. This guide covers the OIDC client, the `[radar]` field and its vault item, the role binding that decides what a user may do, the `radar-db` cluster, and the health check. The deployment itself is in Git: the `[radar]` section of `cluster.toml` and `kubernetes/apps/radar/`. Pocket ID itself is on the [Pocket ID](/apps/pocket-id/) page.
 
 Radar is served at `https://radar.${SECRET_DOMAIN}` on the internal gateway only, so only the LAN reaches it (repo, `app/helmrelease.yaml.j2`; decision 2026-10-04, Radar stays LAN-only when Pocket ID goes public). The pod can act as anyone, so a NetworkPolicy admits only the gateway's `network` namespace on 9280 (repo, `app/networkpolicy.yaml.j2`).
 
@@ -30,18 +30,18 @@ Copy the client ID and the secret. Pocket ID shows the secret once.
 
 ## Fill `[radar]` and deploy
 
-Two fields, set together or not at all (repo, `validate.py`, `Radar`):
+One field in the config and one in the vault:
 
 - `oidc_client_id`: the client ID. Letters, digits and `._~-` only (repo, `validate.py`). Setting it is what deploys Radar (repo, `validate.py`, `radar_enabled`).
-- `oidc_client_secret`: the secret. It goes into the SOPS-encrypted Secret `radar-oidc` under `client-secret` (repo, `app/secret.sops.yaml.j2`).
+- The secret goes in the vault item `radar` as `OIDC_CLIENT_SECRET` ([External Secrets and 1Password](/apps/external-secrets/)). An ExternalSecret builds the Secret `radar-oidc` from it, under `client-secret` (repo, `app/externalsecret.yaml.j2`).
 
 `[radar]` needs `[pocket_id]` (repo, `validate.py`), which in turn needs `[postgres.backup]`.
 
-1. Fill both fields in `cluster.toml`.
+1. Fill `oidc_client_id` in `cluster.toml` and the field in the vault.
 2. `just configure`, then restore the sops files whose inputs did not change:
 
    ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
    ```
 
 3. Commit the rendered `kubernetes/apps/radar/` and push. `just kube reconcile` makes Flux pull now.

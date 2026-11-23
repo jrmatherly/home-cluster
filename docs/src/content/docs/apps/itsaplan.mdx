@@ -11,23 +11,23 @@ It is served at `https://plan.${SECRET_DOMAIN}` on the internal gateway only, so
 
 ## Fill the section
 
-The section needs `[postgres.backup]` and `[rustfs]` to be set. Generate its four secrets, put them in the `[itsaplan]` section of `cluster.toml`, and set all four together:
+The section needs `[postgres.backup]` and `[rustfs]` to be set. Generate its four secrets, put them in the vault item `itsaplan` under the labels in the comments ([External Secrets and 1Password](/apps/external-secrets/)), and set `enabled = true` in the `[itsaplan]` section of `cluster.toml`:
 
 ```sh
-openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo   # better_auth_secret
-openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo   # app_encryption_key
-openssl rand -hex 16                                             # rustfs_access_key
-openssl rand -hex 32                                             # rustfs_secret_key
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo   # BETTER_AUTH_SECRET
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo   # APP_ENCRYPTION_KEY
+openssl rand -hex 16                                             # RUSTFS_ACCESS_KEY
+openssl rand -hex 32                                             # RUSTFS_SECRET_KEY
 ```
 
 <Aside type="caution">
-Never change `app_encryption_key` once it is set. The app encrypts the provider keys it stores with it, and a new key makes them unreadable.
+Never change `APP_ENCRYPTION_KEY` once it is set. The app encrypts the provider keys it stores with it, and a new key makes them unreadable.
 </Aside>
 
 Then run `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push:
 
 ```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 The `rustfs-provision` Job reruns, because its list of consumers changed. It creates the `itsaplan-attachments` bucket and an account scoped to it.

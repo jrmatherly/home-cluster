@@ -41,12 +41,18 @@ Pinned pods sit Pending while their node is down and schedule by themselves when
 
 ## How a change reaches the cluster
 
-`cluster.toml` is gitignored and holds every address, key and password. `just configure` loads it
-through `validate.py`, a pydantic model with defaults and cross-field checks, then through
-`plugin.py`, which hands the validated config, the keys and the tunnel secrets to makejinja as
+`cluster.toml` is gitignored and holds every address and setting, and no secret. `just configure`
+loads it through `validate.py`, a pydantic model with defaults and cross-field checks, then through
+`plugin.py`, which hands the validated config and the age and deploy keys to makejinja as
 template data. makejinja renders the `.j2` sources under `template/config/` into `bootstrap/`,
-`kubernetes/` and `talos/` at the repo root. The same recipe sops-encrypts every `*.sops.*` file
-with the age key, runs kubeconform on `kubernetes/` and checks that topf can render `talos/`.
+`kubernetes/` and `talos/` at the repo root. The same recipe runs kubeconform on `kubernetes/` and
+checks that topf can render `talos/`.
+
+Secrets live in a 1Password vault. External Secrets Operator reads it through a 1Password Connect
+server in the cluster and builds every app's Kubernetes Secret, so a secret changes in the vault
+and never in Git ([External Secrets and 1Password](/apps/external-secrets/)). Three sops files
+remain until the migration finishes: the two bootstrap Secrets, which `just configure` encrypts
+with the age key, and the Talos secrets bundle.
 
 The data flows in one direction. Edit the `.j2` source, never the rendered copy. Flux reconciles
 `kubernetes/` from Git, so a Kubernetes change reaches the cluster by re-rendering, committing and
@@ -115,7 +121,7 @@ NetworkPolicy that admits only that namespace. Instances are never shared betwee
 `security/pocket-id` is Pocket ID, a passkey OpenID Connect provider at `auth.${SECRET_DOMAIN}`
 on the internal gateway. Passkeys are bound to that hostname, so it must not change.
 `pocket_id.public = true` also attaches the route to the external gateway. Each OIDC client is
-created by hand in Pocket ID and its ID and secret go in `cluster.toml`. Apps sign in one of
+created by hand in Pocket ID. Its ID goes in `cluster.toml` and its secret in the vault. Apps sign in one of
 three ways.
 
 - Their own OIDC: Grafana, Radar, Reactive Resume, Actual Budget, Network Optimizer, AI
@@ -153,8 +159,8 @@ chart's `plugins` list. Infinity is always on. The GitHub data source (a GitHub 
 data source (an internal integration) and the LLM app (pointed at LocalAI when
 `nvidia_enabled`) are each gated by their own fields. See the Grafana plugins page.
 
-The optional `discord_webhook` gives Alertmanager a Discord receiver. Without it every alert goes
-to the `null` receiver. The optional `heartbeat_url` also sends the always-firing `Watchdog` alert to
+The optional `discord` flag, with the webhook in the vault, gives Alertmanager a Discord receiver. Without it every alert goes
+to the `null` receiver. The optional `heartbeat` flag also sends the always-firing `Watchdog` alert to
 an outside service, which pages when the pings stop, so a dead Prometheus or Alertmanager is noticed.
 Rules for certificates, Flux objects and sources, CloudNativePG and the Proxmox hosts sit beside what
 they watch.
@@ -170,12 +176,14 @@ section or field that renders it; "always" means it renders for every config.
 | `ai`                | `localai`                | `nvidia_enabled`                                       | internal (WebUI, with `localai.oidc_client_id`)             | LocalAI on the GPU behind an API key; the llama-cpp backend and the chat and embedding models are image volumes |
 | `ai-workspace`      | `ai-workspace`           | `[ai_workspace]`                                       | internal, external with `public`                            | Multi-model chat UI with its own Pocket ID login, plus a browserless pod for Browsing |
 | `ai-kb`             | `ai-kb`                  | `[ai_kb]`                                              | internal and external (self-serve sign-up is LAN-only)      | Knowledge base with retrieval-augmented chat, its own login plus Pocket ID, LocalAI's models as built-in defaults |
-| `ai-kb`             | `searxng`                | `ai_kb.searxng_secret`                                 | none                                                        | SearXNG, JSON-only web search for AI KB                                |
+| `ai-kb`             | `searxng`                | `ai_kb.searxng`                                        | none                                                        | SearXNG, JSON-only web search for AI KB                                |
 | `cert-manager`      | `cert-manager`           | always                                                 | none                                                        | Wildcard certificate for `${SECRET_DOMAIN}`                            |
 | `cnpg-system`       | `cloudnative-pg`         | always                                                 | none                                                        | CloudNativePG operator and the `postgres-backup` alert rules           |
 | `cnpg-system`       | `plugin-barman-cloud`    | always                                                 | none                                                        | Object-store backups for every Postgres cluster                        |
 | `default`           | `echo`                   | always                                                 | external, internal when `ingress.mode` is `none`            | Echo server for testing the ingress path                               |
 | `docs`              | `docs`                   | always                                                 | internal                                                    | This site, built from `docs/` by CI                                    |
+| `external-secrets`  | `external-secrets`       | `onepassword.vault`, required                          | none                                                        | External Secrets Operator, which builds every app's Secret             |
+| `external-secrets`  | `onepassword-connect`    | `onepassword.vault`, required                          | none                                                        | 1Password Connect and the `ClusterSecretStore` that reads the vault    |
 | `flux-system`       | `flux-operator`          | always                                                 | none                                                        | Installs and manages Flux                                              |
 | `flux-system`       | `flux-instance`          | always                                                 | external, internal when `ingress.mode` is `none`            | Flux itself, with the Git webhook route                                |
 | `kener`             | `kener`                  | `[kener]`                                              | internal, external for the status page only                 | Status page with uptime monitoring, Redis job queue                    |

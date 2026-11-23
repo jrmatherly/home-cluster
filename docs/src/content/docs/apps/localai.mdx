@@ -23,7 +23,7 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
 
 ## Generate the key
 
-`[localai] api_key` is required whenever a node loads the nvidia kernel module (source, `validate.py`, "localai.api_key is required when a node loads the nvidia kernel module"). It must be at least 32 letters and digits (source, `validate.py`, `ApiKey`).
+`API_KEY` in the vault item `localai` is required whenever a node loads the nvidia kernel module (source, `secret_map.py`, the `nvidia_enabled` gate). It must be at least 32 letters and digits (source, `secret_map.py`, `API_KEY`). `just template secrets-check` reports it when it is missing or malformed.
 
 1. Generate it:
 
@@ -31,14 +31,13 @@ Each claim names its source. "Source" is a file in this repo. "Measured" means i
     openssl rand -hex 32
     ```
 
-2. Put it in `cluster.toml` as `api_key` under `[localai]`.
-3. `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push.
+2. Put it in the vault item `localai` as `API_KEY` ([External Secrets and 1Password](/apps/external-secrets/)). Nothing in Git changes.
 
 The key is a legacy LocalAI API key. It grants full admin to whoever holds it, and it closes every route but `/healthz`, `/readyz` and discovery to everyone else (measured). That is why the gallery endpoint and runtime settings are disabled as well. Treat it like a root credential.
 
 ## The consumers
 
-Each client sends the key as a bearer token. One `just configure` writes it into five Secrets: `localai-secret` for LocalAI itself, and one for each of the four consumers that hold it (source, the templates named below).
+Each client sends the key as a bearer token. ExternalSecrets copy the one vault field into five Secrets: `localai-secret` for LocalAI itself, and one for each of the four consumers that hold it (source, the templates named below).
 
 | Consumer | Gate | How it gets the key | How it reaches LocalAI |
 | --- | --- | --- | --- |
@@ -88,13 +87,13 @@ A warm restart takes 45 s from pod start to Ready (measured).
 
 ## The WebUI
 
-The WebUI is off by default. Setting `oidc_client_id` and `oidc_client_secret` under `[localai]` turns it on at `https://localai.${SECRET_DOMAIN}` on the internal gateway (source, `validate.py`, `localai_webui_enabled`). It renders the `localai` HTTPRoute on `envoy-internal` and the `localai` SecurityPolicy, puts the client secret in the `localai-oidc` Secret, and the NetworkPolicy then admits the `network` namespace, where the gateway runs (source, `kustomization.yaml.j2`, `networkpolicy.yaml.j2`).
+The WebUI is off by default. Setting `oidc_client_id` under `[localai]` turns it on at `https://localai.${SECRET_DOMAIN}` on the internal gateway (source, `validate.py`, `localai_webui_enabled`). It renders the `localai` HTTPRoute on `envoy-internal` and the `localai` SecurityPolicy, puts the client secret in the `localai-oidc` Secret, and the NetworkPolicy then admits the `network` namespace, where the gateway runs (source, `kustomization.yaml.j2`, `networkpolicy.yaml.j2`).
 
 The SecurityPolicy is a copy of Hubble's. The gateway signs users in with Pocket ID and admits only a token minted for this client (`audiences`) whose `groups` claim contains `cluster_admins` (source, `securitypolicy.yaml.j2`). LocalAI needs that sign-in in front of it, because it serves the WebUI shell, `/login` and the static assets to anyone (source, LocalAI v4.11.0, `core/http/auth/public_routes.go`).
 
 1. Create a Pocket ID OIDC client as [the recipe on the Pocket ID page](/apps/pocket-id/#register-another-app-as-an-oidc-client) describes. Callback URL `https://localai.${SECRET_DOMAIN}/oauth2/callback`. Include the `groups` scope and restrict the client to `cluster_admins`.
-2. Put the client ID and secret in `cluster.toml` as `oidc_client_id` and `oidc_client_secret` under `[localai]`.
-3. `just configure`, restore the `*.sops.*` files whose inputs did not change (keep the new `localai-oidc` Secret), commit and push. Flux rolls the LocalAI pod, because `LOCALAI_DISABLE_WEBUI` changes.
+2. Put the client ID in `cluster.toml` as `oidc_client_id` under `[localai]`, and the secret in the vault item `localai` as `OIDC_CLIENT_SECRET`.
+3. `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push. Flux rolls the LocalAI pod, because `LOCALAI_DISABLE_WEBUI` changes.
 4. Open `https://localai.${SECRET_DOMAIN}` and sign in with Pocket ID.
 5. LocalAI's own sign-in page, `/app/login`, asks for a key (`/` redirects to `/app`, the SPA; the server path `/login` answers 404, measured). Paste the API key once. LocalAI checks it and keeps it in a `token` cookie (source, LocalAI v4.11.0, `core/http/routes/auth.go`, `POST /api/auth/token-login`).
 

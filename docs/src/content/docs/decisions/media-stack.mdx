@@ -23,7 +23,7 @@ Attributions follow the plan: "fetched" means the page was read, "snippet" means
 - Sign-in is one Envoy Gateway `SecurityPolicy` in `media/shared` that signs users in with Pocket ID and admits only `cluster_admins`. It selects every HTTPRoute labelled `media.sign-in: pocket-id` through `targetSelectors` (revised from the plan's one policy per route). The arrs run with `AUTH__METHOD=External`, and a NetworkPolicy admits only the `network` namespace and the stack's own pods.
 - Each arr and SABnzbd gets a second HTTPRoute for `/api` on the internal gateway only, without the policy, so the API key is the credential there and a mobile client works over the LAN. Tautulli gets the same route.
 - Seerr keeps its own Plex login and no `SecurityPolicy`. `public = true` attaches every UI route to the external gateway as well; the `/api` routes stay internal.
-- Plex stays an LXC on the media host and reads the same dataset through a bind mount; `plex_host` and `plex_token` script the arrs' Plex connection.
+- Plex stays an LXC on the media host and reads the same dataset through a bind mount; `plex_host` and the Plex token in the vault script the arrs' Plex connection.
 
 ### Per app
 

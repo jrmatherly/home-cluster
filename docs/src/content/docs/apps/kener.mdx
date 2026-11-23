@@ -5,7 +5,7 @@ sidebar:
   order: 13
 ---
 
-This guide takes Kener from the templates in Git to a public status page with uptime monitoring. It covers the secret key, the first admin account, the Pocket ID sign-in, the Redis job queue, ping monitors, mail, backups and the health check. The deployment itself is in Git: the `[kener]` and `[redis]` sections of `cluster.toml`, `kubernetes/apps/kener/` and `kubernetes/components/redis/`.
+This guide takes Kener from the templates in Git to a public status page with uptime monitoring. It covers the secret key in the vault, the first admin account, the Pocket ID sign-in, the Redis job queue, ping monitors, mail, backups and the health check. The deployment itself is in Git: the `[kener]` and `[redis]` sections of `cluster.toml`, `kubernetes/apps/kener/` and `kubernetes/components/redis/`.
 
 Kener is served at `https://status.${SECRET_DOMAIN}`. The internal gateway serves all of it. The external gateway serves the status page and answers 404 for `/manage`, `/account` and `/api`, so the admin pages and the API work only from the LAN (template, `httproute.yaml.j2`).
 
@@ -18,16 +18,16 @@ Each step names its source. "Docs" is [Kener's OpenID Connect page](https://kene
 
 ## The secret key
 
-`secret_key` signs sessions and API keys and turns the section on. It needs at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out and invalidates every API key (`cluster.sample.toml`; `Kener` in `validate.py`). It reaches the pod as `KENER_SECRET_KEY` in the sops Secret `kener-secret`.
+`SECRET_KEY` in the vault item `kener` signs sessions and API keys ([External Secrets and 1Password](/apps/external-secrets/)). It needs at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out and invalidates every API key (`cluster.sample.toml`). It reaches the pod as `KENER_SECRET_KEY` in the Secret `kener-secret`, which an ExternalSecret builds.
 
 ## Fill `cluster.toml` and deploy
 
-1. Set `[redis] password` (at least 24 letters and digits) if it is not set yet, and `[kener] secret_key`. The validator also needs an ingress mode other than `none` (`validate.py`).
-2. Optional: `smtp_url` and `mail_from`, together (see Mail below).
+1. Set `[redis] enabled = true` if it is not set yet, with `PASSWORD` (at least 24 letters and digits) in the vault item `redis`, and `[kener] enabled = true`. The validator also needs an ingress mode other than `none` (`validate.py`).
+2. Optional: `smtp = true` and the mail fields in the vault (see Mail below).
 3. `just configure`, then restore the sops files whose inputs did not change:
 
    ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
    ```
 
 4. Commit and push. The `wait-for-stores` init container holds Kener until `kener-db-rw:5432` and `redis:6379` accept connections, because Kener exits when its migrations cannot reach the database (template).
@@ -74,7 +74,7 @@ The namespace enforces `restricted`. The image's `ping` carries the `NET_RAW` fi
 
 ## Mail
 
-`smtp_url` and `mail_from` are set together or not at all. `smtps://` uses TLS from the first byte (port 465 unless given); `smtp://` upgrades with STARTTLS (port 587 unless given). Percent-encode an at sign in the user or password (`%40`). Kener ignores its mail settings without a host, a user and a password, so the validator refuses a URL missing any of them (`cluster.sample.toml`; `validate.py`). The renderer splits the URL into `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` and `SMTP_PASS`, plus `SMTP_FROM_EMAIL` from `mail_from`, all in `kener-secret` (`kener_smtp` in `validate.py`; template, `secret.sops.yaml.j2`).
+`smtp = true` in `[kener]` turns mail on. The vault item `kener` then holds `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` (`1` for TLS from the first byte, `0` for STARTTLS), `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`, the sender address. Kener ignores its mail settings without a host, a user and a password, and `just template secrets-check` reports a field that is missing (`cluster.sample.toml`; `secret_map.py`). The ExternalSecret copies them into `kener-secret`, `MAIL_FROM` as `SMTP_FROM_EMAIL` (`kener_smtp` in `validate.py`; template, `externalsecret.yaml.j2`).
 
 ## Backups
 

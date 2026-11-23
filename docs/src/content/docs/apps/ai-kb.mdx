@@ -23,24 +23,28 @@ The database loads `pg_search` from ParadeDB's extension image as an image volum
 
 ## cluster.toml
 
-Section `[ai_kb]`, after `[ai_workspace.env]`:
+Section `[ai_kb]`, after `[ai_workspace]`:
 
-- `jwt_secret`: at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out.
-- `aes_key`: exactly 32 letters and digits, from `openssl rand -hex 16`. It encrypts the API keys and credentials AI KB stores. Never change it: what it encrypted becomes unreadable.
+- `enabled = true`.
 - `admin_email`: the operator's address. The app promotes the account with this address to system administrator at startup, as long as no system administrator exists yet.
+
+The vault item `ai-kb` holds the secrets ([External Secrets and 1Password](/apps/external-secrets/)):
+
+- `JWT_SECRET`: at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out.
+- `AES_KEY`: exactly 32 letters and digits, from `openssl rand -hex 16`. It encrypts the API keys and credentials AI KB stores. Never change it: what it encrypted becomes unreadable.
 
 Then `just configure`, restore the sops files that did not change:
 
 ```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 Commit the rendered `kubernetes/apps/ai-kb/` and push. `just kube reconcile` makes Flux pull now.
 
 ### Files on RustFS
 
-With `rustfs_access_key` and `rustfs_secret_key` set (generate them with `openssl rand -hex 16` and
-`openssl rand -hex 32`; they need `[rustfs]`), the `ai-kb-files` bucket on RustFS becomes the
+With `rustfs = true` and the vault fields `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` set (generate them with `openssl rand -hex 16` and
+`openssl rand -hex 32`; the flag needs `[rustfs]`), the `ai-kb-files` bucket on RustFS becomes the
 default storage backend: the chart's `STORAGE_TYPE` becomes `s3`, the `S3_*` settings point
 at `http://rustfs-svc.rustfs.svc.cluster.local:9000` with path-style requests, the pair reaches the
 app from `ai-kb-secret`, and `SSRF_WHITELIST_EXTRA` names the
@@ -61,21 +65,21 @@ KB wraps its chat, embedding, rerank, VLM and ASR models and its knowledge inges
 paths in Langfuse tracers, so traces carry full prompts and answers and the chunk text of every
 ingested document. It is off by default and on in this cluster since 2026-10-18, so Langfuse holds the same content
 as AI KB, which is why it stays on the internal gateway behind the `cluster_admins` group. Langfuse creates the
-project keys on its first start only, so a later change to the pair in `cluster.toml` must also be
+project keys on its first start only, so a later change to the pair in the vault must also be
 made in Langfuse's project settings, or every export gets 401 silently. The app reads `LANGFUSE_HOST`, set to
 `http://langfuse-web.langfuse.svc.cluster.local:3000`, `LANGFUSE_ENVIRONMENT` `home`, and the
-project key pair from `[langfuse]`, which reaches it through `ai-kb-secret`; tracing turns on when
+project key pair from the vault item `langfuse`, which reaches it through `ai-kb-secret`; tracing turns on when
 both keys are set. The exporter is the stock OTLP client, not the SSRF-safe one, so the host needs
 no `SSRF_WHITELIST_EXTRA` entry (read in the app's source at the pinned tag). The namespace gets the
 `langfuse.tracing/client` label that Langfuse's NetworkPolicy admits on port 3000.
 
 ### GraphRAG with Neo4j
 
-With `neo4j_password` set (letters and digits, at least 32, from `openssl rand -hex 16`), the chart's own Neo4j runs in the namespace (image `neo4j:2026.09.0` from the chart, a Deployment with `Recreate` on a 10Gi `local-path` claim, `ai-kb-neo4j`), and the chart sets `NEO4J_ENABLE`, `NEO4J_URI` (`bolt://neo4j:7687`) and the `neo4j` user's credentials on the app. The password reaches the chart through the values document in `ai-kb-secret`. A knowledge base with graph extraction on makes extra LocalAI calls for every document it imports. Neo4j stores the password on its first start, so a later change must also be made inside Neo4j, or the app cannot sign in. The app tries Neo4j 30 times, two seconds apart, then exits (read in the app's source at the pinned tag), so on a fresh enable it restarts until Neo4j answers. The ingress NetworkPolicy admits the app pod on 7687.
+With `neo4j = true` and the vault field `NEO4J_PASSWORD` set (letters and digits, at least 32, from `openssl rand -hex 16`), the chart's own Neo4j runs in the namespace (image `neo4j:2026.09.0` from the chart, a Deployment with `Recreate` on a 10Gi `local-path` claim, `ai-kb-neo4j`), and the chart sets `NEO4J_ENABLE`, `NEO4J_URI` (`bolt://neo4j:7687`) and the `neo4j` user's credentials on the app. The password reaches the chart through the values document in `ai-kb-secret`. A knowledge base with graph extraction on makes extra LocalAI calls for every document it imports. Neo4j stores the password on its first start, so a later change must also be made inside Neo4j, or the app cannot sign in. The app tries Neo4j 30 times, two seconds apart, then exits (read in the app's source at the pinned tag), so on a fresh enable it restarts until Neo4j answers. The ingress NetworkPolicy admits the app pod on 7687.
 
 ### Web search with SearXNG
 
-With `searxng_secret` set (letters and digits, at least 32, from `openssl rand -hex 32`), SearXNG runs in the namespace as its own Flux app, `searxng` (app-template, image `docker.io/searxng/searxng` pinned by digest), for the app's web search. It is internal only and answers JSON only: no HTTPRoute, `search.formats: [json]` (any other format gets 403), the image proxy and the rate limiter off, and a NetworkPolicy that admits only the app pod on 8080 and lets SearXNG reach DNS and public addresses on 80 and 443. Its `settings.yml` in the `searxng-settings` ConfigMap is a short override of SearXNG's defaults, mounted by `subPath` at `/etc/searxng/settings.yml`, because the entrypoint checks that the image's `/etc/searxng` directory exists and writes a settings file only when none is there. The secret is not in that file: it reaches the pod as `SEARXNG_SECRET`, which the app reads over `secret_key`, and without it the app refuses to start. The pod runs as uid 977 on a read-only root with every capability dropped, emptyDirs at `/tmp` (its SQLite caches) and `/var/cache/searxng` (the data directory the entrypoint checks), `enableServiceLinks: false`, and probes on `/healthz`. In Docker under that shape it used about 135 MiB idle and 150 MiB after eight concurrent searches, so it requests 192Mi. The Service host joins `SSRF_WHITELIST_EXTRA`, and the egress fence admits the SearXNG pod on 8080.
+With `searxng = true` and the vault field `SEARXNG_SECRET` set (letters and digits, at least 32, from `openssl rand -hex 32`), SearXNG runs in the namespace as its own Flux app, `searxng` (app-template, image `docker.io/searxng/searxng` pinned by digest), for the app's web search. It is internal only and answers JSON only: no HTTPRoute, `search.formats: [json]` (any other format gets 403), the image proxy and the rate limiter off, and a NetworkPolicy that admits only the app pod on 8080 and lets SearXNG reach DNS and public addresses on 80 and 443. Its `settings.yml` in the `searxng-settings` ConfigMap is a short override of SearXNG's defaults, mounted by `subPath` at `/etc/searxng/settings.yml`, because the entrypoint checks that the image's `/etc/searxng` directory exists and writes a settings file only when none is there. The secret is not in that file: it reaches the pod as `SEARXNG_SECRET`, which the app reads over `secret_key`, and without it the app refuses to start. The pod runs as uid 977 on a read-only root with every capability dropped, emptyDirs at `/tmp` (its SQLite caches) and `/var/cache/searxng` (the data directory the entrypoint checks), `enableServiceLinks: false`, and probes on `/healthz`. In Docker under that shape it used about 135 MiB idle and 150 MiB after eight concurrent searches, so it requests 192Mi. The Service host joins `SSRF_WHITELIST_EXTRA`, and the egress fence admits the SearXNG pod on 8080.
 
 It queries SearXNG's default general engines (DuckDuckGo, Brave, Wikipedia, Wikidata, Google CSE and a few dictionary engines). From one home address some of them answer with a CAPTCHA or a rate limit at times, and SearXNG then suspends them and lists them under `unresponsive_engines`, so results thin out after a burst. Upstream suspends an engine for an hour after a CAPTCHA, three minutes after a rate limit or access denied, and 15 days after a Cloudflare CAPTCHA (read in SearXNG's `settings.yml`). Google, Bing and Startpage stay off, as they ship, because one address gets refused there fastest; the live check on 2026-10-18 got 20 results from Google CSE and Wikipedia while Brave and DuckDuckGo were suspended. The tags are `<year>.<month>.<day>-<commit>`, several per day, so a Renovate rule reads the date part as the version. Builds from the same day compare equal under that rule, so after a bump check that the pinned digest is the day's `latest`.
 
@@ -96,7 +100,7 @@ kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -d app -c 'select version, 
 
 ## Sign-up and the first admin
 
-Password sign-up stays open until the Pocket ID pair (`oidc_client_id` and `oidc_client_secret`) is set, because before that it is the only way to create an account. Anyone who can reach the form then gets a workspace (tenant) of their own, so the external gateway answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, and accounts are created from the LAN, where `ai-kb.${SECRET_DOMAIN}` resolves to the internal gateway through UniFi DNS.
+Password sign-up stays open until the Pocket ID client (`oidc_client_id`, with `OIDC_CLIENT_SECRET` in the vault) is set, because before that it is the only way to create an account. Anyone who can reach the form then gets a workspace (tenant) of their own, so the external gateway answers 404 for `POST /api/v1/auth/register` through the `ai-kb-not-found` HTTPRouteFilter on the `ai-kb-public` route, and accounts are created from the LAN, where `ai-kb.${SECRET_DOMAIN}` resolves to the internal gateway through UniFi DNS.
 
 With the pair set, `DISABLE_REGISTRATION=true` puts the app in `invite_only` mode: the register form is hidden, and `POST /api/v1/auth/register` and registration by invitation are both refused. A new account then comes from a first Pocket ID sign-in, which creates it, or from a system administrator in the UI; an invitation only adds an account that exists to a workspace. The gateway's 404 stays as defence in depth. A registration mode saved in the UI (`auth.registration_mode` in the system settings, stored in the database) takes precedence over the env var (read in the app's source at the pinned tag).
 
@@ -122,14 +126,14 @@ A new client in Pocket ID, named `AI KB`:
 - Callback URL: `https://ai-kb.${SECRET_DOMAIN}/api/v1/auth/oidc/callback` (exactly this; the login page builds it from the browser origin)
 - Confidential client, scopes `openid profile email`; the app reads the email from `email` and the username from `name`, falling back to `preferred_username`
 
-Copy the client ID and the secret into `oidc_client_id` and `oidc_client_secret` in `[ai_kb]`, then `just configure`, restore, commit, push and `just kube reconcile`. The HelmRelease adds the `OIDC_AUTH_*` env vars (the chart has no OIDC values), the secret comes from `ai-kb-secret`, and Reloader restarts the pod when that Secret changes. `SSRF_WHITELIST_EXTRA` names `auth.${SECRET_DOMAIN}`, because pods resolve it to the internal gateway's private address, which the app's SSRF-safe HTTP client refuses for discovery otherwise. A bad value is a crash loop, not a silent fallback: the app refuses to start when `OIDC_AUTH_ENABLE` is set without the client, secret and discovery URL.
+Copy the client ID into `oidc_client_id` in `[ai_kb]` and the secret into the vault item `ai-kb` as `OIDC_CLIENT_SECRET`, then `just configure`, restore, commit, push and `just kube reconcile`. The HelmRelease adds the `OIDC_AUTH_*` env vars (the chart has no OIDC values), the secret comes from `ai-kb-secret`, and Reloader restarts the pod when that Secret changes. `SSRF_WHITELIST_EXTRA` names `auth.${SECRET_DOMAIN}`, because pods resolve it to the internal gateway's private address, which the app's SSRF-safe HTTP client refuses for discovery otherwise. A bad value is a crash loop, not a silent fallback: the app refuses to start when `OIDC_AUTH_ENABLE` is set without the client, secret and discovery URL.
 
 Done when `GET /api/v1/auth/oidc/config` reports `enabled: true` with the display name `Pocket ID` and `GET /api/v1/auth/oidc/start` answers a 302 to Pocket ID. The first Pocket ID sign-in with an address that already has an account links to it; any other address gets a new account, which is why Pocket ID's "allow users to edit their own account details" stays off.
 
 `OIDC_AUTH_EXTENSION_RETURN_URLS` names the browser extension's store-assigned return origins (Chrome Web Store, then Edge Add-ons), so its OIDC sign-in returns to the extension. Whether the Pocket ID client also needs those URLs as callbacks is not recorded.
 
 ## Models and keys
-LocalAI's models arrive declaratively. The `ai-kb-models` ConfigMap is the app's `builtin_models.yaml` (`BUILTIN_MODELS_CONFIG` names the mount), which the app upserts into its `models` table on every start as built-in defaults visible to every workspace: the chat model `qwen-3.5-4b` (`KnowledgeQA`, context window 16384, one LocalAI slot) and the embedding model `nomic-embed-text-v1.5` (768 dimensions), both provider `generic` at `http://localai.ai.svc.cluster.local:8080/v1` with the key as `${LOCALAI_API_KEY}` from `ai-kb-secret`. Removing an entry from the ConfigMap retires that model on the next start; a model added in the UI is never touched by the loader. Other providers and their API keys are entered per tenant in the app's settings and stored encrypted with `aes_key` in the database.
+LocalAI's models arrive declaratively. The `ai-kb-models` ConfigMap is the app's `builtin_models.yaml` (`BUILTIN_MODELS_CONFIG` names the mount), which the app upserts into its `models` table on every start as built-in defaults visible to every workspace: the chat model `qwen-3.5-4b` (`KnowledgeQA`, context window 16384, one LocalAI slot) and the embedding model `nomic-embed-text-v1.5` (768 dimensions), both provider `generic` at `http://localai.ai.svc.cluster.local:8080/v1` with the key as `${LOCALAI_API_KEY}` from `ai-kb-secret`. Removing an entry from the ConfigMap retires that model on the next start; a model added in the UI is never touched by the loader. Other providers and their API keys are entered per tenant in the app's settings and stored encrypted with `AES_KEY` in the database.
 The ai-kb namespace carries the `localai.ai/client` label that LocalAI's NetworkPolicy admits, and `SSRF_WHITELIST_EXTRA` on the app names `localai.ai.svc.cluster.local`, because the Service resolves to a cluster address the app's SSRF-safe HTTP client refuses otherwise (measured 2026-10-18: the pod's own curl listed both models once the label and allowlist were in place).
 
 ## Network

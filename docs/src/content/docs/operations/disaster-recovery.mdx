@@ -15,25 +15,32 @@ sidebar:
 
 ## Before anything: what a rebuild needs from outside Git
 
-Keep a copy of the first five files off these hosts, and not only on the workstation. The private runbook records where each copy is.
+Keep a copy of the first three files off these hosts, and not only on the workstation. The private runbook records where each copy is.
 
 | File | What it does | If it is lost |
 | --- | --- | --- |
-| `age.key` | Decrypts every `*.sops.*` file, the Talos PKI too | Nothing replaces it. The repo's secrets are unreadable. |
-| `cluster.toml` | Every setting and secret the render uses | Rebuild it by hand from the sample and each service's console |
+| `age.key` | Decrypts the sops files that remain: the two bootstrap Secrets and `talos/secrets.sops.yaml`, the Talos PKI | Nothing replaces it. The Talos secrets bundle is unreadable. |
+| `cluster.toml` | Every setting the render uses. It holds no secret | Rebuild it by hand from the sample |
 | `deploy.key` | Flux's Git access | Create a new deploy key |
-| `cloudflare-tunnel.json` | The tunnel's credentials | Create a new tunnel |
 | `talosconfig` | Talos API access | Regenerate it from `talos/secrets.sops.yaml` |
 | `kubeconfig` | Kubernetes API access | Regenerate it with `talosctl kubeconfig` |
-| `flux-webhook-token.txt` | Webhook token | Regenerate it, then re-render |
+
+Every other secret is in the 1Password vault, not in a file: each app's keys, the domain, the DNS token, the tunnel credentials (item `cloudflare-tunnel`) and the Flux webhook token (item `flux`). [External Secrets and 1Password](/apps/external-secrets/) lists the items. A rebuild depends on that vault in two places:
+
+- `just bootstrap apps` applies the Secrets that 1Password Connect starts from, and the domain, with `op inject`. It needs the `op` CLI signed in and internet access to 1Password, and stops without them.
+- The app Secrets are not in Git or in a file. They come back from the vault once External Secrets Operator and the Connect server are up, and an app's pods wait until then.
+
+A value lost from the vault is recreated at its service, except a key that encrypts stored data, such as PegaProx's `DB_KEY`: what it encrypted stays unreadable.
+
+The Talos secrets bundle, the two bootstrap Secrets and the age key are still the sops path, and that part of this page changes when the migration to 1Password finishes.
 
 ## Turn on the etcd snapshots
 
-`[etcd_backup]` in `cluster.toml` gates the `kube-system/etcd-snapshot` CronJob. A snapshot holds every object in the cluster, so it gets its own bucket and key pair. The validator refuses a bucket or access key shared with `[postgres.backup]`, whose pair every database namespace can read. It reuses that section's endpoint.
+`[etcd_backup]` in `cluster.toml` gates the `kube-system/etcd-snapshot` CronJob. A snapshot holds every object in the cluster, so it gets its own bucket and key pair. `just template secrets-check` reports a bucket or access key shared with `[postgres.backup]`, whose pair every database namespace can read. It reuses that section's endpoint.
 
 1. Run `just talos diff`, then `just talos apply`, before setting the section. The apply creates the `serviceaccounts.talos.dev` CRD and the `talos` Service the job needs, and changes only the control planes with no reboot (measured 2026-11-01).
 2. Create the bucket and an access key pair scoped to that bucket alone. The keys hold only letters, digits, `-` and `_`, because the job builds them into a URL.
-3. Run `just template scaffold etcd_backup`, fill in `bucket`, `access_key` and `secret_key`, then `just configure`, commit and push.
+3. Put `BUCKET`, `ACCESS_KEY` and `SECRET_KEY` in the vault item `etcd-backup`. Run `just template scaffold etcd_backup`, set `enabled = true`, then `just configure`, commit and push.
 4. Take the first one by hand and read its size in the job's log and in the bucket's listing, which should match:
 
     ```sh
@@ -92,7 +99,7 @@ A `local-path` volume lives on one node. CloudNativePG instances re-sync from a 
 
 | Volume | What is lost |
 | --- | --- |
-| `pegaprox/pegaprox` | Its database and keys. Restorable from a nightly copy, which also needs `db_key` |
+| `pegaprox/pegaprox` | Its database and keys. Restorable from a nightly copy, which also needs `DB_KEY` |
 | `network-optimizer/network-optimizer` | Settings, audit history and keys. Restorable from a nightly copy |
 | `rustfs/rustfs-data` | AI KB's files, restorable from a nightly copy, and Langfuse's events, which are not |
 | `langfuse/data-clickhouse-0` | Traces |

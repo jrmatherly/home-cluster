@@ -165,7 +165,7 @@ Then add it to the patch rule's allowlist in `.renovaterc.json5` for the weekend
 | Item | Where | What it is | Rotate |
 | --- | --- | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Repository secret | The token `claude setup-token` prints, which the `research` job signs in with | One year. Made 2026-10-25, so run `claude setup-token` again and replace the secret by 2027-10-25 |
-| `[github_runner].token` | `cluster.toml`, rendered into a sops Secret | A fine-grained personal access token on this repository with Administration read and write, which registers the runner | No expiry. Revoke it on GitHub's personal access tokens page if the runner is ever removed |
+| `TOKEN` in the vault item `github-runner` | 1Password, read by an ExternalSecret | A fine-grained personal access token on this repository with Administration read and write, which registers the runner | No expiry. Revoke it on GitHub's personal access tokens page if the runner is ever removed |
 | `CLUSTER_DOMAIN` | Repository secret | The cluster's domain, which the checks curl | Only when the domain changes |
 | `UPDATE_APPS_LIVE` | Repository variable | `true` lets the `apply` job merge. Anything else is a dry run | Set it to `true` after a dry run reads as expected. Clear it to pause every merge without touching the workflow |
 

@@ -34,14 +34,18 @@ the bucket contents, because a `local-path` volume cannot move.
 
 Section `[rustfs]`, after `[ai_kb]`:
 
-- `access_key`: the root access key, from `openssl rand -hex 16`.
-- `secret_key`: the root secret key, from `openssl rand -hex 32`.
+- `enabled = true`.
 - `node`: the worker from the step above.
+
+The vault item `rustfs` holds the root pair ([External Secrets and 1Password](/apps/external-secrets/)):
+
+- `ACCESS_KEY`: the root access key, from `openssl rand -hex 16`.
+- `SECRET_KEY`: the root secret key, from `openssl rand -hex 32`.
 
 Then `just configure`, restore the sops files that did not change:
 
 ```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 Commit the rendered `kubernetes/apps/rustfs/` and push. `just kube reconcile` makes Flux pull now.
@@ -59,19 +63,20 @@ consumers, its log ends with one `provisioned <app> in <bucket>` line each.
 
 The log carries no keys. `rc` prints the secret key when it creates or updates a service account, so
 the script sends that output to `/dev/null`. The first run on the cluster predates that change and
-printed both consumers' secret keys into the Job log. Those keys are the ones in `cluster.toml` and
+printed both consumers' secret keys into the Job log. Those keys are the ones now in the vault and
 were not rotated, and the Job that the change recreated logs none.
 
 ## Add a consumer
 
 An app that stores files in RustFS gets its own bucket and its own key pair, never the root pair.
 
-1. Add the key pair fields to the app's section in `cluster.toml` (AI KB and Langfuse each have
-   `rustfs_access_key` and `rustfs_secret_key`; generate them with `openssl rand -hex 16` and
-   `openssl rand -hex 32`). The validator refuses a pair whose access key another pair already uses.
+1. Add the key pair to the app's vault item (AI KB, Langfuse and It's a Plan each have
+   `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY`; generate them with `openssl rand -hex 16` and
+   `openssl rand -hex 32`), and turn the app's flag on in `cluster.toml`. `just template
+   secrets-check` reports a pair whose access key another pair already uses.
 2. `just configure`, commit and push.
-3. The app's entry in `rustfs_consumers` changes the checksum on the Job's pod template, so Flux
-   replaces the Job and it runs again. It creates the bucket if it is missing, then creates a
+3. The app's entry in `rustfs_consumers` changes the provisioning script, and so the name of the
+   ConfigMap the Job mounts, so Flux replaces the Job and it runs again. It creates the bucket if it is missing, then creates a
    service account with the app's keys and a policy that allows only that bucket, or updates the
    secret and policy of one that exists.
 4. Check `kubectl -n rustfs logs job/rustfs-provision` for the `provisioned` line.
@@ -85,9 +90,10 @@ admits only labelled namespaces. The app's template sets it.
 
 ## Rotate a key
 
-- A consumer's secret key: change it in the app's section, configure, commit and push. The Job
-  updates the service account, and Reloader restarts the app on its Secret change.
-- The root pair: change it in `[rustfs]` and push. The server restarts with the new pair, and
+- A consumer's secret key: change it in the app's vault item, raise `keys_revision` in `[rustfs]`,
+  configure, commit and push. The Job is recreated and updates the service account, and Reloader
+  restarts the app on its Secret change.
+- The root pair: change it in the vault item `rustfs`. The server restarts with the new pair, and
   consumer keys keep working, because they are service accounts stored in RustFS's own data.
 
 ## Updates

@@ -12,8 +12,8 @@ each night and keep 7 days.
 ## What it needs first
 
 - `[postgres.backup]`, because the jobs use its endpoint.
-- `db_key`, the age key and `cluster.toml` kept somewhere off the admin machine. Without `db_key` the
-  PegaProx backup is unreadable.
+- The age key and `cluster.toml` kept somewhere off the admin machine. PegaProx's `DB_KEY` is in the
+  1Password vault, item `pegaprox`. Without `DB_KEY` the PegaProx backup is unreadable.
 
 ## The bucket and token
 
@@ -26,10 +26,10 @@ as the UniFi key. Tokens scope to a bucket, not a prefix, and R2 has no write-on
 
 ## cluster.toml
 
-Fill the `[volume_backup]` block: `bucket`, `access_key`, `secret_key`. The keys may use letters,
-digits, `-` and `_`. Then `just configure`, restore the sops files that did not change, and commit and
-push the rendered files. The three new `backup-secret.sops.yaml` files are untracked, so the restore
-leaves them encrypted.
+Put `BUCKET`, `ACCESS_KEY` and `SECRET_KEY` in the vault item `volume-backup`
+([External Secrets and 1Password](/apps/external-secrets/)). The keys may use letters, digits, `-`
+and `_`. Set `enabled = true` in the `[volume_backup]` block. Then `just configure`, restore the
+sops files that did not change, and commit and push the rendered files.
 
 ## First run
 
@@ -47,7 +47,7 @@ Expect an object under `volumes/<namespace>/` in the bucket.
 A restored PegaProx without its key files returns health 200 and cannot read a single stored
 credential, so health proves nothing. Download the newest tar and run it with no network, because a
 restored app acts on the real Proxmox and UniFi. For PegaProx, open the database with the app's own
-code and the live `db_key`, and read the stored clusters: a wrong key raises an error. For Network
+code and the live `DB_KEY`, and read the stored clusters: a wrong key raises an error. For Network
 Optimizer, check `integrity_check`, the app's health, and that the hash of `.credential_key` matches
 the live one. Delete the tars afterwards.
 

@@ -36,23 +36,18 @@ GitHub recommends an App over a personal access token for a long-lived integrati
 2. Grant these repository permissions, all read-only (plugin docs): Metadata, Contents, Issues, Pull requests, Packages, Repository security advisories, Projects. Grant nothing else.
 3. Under "Where can this GitHub App be installed?", keep "Only on this account".
 4. Create the App. Its settings page shows the App ID. That value goes in `github_app_id`.
-5. On the same page, under Private keys, click "Generate a private key". GitHub downloads a `.pem` file that starts with `-----BEGIN RSA PRIVATE KEY-----` (GitHub docs). The whole file goes in `github_app_private_key`. Delete the download once it is in `cluster.toml`.
+5. On the same page, under Private keys, click "Generate a private key". GitHub downloads a `.pem` file that starts with `-----BEGIN RSA PRIVATE KEY-----` (GitHub docs). The whole file goes in the vault item `observability` as `GITHUB_APP_PRIVATE_KEY` ([External Secrets and 1Password](/apps/external-secrets/)). Delete the download once it is in the vault.
 6. Click Install App and install it on the repositories Grafana should read (GitHub docs). Pick only those repositories rather than all of them.
 7. After the install, GitHub opens `https://github.com/settings/installations/<id>`. The last part of that URL is the installation ID, and it goes in `github_app_installation_id` (plugin docs).
 
-In `cluster.toml`, the key is a multi-line literal string, with the three keys under `[observability]`:
+In `cluster.toml`, the two IDs go under `[observability]`:
 
 ```toml
 github_app_id              = "123456"
 github_app_installation_id = "12345678"
-github_app_private_key     = '''
------BEGIN RSA PRIVATE KEY-----
-...
------END RSA PRIVATE KEY-----
-'''
 ```
 
-The validator accepts the key only as a PEM block of base64 lines, and only with the other two fields. The key goes to the `grafana-secret` Secret, which sops encrypts.
+`just template secrets-check` accepts the key only as a PEM block of base64 lines. An ExternalSecret writes it to the `grafana-secret` Secret.
 
 ## Create the Sentry internal integration
 
@@ -60,18 +55,17 @@ An internal integration token does not expire, and one integration can hold up t
 
 1. In Sentry, open Settings, Developer Settings, Custom Integrations, and create an Internal Integration (Sentry docs). Name it `grafana`.
 2. Grant Read on Project, Issue & Event, and Organization (plugin docs). Leave everything else at No Access, and leave the webhook URL empty.
-3. Save, then copy the token from the integration's page. It goes in `sentry_token`.
+3. Save, then copy the token from the integration's page. It goes in the vault item `observability` as `SENTRY_TOKEN`.
 4. The organization slug is the last part of `https://sentry.io/organizations/<slug>/` (plugin docs). It goes in `sentry_org`.
 5. Pick the URL. `https://sentry.io` is the default and is what the plugin docs give for hosted Sentry. A US-region organization can also use `https://us.sentry.io`, and an EU-region one `https://de.sentry.io`. The organization's settings page shows its region (Sentry API docs, `docs.sentry.io/api`). Set `sentry_url` only when the default does not work.
 
 ```toml
-sentry_org   = "my-org"
-sentry_token = "<token>"
+sentry_org = "my-org"
 ```
 
 ## The LLM app
 
-The LLM app (`grafana-llm-app`) is installed whenever the cluster has an NVIDIA GPU, which is when LocalAI runs. It needs no field of its own. The ConfigMap `grafana-llm-app` holds its provisioning file, and the chart's plugins sidecar loads it into `/etc/grafana/provisioning/plugins` and asks Grafana to reload it. The file sets the `custom` provider, which uses the OpenAI client against `http://localai.ai.svc.cluster.local:8080` with the API path `/v1` and LocalAI's API key, read from Grafana's environment (`LOCALAI_API_KEY` in `grafana-secret`, from `[localai] api_key`). It maps the app's two abstract models, `base` and `large`, to `qwen-3.5-4b`, the model named in LocalAI's ConfigMap (source, `packages/grafana-llm-app/pkg/plugin/settings.go` and `llm_provider.go`, commit `ef243ce`). The `observability` namespace carries the label `localai.ai/client: "true"`, which LocalAI's NetworkPolicy requires.
+The LLM app (`grafana-llm-app`) is installed whenever the cluster has an NVIDIA GPU, which is when LocalAI runs. It needs no field of its own. The ConfigMap `grafana-llm-app` holds its provisioning file, and the chart's plugins sidecar loads it into `/etc/grafana/provisioning/plugins` and asks Grafana to reload it. The file sets the `custom` provider, which uses the OpenAI client against `http://localai.ai.svc.cluster.local:8080` with the API path `/v1` and LocalAI's API key, read from Grafana's environment (`LOCALAI_API_KEY` in `grafana-secret`, from `API_KEY` in the vault item `localai`). It maps the app's two abstract models, `base` and `large`, to `qwen-3.5-4b`, the model named in LocalAI's ConfigMap (source, `packages/grafana-llm-app/pkg/plugin/settings.go` and `llm_provider.go`, commit `ef243ce`). The `observability` namespace carries the label `localai.ai/client: "true"`, which LocalAI's NetworkPolicy requires.
 
 In Grafana 13.2 OSS, the app unlocks four generate buttons: a title and a description for a panel, and a title and a description for a dashboard. The panel buttons fit in a LocalAI slot.
 
@@ -107,9 +101,9 @@ A custom header instead of a bearer token uses `jsonData.httpHeaderName1` and `s
 
 ## Render, commit and push
 
-1. Fill the GitHub and Sentry fields in `cluster.toml`. They sit after `grafana_secret_key`, already commented out.
-2. Run `just configure`. It validates the fields, renders, and encrypts `secret.sops.yaml`.
-3. Restore every sops file whose plaintext did not change, as `CLAUDE.md` describes, but keep `kubernetes/apps/observability/kube-prometheus-stack/app/secret.sops.yaml`, which now holds the new values.
+1. Fill the GitHub and Sentry fields in `cluster.toml`, and the key and the token in the vault. `just template secrets-check` reports a vault field that is missing or malformed.
+2. Run `just configure`. It validates the fields and renders.
+3. Restore every sops file whose plaintext did not change, as `CLAUDE.md` describes.
 4. Commit and push. Flux reconciles within the hour, or run `just kube reconcile`.
 
 Grafana restarts, because the plugin list is part of its config checksum and Reloader also watches `grafana-secret`, and installs the new plugins at start.
@@ -130,10 +124,10 @@ Two dashboards ship with the data sources and appear in Grafana's General folder
 
 ## The Grafana OIDC client
 
-The optional `grafana_oidc_client_id` and `grafana_oidc_client_secret` pair under `[observability]` adds a Pocket ID sign-in to Grafana next to the password form, so the local `admin` account still works when Pocket ID is down. The validator wants both fields or neither, the three required `[observability]` fields, and `[pocket_id]` (source, `template/scripts/validate.py`). It has been set since 2026-10-04 (commit `e8f5ecb`).
+The optional `grafana_oidc_client_id` under `[observability]`, with the vault field `GRAFANA_OIDC_CLIENT_SECRET`, adds a Pocket ID sign-in to Grafana next to the password form, so the local `admin` account still works when Pocket ID is down. The validator wants `enabled` and `[pocket_id]` (source, `template/scripts/validate.py`). It has been set since 2026-10-04 (commit `e8f5ecb`).
 
 1. In Pocket ID, open `https://auth.${SECRET_DOMAIN}`, Admin, OIDC Clients, Add. Name it `Grafana`, with the callback URL `https://grafana.${SECRET_DOMAIN}/login/generic_oauth` (source, `cluster.sample.toml`). PKCE can stay on, because Grafana sends a challenge (`use_pkce: true` in the HelmRelease). Make sure the `groups` scope is available to it. Copy the client ID and the secret; Pocket ID shows the secret once.
-2. In `cluster.toml`, under `[observability]`, set `grafana_oidc_client_id` and `grafana_oidc_client_secret`, then render, commit and push as in "Render, commit and push". The secret goes to `grafana-secret` as `OIDC_CLIENT_SECRET` and reaches Grafana as `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`, so it stays out of the `grafana.ini` ConfigMap (source, `helmrelease.yaml.j2` and `secret.sops.yaml.j2`).
+2. In `cluster.toml`, under `[observability]`, set `grafana_oidc_client_id`, put the secret in the vault item `observability` as `GRAFANA_OIDC_CLIENT_SECRET`, then render, commit and push as in "Render, commit and push". The secret goes to `grafana-secret` as `OIDC_CLIENT_SECRET` and reaches Grafana as `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`, so it stays out of the `grafana.ini` ConfigMap (source, `helmrelease.yaml.j2` and `externalsecret.yaml.j2`).
 
 What the HelmRelease template renders (source, `kube-prometheus-stack/app/helmrelease.yaml.j2`):
 
@@ -149,7 +143,7 @@ To check it:
 
 ## Proxmox hosts and ZFS
 
-The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and raises an alert when a ZFS pool there is not online (a page needs `discord_webhook`). Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs the three required `[observability]` fields (source, `template/scripts/validate.py`).
+The optional `proxmox_hosts` list under `[observability]` makes Prometheus scrape node-exporter on port 9100 of each Proxmox host, and raises an alert when a ZFS pool there is not online (a page needs `discord`). Nothing else in the cluster can see a host's pools. On 2026-10-12 a mirror member of the non-GPU host's rpool went REMOVED and froze cp-1's disk, and no alert fired. The field needs `enabled` in `[observability]` (source, `template/scripts/validate.py`).
 
 On since 2026-10-31: all three hosts `up`, and `ZfsPoolNotOnline` fired for the non-GPU host's rpool on its first evaluation.
 
@@ -180,15 +174,15 @@ Steps 1 and 2 are a private script here, also for a rebuilt or added host. It co
 
 ## The Alertmanager heartbeat
 
-Discord only hears from a running Alertmanager, so nothing inside the cluster can report that Prometheus, Alertmanager or their node died. The optional `heartbeat_url` under `[observability]`, which needs `discord_webhook`, routes the always-firing `Watchdog` alert to an outside service, which pages when the pings stop. It cannot see a broken Discord webhook, because the heartbeat is its own receiver (source, `validate.py`).
+Discord only hears from a running Alertmanager, so nothing inside the cluster can report that Prometheus, Alertmanager or their node died. The optional `heartbeat = true` under `[observability]`, which needs `discord`, routes the always-firing `Watchdog` alert to an outside service, which pages when the pings stop. It cannot see a broken Discord webhook, because the heartbeat is its own receiver (source, `validate.py`).
 
 On since 2026-10-31, with Healthchecks.io (decision 2026-10-31). The route sets `group_interval: 1m`, which gives a ping every 6 minutes against 10 with the chart's 5m, where one missed ping would pass the check's 15-minute limit (measured on Alertmanager v0.34.2, 2026-10-31).
 
 1. Create a check on the service with period 10 minutes and grace 5 minutes, and add its email and Discord channels. Discord here is the service's own integration, so a page does not depend on the cluster.
-2. In `cluster.toml`, under `[observability]`, set the check's ping URL, then render, commit and push as in "Render, commit and push". The URL goes in the sops-encrypted `alertmanager-secret`.
+2. Put the check's ping URL in the vault item `observability` as `HEARTBEAT_URL`. In `cluster.toml`, under `[observability]`, set the flag, then render, commit and push as in "Render, commit and push". An ExternalSecret writes the URL to `alertmanager-secret`.
 
     ```toml
-    heartbeat_url = "https://hc-ping.com/<token>"
+    heartbeat = true
     ```
 
 3. Confirm the first ping on the service's page. An unknown URL answers HTTP 200 (`OK (not found)`), and a check that never got a ping cannot go down, so a clean Alertmanager log proves nothing.

@@ -32,16 +32,22 @@ Before admitting anyone else, turn off Pocket ID's "allow users to edit their ow
 
 Section `[ai_workspace]`:
 
-- `oidc_client_id` and `oidc_client_secret` from the client above.
-- `auth_secret`: at least 32 characters, from `openssl rand -base64 32`. It signs the sessions; changing it signs everyone out.
-- `allowed_emails` (optional): exact addresses and `@domain` rules. A domain rule matches that domain only, not its subdomains. Empty lets in every Pocket ID user who can use the client.
-- `admin_emails`: exact addresses with the admin role (Ollama model pull and delete). Each must be admitted by `allowed_emails` when that is set; the validator refuses the config otherwise, as the app would at startup.
-- `[ai_workspace.env]` stays for server-held vendor keys; `AUTH_OIDC_NAME` there sets the sign-in button label (default "Pocket ID").
+- `oidc_client_id` from the client above. Setting it deploys the app.
+- `allowlist = true` (optional) reads the vault field `ALLOWED_EMAILS`. Off lets in every Pocket ID user who can use the client.
+- `admins = true` (optional) reads the vault field `ADMIN_EMAILS`.
+- `env_keys` names the server-held vendor keys (see below); `AUTH_OIDC_NAME` there sets the sign-in button label (default "Pocket ID").
+
+The vault item `ai-workspace` holds the secrets ([External Secrets and 1Password](/apps/external-secrets/)):
+
+- `OIDC_CLIENT_SECRET` from the client above.
+- `AUTH_SECRET`: at least 32 characters, from `openssl rand -base64 32`. It signs the sessions; changing it signs everyone out.
+- `ALLOWED_EMAILS`: exact addresses and `@domain` rules, joined by commas. A domain rule matches that domain only, not its subdomains.
+- `ADMIN_EMAILS`: exact addresses with the admin role (Ollama model pull and delete), joined by commas. Each must be admitted by `ALLOWED_EMAILS` when `allowlist` is on; `just template secrets-check` reports one that is not, and the app would refuse it at startup.
 
 Then `just configure`, restore the sops files that did not change:
 
 ```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 Commit the rendered `kubernetes/apps/ai-workspace/` and push. `just kube reconcile` makes Flux pull now.
@@ -68,25 +74,25 @@ The Job is kept until the next run replaces it (`before-hook-creation`), so its 
 
 ## First sign-in
 
-1. Open `https://ai.${SECRET_DOMAIN}` and sign in with Pocket ID. An address on `admin_emails` gets the admin role on every request; there is no role to set in the app. Then the setup dialog opens.
+1. Open `https://ai.${SECRET_DOMAIN}` and sign in with Pocket ID. An address in `ADMIN_EMAILS` gets the admin role on every request; there is no role to set in the app. Then the setup dialog opens.
 2. Models: add a LocalAI service. The host is already held server-side (source, `src/modules/llms/server/openai/openai.access.ts`, the LocalAI branch reads `LOCALAI_API_HOST` when the client sends no host), so leave it blank and refresh the model list; `qwen-3.5-4b` appears. The pod reaches LocalAI because the namespace carries the `localai.ai/client` label, and it sends LocalAI's API key from `LOCALAI_API_KEY` server-side, so leave the key field blank too.
 3. Any other vendor is bring-your-own: its key is typed into the browser and stays there, and calls can go browser-direct to the vendor, bypassing the cluster entirely.
 
 ## Later: server-held vendor keys
 
-Add them to `[ai_workspace.env]`, one `VENDOR_API_KEY = "..."` per line, then `just configure`, restore, commit and push. They land in the `ai-workspace-secret` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `LOCALAI_API_KEY`, `POSTGRES_*`, `PORT`, `NODE_ENV`, `BROWSERLESS_TOKEN`, `PUPPETEER_WSS_ENDPOINT` and the `AUTH_*` variables set from the fields above; the list is `AI_WORKSPACE_OWNED_ENV` in the validator) are refused by the validator; `AUTH_OIDC_NAME` is allowed.
+Add each variable's name to `env_keys` in `[ai_workspace]`, and its value to the vault item `ai-workspace-env` as a field of that name. Then `just configure`, restore, commit and push. They land in the `ai-workspace-env` Secret, Reloader restarts the pod, and the browser then sees those vendors as server-configured (source, `backend.router.ts`, `listCapabilities`). The keys the templates set or depend on (`LOCALAI_API_HOST`, `LOCALAI_API_KEY`, `POSTGRES_*`, `PORT`, `NODE_ENV`, `BROWSERLESS_TOKEN`, `PUPPETEER_WSS_ENDPOINT` and the `AUTH_*` variables set from the fields above; the list is `AI_WORKSPACE_OWNED_ENV` in the validator) are refused by the validator; `AUTH_OIDC_NAME` is allowed.
 
 The pod's NetworkPolicy restricts ingress only, so a new vendor needs no egress change.
 
 ## Later: public
 
-`public = true` attaches the route to `envoy-external` as well, so the tunnel reaches it, behind the app's own sign-in. Set `allowed_emails` first if the Pocket ID client is not restricted to a group. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
+`public = true` attaches the route to `envoy-external` as well, so the tunnel reaches it, behind the app's own sign-in. Turn on `allowlist` first if the Pocket ID client is not restricted to a group. OpenRouter's OAuth callback (`/link/callback_openrouter`) is built from the browser origin, so it keeps working on either gateway (source, `pages/link/callback_openrouter.tsx`).
 
 ## Browsing
 
 Attach > Web makes the app load a page in a headless Chromium and read it back. The Chromium is browserless (`ghcr.io/browserless/chromium`, pinned by digest), a plain Deployment and Service named `browserless` in the `ai-workspace` namespace, which the app drives over the Puppeteer websocket.
 
-Set `browsing_token` in `[ai_workspace]` to enable it: letters and digits, at least 32 characters, for example the output of `openssl rand -hex 16`. Only letters and digits, because the token travels in the websocket URL's query string. Then `just configure`, restore, commit and push. The token lands in `ai-workspace-secret` twice: as `BROWSERLESS_TOKEN`, which the browserless pod reads, and inside `PUPPETEER_WSS_ENDPOINT` (`ws://browserless.ai-workspace.svc.cluster.local:3000/chromium?token=<token>`, plain `ws://` because the traffic stays in the cluster). Blank skips the pod and the variable. Reloader restarts both the app and browserless when the token changes.
+Set `browsing = true` in `[ai_workspace]` to enable it, and put the token in the vault item `ai-workspace` as `BROWSING_TOKEN`: letters and digits, at least 32 characters, for example the output of `openssl rand -hex 16`. Only letters and digits, because the token travels in the websocket URL's query string. Then `just configure`, restore, commit and push. The token lands in `ai-workspace-secret` twice: as `BROWSERLESS_TOKEN`, which the browserless pod reads, and inside `PUPPETEER_WSS_ENDPOINT` (`ws://browserless.ai-workspace.svc.cluster.local:3000/chromium?token=<token>`, plain `ws://` because the traffic stays in the cluster). Off skips the pod and the variable. Reloader restarts both the app and browserless when the token changes.
 
 Any signed-in member can make the pod fetch any URL, so its NetworkPolicy is the SSRF fence. Ingress: only the app's pods, on 3000. Egress: DNS to `kube-system`, and TCP 80 and 443 to any address except the RFC 1918 private ranges, the shared address space (`100.64.0.0/10`), link-local (`169.254.0.0/16`), the reserved ranges (`127.0.0.0/8`, `0.0.0.0/8`, `192.0.0.0/24`, `198.18.0.0/15`, `224.0.0.0/4`, `240.0.0.0/4`) and the pod, service and node CIDRs. So the LAN, every cluster pod and Service, and link-local addresses (cloud metadata included) are out of reach, and the public internet is reachable on the web ports only. The fence covers this pod only: the app's Browsing settings let a member point it at a different websocket endpoint, and the app pod has no egress policy, so that path is not fenced yet.
 

@@ -27,12 +27,12 @@ Pods cannot resolve names that exist only on the internal gateway, because clust
 
 ## The encryption key
 
-`encryption_key` in `[pocket_id]` encrypts the token signing keys in the database (repo, `cluster.sample.toml`). Setting it is what deploys Pocket ID (repo, `validate.py`, `pocket_id_enabled`). It needs `[postgres.backup]`, because passkeys and signing keys cannot be recreated (repo, `validate.py`).
+`ENCRYPTION_KEY` in the vault item `pocket-id` encrypts the token signing keys in the database (repo, `cluster.sample.toml`; [External Secrets and 1Password](/apps/external-secrets/)). `enabled = true` in `[pocket_id]` is what deploys Pocket ID (repo, `validate.py`, `pocket_id_enabled`). It needs `[postgres.backup]`, because passkeys and signing keys cannot be recreated (repo, `validate.py`).
 
-- At least 16 characters, with no `"`, `\`, `$` or whitespace (repo, `validate.py`, `PocketId`).
-- Generate it with `openssl rand -base64 32` (repo, `cluster.sample.toml`).
-- It goes into the SOPS-encrypted Secret `pocket-id-secret` as `ENCRYPTION_KEY` (repo, `app/secret.sops.yaml.j2`).
-- To change it later, run `pocket-id encryption-key-rotate` in the pod first. Editing it in `cluster.toml` alone makes the stored keys unreadable (repo, `cluster.sample.toml`).
+- At least 16 characters, with no `"`, `\`, `$` or whitespace (repo, `secret_map.py`; `just template secrets-check` reports a value that fails).
+- Generate it with `openssl rand -base64 32`.
+- An ExternalSecret builds the Secret `pocket-id-secret` from it, as `ENCRYPTION_KEY` (repo, `app/externalsecret.yaml.j2`).
+- To change it later, run `pocket-id encryption-key-rotate` in the pod first. Changing it in the vault alone makes the stored keys unreadable (repo, `cluster.sample.toml`).
 
 Keep a copy of the key outside the repo.
 
@@ -72,7 +72,7 @@ Every app's page refers to this recipe. The app's own page names the callback UR
 5. Scopes: `openid profile email`, plus `groups` when the app or a SecurityPolicy reads the group. Grafana, Hubble, the LocalAI WebUI, the media stack's SecurityPolicy, Network Optimizer, PegaProx and Kener do (repo, each app's template or `cluster.sample.toml`); Radar binds the group `oidc:cluster_admins`, and whether its chart requests `groups` by default is not recorded here, so include it.
 6. Optional: under Allowed user groups, pick `cluster_admins` or a narrower group. Do this whenever the first sign-in becomes the app's owner, as in Actual Budget. A gateway SecurityPolicy that already checks the group needs no restriction.
 7. Save, and copy the client ID and the secret. Pocket ID shows the secret once.
-8. Put both in the app's section of `cluster.toml`, run `just configure`, restore the unchanged sops files, commit and push.
+8. Put the client ID in the app's section of `cluster.toml` and the secret in the app's vault item, under the label the app's page names. Run `just configure`, restore the unchanged sops files, commit and push.
 
 The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 
@@ -102,7 +102,7 @@ The callback URLs in use (repo, `cluster.sample.toml` and the templates):
 
 `public = true` in `[pocket_id]` also attaches the route to `envoy-external`, so `cloudflare-dns` publishes `auth.${SECRET_DOMAIN}` and the internet reaches the sign-in page and the API through the Cloudflare tunnel (repo, `app/helmrelease.yaml.j2`; commit `271d117`). The route keeps its `envoy-internal` parent, so LAN clients and pods keep the internal path. The hostname does not change, so passkeys keep working (repo, `cluster.sample.toml`).
 
-- It needs `encryption_key` and an `ingress.mode` other than `none` (repo, `validate.py`).
+- It needs `enabled = true` and an `ingress.mode` other than `none` (repo, `validate.py`).
 - `actual_budget.public`, `ai_workspace.public` and `media.public` each require it, because a visitor from the internet must reach the login (repo, `validate.py`).
 - Why it is on: Pocket ID was made public on 2026-10-04 for Reactive Resume, which is on the external gateway (decision 2026-10-04). Radar, Grafana and Hubble stay LAN-only.
 - What it exposes: the whole Pocket ID UI and API, the admin pages and `/setup` included. On a new instance, create the admin before turning it on.
@@ -133,7 +133,7 @@ Expect `204`, then sign in once with a passkey (repo, `.claude/skills/update-app
   kubectl -n security exec deploy/pocket-id -- /app/pocket-id one-time-access-token <user>
   ```
 
-- Lost `encryption_key`: the signing keys in the database cannot be read. This repo documents no recovery.
+- Lost `ENCRYPTION_KEY`: the signing keys in the database cannot be read. This repo documents no recovery.
 
 ## Sources
 

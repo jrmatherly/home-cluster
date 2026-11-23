@@ -25,17 +25,20 @@ https://tautulli.${SECRET_DOMAIN}/oauth2/callback
 https://maintainerr.${SECRET_DOMAIN}/oauth2/callback
 ```
 
-The client ID and the secret go in `oidc_client_id` and `oidc_client_secret`.
+The client ID goes in `oidc_client_id`. The secret goes in the vault item `media` as
+`OIDC_CLIENT_SECRET` ([External Secrets and 1Password](/apps/external-secrets/)).
 
 ## cluster.toml
 
-Nothing is carried over from the Windows install. The five API keys are new:
+Nothing is carried over from the Windows install. The five API keys are new, and go in the vault
+item `media` as `SONARR_API_KEY`, `RADARR_API_KEY`, `PROWLARR_API_KEY`, `SABNZBD_API_KEY` and
+`SABNZBD_NZB_KEY`:
 
 ```sh
 for app in sonarr radarr prowlarr sabnzbd sabnzbd_nzb; do echo "$app $(openssl rand -hex 16)"; done
 ```
 
-`plex_host` is the Plex LXC, `<plex address>`. `plex_token` is an X-Plex-Token: in Plex Web open
+`plex_host` is the Plex LXC, `<plex address>`. `PLEX_TOKEN` in the same item is an X-Plex-Token: in Plex Web open
 any item, choose Get Info, View XML, and copy the `X-Plex-Token` value from the page's URL. Or on
 the LXC read `PlexOnlineToken` from `Preferences.xml` under the Plex data directory.
 
@@ -44,12 +47,12 @@ Then, from the repo root:
 ```sh
 just template check-layout
 just configure
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-git status   # the media sops files stay modified: they are new or changed
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
-The media secrets are new, so `git checkout` leaves them modified; that is the intended change.
-Commit and push.
+Commit and push. After a later change to a media key or the Plex token in the vault, raise
+`keys_revision` in `[media]` and render again, so the configure hooks push the new keys into the
+apps.
 
 ## What converges on its own
 
@@ -61,7 +64,7 @@ settings below are never typed into a UI. A failed job fails the release, and
   `movies`, TRaSH's queue and post-processing switches, the unwanted-extensions blacklist.
 - Sonarr and Radarr. Media management per the Servarr wiki, root folders `/data/media/tv` and
   `/data/media/movies`, SABnzbd as the download client with its category, completed and failed
-  download handling, and the Plex connection when `plex_token` is set.
+  download handling, and the Plex connection when `plex_host` is set.
 - Prowlarr. Sonarr and Radarr as applications on Full Sync.
 - Recyclarr. Daily at 06:00 UTC and after every install: TRaSH quality definitions and naming,
   the WEB-1080p and WEB-2160p profiles in Sonarr, HD Bluray + WEB and UHD Bluray + WEB in Radarr,
@@ -138,9 +141,9 @@ and keeps the result in its own database. Tautulli, Seerr and Maintainerr deploy
 maintainerr callback URLs. Seerr needs none, because it is not behind the gateway's sign-in.
 
 - Bazarr, `https://bazarr.${SECRET_DOMAIN}` (1.6 layout). Settings, Library, Sonarr tab: Enabled
-  on, address `sonarr`, port 8989, base URL empty, SSL off, the `sonarr_api_key` from
-  `cluster.toml`, no path mappings. Library, Radarr tab: the same with `radarr`, port 7878,
-  `radarr_api_key`. Settings, Languages, General tab: add English to Languages Filter. Languages,
+  on, address `sonarr`, port 8989, base URL empty, SSL off, the `SONARR_API_KEY` from
+  the vault, no path mappings. Library, Radarr tab: the same with `radarr`, port 7878,
+  `RADARR_API_KEY`. Settings, Languages, General tab: add English to Languages Filter. Languages,
   Profiles tab: add a profile with English, then under "Default Language Profiles For Newly Added
   Shows" set it for Series and for Movies. Settings, Providers, Subtitles tab: the plus button adds
   each provider. Settings, Integrations, Plex is optional (a library refresh after each subtitle

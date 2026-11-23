@@ -51,28 +51,29 @@ langfuse.com from the browser. The password form is off.
 Generate each value once:
 
 ```sh
-echo "pk-lf-$(uuidgen | tr A-Z a-z)"                              # public_key
-echo "sk-lf-$(uuidgen | tr A-Z a-z)"                              # secret_key
-openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo     # salt, then again for nextauth_secret
-openssl rand -hex 32                                              # encryption_key
-openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo     # clickhouse_password
-openssl rand -hex 16                                              # rustfs_access_key
-openssl rand -hex 32                                              # rustfs_secret_key
+echo "pk-lf-$(uuidgen | tr A-Z a-z)"                              # PUBLIC_KEY
+echo "sk-lf-$(uuidgen | tr A-Z a-z)"                              # SECRET_KEY
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo     # SALT, then again for NEXTAUTH_SECRET
+openssl rand -hex 32                                              # ENCRYPTION_KEY
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo     # CLICKHOUSE_PASSWORD
+openssl rand -hex 16                                              # RUSTFS_ACCESS_KEY
+openssl rand -hex 32                                              # RUSTFS_SECRET_KEY
 ```
 
-Never change `salt` (every API key stops working) or `encryption_key` (stored LLM and integration
-keys become unreadable). Changing `nextauth_secret` signs everyone out.
+Never change `SALT` (every API key stops working) or `ENCRYPTION_KEY` (stored LLM and integration
+keys become unreadable). Changing `NEXTAUTH_SECRET` signs everyone out.
 
 ## cluster.toml
 
-Section `[langfuse]`, after `[rustfs]`: the eight generated values above, plus `oidc_client_id`
-and `oidc_client_secret` from the Pocket ID client. It needs `[postgres.backup]`, `[redis]`,
+Section `[langfuse]`, after `[rustfs]`: `enabled = true` and `oidc_client_id` from the Pocket ID
+client. The eight generated values above and the client's secret, as `OIDC_CLIENT_SECRET`, go in
+the vault item `langfuse` ([External Secrets and 1Password](/apps/external-secrets/)). It needs `[postgres.backup]`, `[redis]`,
 `[pocket_id]` and `[rustfs]`.
 
 Then `just configure`, restore the sops files that did not change:
 
 ```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 Commit the rendered `kubernetes/apps/langfuse/` and the changed `kubernetes/apps/rustfs/`, then
@@ -94,8 +95,8 @@ the chart's own probes kill the pod part way through a first start (langfuse-k8s
 427), which leaves a failed migration behind.
 
 On that first start Langfuse also creates the Home organization, the AI KB project and the
-project's key pair from `public_key` and `secret_key`. It creates them only when they are absent, so
-a later change to the pair in `cluster.toml` must also be made in the project's settings.
+project's key pair from `PUBLIC_KEY` and `SECRET_KEY`. It creates them only when they are absent, so
+a later change to the pair in the vault must also be made in the project's settings.
 
 The web and worker pods run with `enableServiceLinks: false`, set by a `postRenderers` patch
 because the chart has no switch for it. Without it the kubelet injects a Docker-link variable set
@@ -107,7 +108,7 @@ is how both pods failed on the first rollout.
 
 Open `https://langfuse.${SECRET_DOMAIN}` from the LAN and pick Pocket ID. The first sign-in creates
 the account and makes it an admin of Home. Open the AI KB project and check Settings, API keys: the
-public key matches `public_key`.
+public key matches `PUBLIC_KEY`.
 
 ## LLM connection
 
@@ -119,7 +120,7 @@ base URL resolves to a private address, and the worker runs the evaluators.
 In the AI KB project, open Project Settings, LLM Connections, and add a project connection:
 
 - Adapter: OpenAI.
-- API key: the LocalAI API key, `api_key` in `[localai]`.
+- API key: the LocalAI API key, `API_KEY` in the vault item `localai`.
 - Base URL, under Advanced Settings: `http://localai.ai.svc.cluster.local:8080/v1`.
 - Custom model names: `qwen-3.5-4b`, because the Playground otherwise offers only the adapter's
   default models.
@@ -146,7 +147,7 @@ UI, in this order:
 
     ```sh
     claude mcp add --transport http langfuse https://langfuse.${SECRET_DOMAIN}/api/public/mcp \
-      --header "Authorization: Basic <base64 of public_key:secret_key>"
+      --header "Authorization: Basic <base64 of PUBLIC_KEY:SECRET_KEY>"
     ```
 
 5. Set up one alert (generation errors, chat p95 latency, or no data for an hour) once a webhook

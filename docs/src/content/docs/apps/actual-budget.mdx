@@ -37,11 +37,11 @@ Until you have signed in once, any Pocket ID account that the client admits coul
 
 ## Fill `cluster.toml` and deploy
 
-1. In `cluster.toml`, section `[actual_budget]`: `oidc_client_id`, `oidc_client_secret`, and `public = true` if the phone should work away from home.
+1. In `cluster.toml`, section `[actual_budget]`: `oidc_client_id`, and `public = true` if the phone should work away from home. Put the client secret in the vault item `actual-budget` as `OIDC_CLIENT_SECRET` ([External Secrets and 1Password](/apps/external-secrets/)).
 2. `just configure`, then restore the sops files that did not change:
 
    ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'
+   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
    ```
 
 3. Commit the rendered `kubernetes/apps/actual-budget/` as `feat(actual-budget): deploy Actual Budget` and push. Flux picks it up within the hour; `just kube reconcile` makes it pull now.
