@@ -18,6 +18,7 @@ talosconfig
 /cluster.toml.bak
 /talos/output/
 /talos/rendered/
+/talos/secrets.yaml
 .private/
 private/
 

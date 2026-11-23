@@ -10,7 +10,7 @@ paths:
 
 # External Secrets and 1Password (`[onepassword]`)
 
-Every deployment secret lives in one 1Password vault, and External Secrets Operator (ESO) reads it through a 1Password Connect server in the cluster. `cluster.toml` holds no secret, and no `*.sops.*` file is left under `kubernetes/`. The plan is `docs/superpowers/plans/2026-11-22-eso-1password-secrets.md` (gitignored). Its Tasks 1 to 9 are live. Tasks 10 and 11 are not done, so sops still covers `bootstrap/deploy-key.sops.yaml`, `bootstrap/sops-age.sops.yaml` and `talos/secrets.sops.yaml`, and `.sops.yaml` and the age key still exist.
+Every deployment secret lives in one 1Password vault, and External Secrets Operator (ESO) reads it through a 1Password Connect server in the cluster. `cluster.toml` holds no secret, and no `*.sops.*` file is left under `kubernetes/`. The plan is `docs/superpowers/plans/2026-11-22-eso-1password-secrets.md` (gitignored). Its Tasks 1 to 10 are done: the Talos secrets bundle is the vault document `talos` (`.claude/rules/talos.md`), the Talos client config is a second document, and no `*.sops.*` file is tracked. Task 11 is not done, so `.sops.yaml`, the Flux decryption wiring and the age key still exist.
 
 ## The store
 

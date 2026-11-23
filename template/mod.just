@@ -196,12 +196,15 @@ test-helmfile:
 validate-kubernetes:
     bash "{{ template_resources }}/kubeconform.sh" "{{ kubernetes_dir }}"
 
-# Rendering needs the secrets bundle; topf generates and sops-encrypts one
-# on first run (--confirm=false so it never prompts mid-pipeline).
+# Renders in a scratch copy without the secrets bundle, where topf writes a
+# throwaway one, so configure never needs 1Password or the real bundle.
 [private]
-[working-directory('talos')]
 validate-talos:
-    topf render --confirm=false --output "$(mktemp -d)" >/dev/null
-    if ! sops filestatus secrets.sops.yaml | jq --exit-status '.encrypted == true' >/dev/null; then
-        just log fatal "Talos secrets bundle is not encrypted"
+    if [ -n "$(git ls-files talos/secrets.yaml)" ]; then
+        just log fatal "talos/secrets.yaml is tracked by Git"
     fi
+    scratch="$(mktemp -d)"
+    trap 'rm -rf "$scratch"' EXIT
+    rsync -a --exclude secrets.yaml "{{ talos_dir }}/" "$scratch/"
+    cd "$scratch"
+    topf render --confirm=false --output "$scratch/.out" >/dev/null

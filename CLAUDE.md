@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork of `onedr0p/cluster-template`. You fill in one config file, `cluster.toml`, and makejinja renders it into the Talos, Kubernetes, Flux and bootstrap config. `cluster.toml` holds no secret: External Secrets Operator reads each one from a 1Password vault (`.claude/rules/apps/external-secrets.md`). sops still encrypts two bootstrap Secrets and the Talos secrets bundle.
+A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork of `onedr0p/cluster-template`. You fill in one config file, `cluster.toml`, and makejinja renders it into the Talos, Kubernetes, Flux and bootstrap config. `cluster.toml` holds no secret: External Secrets Operator reads each one from a 1Password vault (`.claude/rules/apps/external-secrets.md`). The Talos secrets bundle is the vault document `talos`, fetched only while a `topf` command runs (`.claude/rules/talos.md`). No file is sops-encrypted any more; the sops tooling and the age key remain until the plan's Task 11 removes them.
 
 - The repo is still at the template stage, so the template tooling is present. `just configure` has rendered `bootstrap/`, `kubernetes/`, `talos/` and `.sops.yaml`, and the cluster is bootstrapped and live. Flux reconciles `kubernetes/` from Git, so a config change reaches the cluster by re-rendering with `just configure`, then committing and pushing.
 - `just template tidy` ends the template stage. It moves all template tooling to `.private/<timestamp>/`, and you cannot undo it.
@@ -22,7 +22,7 @@ A home Kubernetes cluster on Talos Linux, managed with Flux. The repo is a fork 
 Template stage:
 
 - `just init` creates `cluster.toml` from `cluster.sample.toml`, plus `age.key`, `deploy.key` and `flux-webhook-token.txt`, skipping any that exist.
-- `just configure` renders with makejinja, sops-encrypts the `*.sops.*` files under `bootstrap/` and `talos/`, runs kubeconform on `kubernetes/`, and checks that topf can render `talos/`.
+- `just configure` renders with makejinja, runs kubeconform on `kubernetes/`, and checks that topf can render `talos/` in a scratch copy with a throwaway secrets bundle, so it needs neither 1Password nor the real bundle.
 - `just template doctor` checks that the required files exist, that `cluster.toml` passes the schema, and that its sections follow the sample's order.
 - `just template check-layout` checks that `cluster.toml` keeps its sections in the order of `cluster.sample.toml`. `just configure` runs it first.
 - `just template secrets-check` checks the 1Password items against `template/scripts/secret_map.py` and prints item and field names, never a value. It calls `op`, so the owner runs it.
@@ -56,7 +56,7 @@ makejinja.toml             inputs template/overrides + template/config, output .
 justfile                   root; loads template/mod.just and the rendered mod.just files
 template/
   config/                  *.j2 sources, mirrored into the repo root on render
-    bootstrap/             helmfile/ (crds, apps), two sops secrets, onepassword.yaml, mod.just
+    bootstrap/             helmfile/ (crds, apps), onepassword.yaml, mod.just
     kubernetes/            apps/<namespace>/<app>/, components/ (postgres, redis), flux/cluster, mod.just
     talos/                 all/ (numbered patches), control-plane/, topf.yaml.j2, mod.just
   overrides/               extra makejinja input; *.partial.yaml.j2 are not rendered
@@ -100,8 +100,7 @@ The data flows in one direction. `cluster.toml` goes through `validate.load()`, 
 - Rendered YAML has to be oxfmt-clean: the Stop hook runs `oxfmt --check .` on the whole tree and on every fixture's render, and the lefthook pre-commit hook formats staged files (the upstream CI step that checks it skips on this fork).
 - Facts about one app or platform area live in `.claude/rules/apps/<name>.md`, which load when you touch its templates: `localai`, `model-images`, `restart-reset`, `flux-alerts`, `cert-manager`, `network`, `github-runner`, `bootstrap-charts`, `storage`, `postgres`, `etcd-snapshot`, `observability`, `unifi-dns`, `pocket-id`, `radar`, `matherlynet`, `hubble`, `reactive-resume`, `redis`, `kener`, `network-optimizer`, `pegaprox`, `actual-budget`, `media`, `ai-workspace`, `ai-kb`, `rustfs`, `volume-backup`, `langfuse`, `itsaplan`, `cliproxyapi`, `docs-site`, `career-ops`, `external-secrets`. Read the file by hand before changing its section in `validate.py` or `cluster.sample.toml`, or when another app depends on it.
 - Every Secret under `kubernetes/` comes from an ExternalSecret (`externalsecret.yaml.j2` in the app folder) that reads a 1Password item. A flag or a non-secret field turns a section on, never a secret. `.claude/rules/apps/external-secrets.md` has the conventions.
-- sops covers three files: `bootstrap/deploy-key.sops.yaml`, `bootstrap/sops-age.sops.yaml` and `talos/secrets.sops.yaml`. `just configure` encrypts each in place.
-- Re-running `just configure` re-encrypts those three files with new ciphertext, even when the plaintext is unchanged, so they show as modified after any re-render. When the secret inputs did not change, restore them with `git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'` before committing. No `*.sops.*` file is left under `kubernetes/`, and a pathspec that matches nothing fails the whole checkout. Keep the directory prefixes: a bare `**/*.sops.*` also matches the `*.sops.*.j2` templates and discards uncommitted edits to them. `just configure` logs a warning with the count of re-encrypted `*.sops.*` files and this restore command (`sops_pathspec` in `template/mod.just`).
+- No `*.sops.*` file is tracked. The Talos secrets bundle is the 1Password document `talos`: `just talos topf <args>` (private, in `talos/mod.just`) fetches it to `talos/secrets.yaml`, checks it has a `certs` key, runs topf and removes the file on any exit. Every recipe that calls topf goes through it, because topf writes a new bundle when the file is missing, and a new bundle applied to the running cluster replaces its PKI. `.sops.yaml`, the `encrypt-secrets` step (now a no-op), the Flux decryption wiring and the age key stay until the plan's Task 11.
 
 <!-- END AUTO-MANAGED -->
 

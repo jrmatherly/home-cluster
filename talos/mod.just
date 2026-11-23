@@ -8,21 +8,58 @@ set default-script
 # prompt; only the destructive reset recipes disable it in favour of just's
 # own confirmation.
 
+vault := "home-cluster"
+
+# The secrets bundle is the 1Password document `talos`, on disk only while topf
+# runs. topf writes a NEW bundle when the file is missing, so a failed fetch
+# must stop here.
+[positional-arguments]
+[private]
+topf *args:
+    trap 'rm -f secrets.yaml' EXIT
+    rm -f secrets.yaml
+    unset OP_CONNECT_HOST OP_CONNECT_TOKEN
+    if ! op document get talos --vault "{{ vault }}" --out-file secrets.yaml >/dev/null; then
+        just log error "Could not fetch the Talos secrets bundle from 1Password"
+        exit 1
+    fi
+    if ! yq --exit-status '.certs' secrets.yaml >/dev/null; then
+        just log error "The fetched Talos secrets bundle has no certs key"
+        exit 1
+    fi
+    topf "$@"
+
+# First bootstrap only: with no bundle in 1Password, topf writes one and the
+# recipe stops until the owner stores it.
+[private]
+secrets-init:
+    unset OP_CONNECT_HOST OP_CONNECT_TOKEN
+    if ! op whoami &>/dev/null; then
+        just log error "1Password is unreachable or signed out"
+        exit 1
+    fi
+    if op document get talos --vault "{{ vault }}" >/dev/null 2>&1; then
+        exit 0
+    fi
+    topf secrets --confirm=false >/dev/null
+    just log error "No Talos bundle in 1Password. Store talos/secrets.yaml as the document 'talos' (file name secrets.yaml), delete it, then run bootstrap again"
+    exit 1
+
 [doc('Apply Talos config to all nodes (shows a diff and asks first)')]
 [group('talos')]
 apply:
-    topf apply
+    just talos topf apply
 
 [arg('mode', pattern='auto|reboot|no-reboot|staged|try')]
 [doc('Apply Talos config to a node (shows a diff and asks first)')]
 [group('talos')]
 apply-node node mode='auto':
-    topf apply --nodes-filter "^{{ node }}$" --mode "{{ mode }}"
+    just talos topf apply --nodes-filter "^{{ node }}$" --mode "{{ mode }}"
 
 [doc('Show pending config changes without applying them')]
 [group('talos')]
 diff:
-    topf apply --dry-run
+    just talos topf apply --dry-run
 
 [confirm("Drain node " + node + "? Its CloudNativePG primaries switch over first. [y/N]")]
 [doc('Drain a node: preflight checks, CloudNativePG switchover, then kubectl drain')]
@@ -100,7 +137,7 @@ health:
 [doc('List all nodes and their current state')]
 [group('talos')]
 nodes:
-    topf nodes
+    just talos topf nodes
 
 [private]
 node-info node:
@@ -147,19 +184,19 @@ reboot-node node:
 [doc('Render Talos machine configs to ./rendered')]
 [group('talos')]
 render:
-    topf render --output ./rendered
+    just talos topf render --output ./rendered
 
 [confirm("This will destroy your cluster and reset all nodes to maintenance mode — continue? [y/N]")]
 [doc('Reset all nodes back to maintenance mode (DESTRUCTIVE)')]
 [group('talos')]
 reset:
-    topf reset --confirm=false
+    just talos topf reset --confirm=false
 
 [confirm("This will reset node " + node + " to maintenance mode — continue? [y/N]")]
 [doc('Reset a single node back to maintenance mode (DESTRUCTIVE)')]
 [group('talos')]
 reset-node node:
-    topf reset --nodes-filter "^{{ node }}$" --confirm=false
+    just talos topf reset --nodes-filter "^{{ node }}$" --confirm=false
 
 [arg('wait', pattern='wait|no-wait')]
 [doc('Bring a node back after maintenance: wait for Ready and etcd, uncordon, wait for its pods (no-wait skips that last step)')]
@@ -261,7 +298,7 @@ upgrade-k8s:
 [doc('Upgrade Talos on all nodes, one at a time (asks first)')]
 [group('talos')]
 upgrade:
-    topf upgrade
+    just talos topf upgrade
 
 [confirm("Drain and upgrade Talos on node " + node + "? [y/N]")]
 [doc('Drain a node with the preflight checks, upgrade Talos on it, then resume it')]
@@ -269,5 +306,5 @@ upgrade:
 upgrade-node node:
     # Not topf's own drain, which skips the preflight and the CloudNativePG switchover.
     just --yes talos drain "{{ node }}"
-    topf upgrade --nodes-filter "^{{ node }}$" --drain=false --confirm=false
+    just talos topf upgrade --nodes-filter "^{{ node }}$" --drain=false --confirm=false
     just talos resume "{{ node }}"
