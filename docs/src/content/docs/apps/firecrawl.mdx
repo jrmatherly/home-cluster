@@ -12,8 +12,8 @@ This guide takes Firecrawl from the templates in Git to a working scraping API. 
 | Step | State |
 | --- | --- |
 | Templates, schema and Renovate rules | In Git, and the section is enabled |
-| First rollout | Pushed on 2026-11-23, not yet confirmed |
-| Live checks | Not run |
+| First rollout | Done on 2026-11-23. Every pod was Ready within a minute |
+| Live checks | Passed on 2026-11-23, except a restart of the queue database, which is not run yet |
 | It's a Plan connected | Waits on release 1.14.0 of its fork |
 
 ## What it is and is not
@@ -104,7 +104,7 @@ Firecrawl tags its API image several times a day, and publishes the Playwright a
 
 - No login, as above.
 - No metrics and no dashboard.
-- Egress is limited to public addresses, the model proxy and the search engine. A scrape of a private address returns empty content. Measured for a private IP address, not for a hostname that resolves to one.
+- Egress is limited to public addresses, the model proxy and the search engine. A scrape of a private address returns empty content with status 403. Measured live for private IP addresses and for hostnames that resolve to one.
 - `/v2/extract` still answers but reports itself deprecated. Use `/v2/scrape` with a `json` format.
 
 ## Sources
