@@ -44,11 +44,7 @@ The vault item `ai-workspace` holds the secrets ([External Secrets and 1Password
 - `ALLOWED_EMAILS`: exact addresses and `@domain` rules, joined by commas. A domain rule matches that domain only, not its subdomains.
 - `ADMIN_EMAILS`: exact addresses with the admin role (Ollama model pull and delete), joined by commas. Each must be admitted by `ALLOWED_EMAILS` when `allowlist` is on; `just template secrets-check` reports one that is not, and the app would refuse it at startup.
 
-Then `just configure`, restore the sops files that did not change:
-
-```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-```
+Then run `just configure`.
 
 Commit the rendered `kubernetes/apps/ai-workspace/` and push. `just kube reconcile` makes Flux pull now.
 

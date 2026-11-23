@@ -20,11 +20,7 @@ Everything the app learns is in its SQLite database and keys on a 5Gi `local-pat
 1. `[network_optimizer]` needs `[observability]`, because the app writes its time series to that InfluxDB (source, `template/scripts/validate.py`).
 2. Set `enabled = true`. `APP_PASSWORD` in the vault item `network-optimizer` is the password of the built-in `admin` account ([External Secrets and 1Password](/apps/external-secrets/)). At least 8 characters, at least one digit, and no `"`, `\`, `$` or whitespace (source, `secret_map.py`). The app's identity store refuses a password without a digit.
 3. For Pocket ID, also set `oidc_client_id` (needs `[pocket_id]`) and put the client secret in the same vault item as `OIDC_CLIENT_SECRET`. "Sign in with Pocket ID" below creates the client.
-4. `just configure`, restore the unchanged sops files, commit and push:
-
-   ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-   ```
+4. Run `just configure`, commit and push.
 
 ## Connect the UniFi console
 

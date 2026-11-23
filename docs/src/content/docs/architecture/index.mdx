@@ -43,16 +43,15 @@ Pinned pods sit Pending while their node is down and schedule by themselves when
 
 `cluster.toml` is gitignored and holds every address and setting, and no secret. `just configure`
 loads it through `validate.py`, a pydantic model with defaults and cross-field checks, then through
-`plugin.py`, which hands the validated config and the age and deploy keys to makejinja as
-template data. makejinja renders the `.j2` sources under `template/config/` into `bootstrap/`,
+`plugin.py`, which hands the validated config to makejinja as template data. makejinja renders the `.j2` sources under `template/config/` into `bootstrap/`,
 `kubernetes/` and `talos/` at the repo root. The same recipe runs kubeconform on `kubernetes/` and
 checks that topf can render `talos/`.
 
 Secrets live in a 1Password vault. External Secrets Operator reads it through a 1Password Connect
 server in the cluster and builds every app's Kubernetes Secret, so a secret changes in the vault
-and never in Git ([External Secrets and 1Password](/apps/external-secrets/)). Three sops files
-remain until the migration finishes: the two bootstrap Secrets, which `just configure` encrypts
-with the age key, and the Talos secrets bundle.
+and never in Git ([External Secrets and 1Password](/apps/external-secrets/)). The Talos
+secrets bundle is a document in the same vault, fetched only while a topf command runs, and no
+file in the repo is encrypted.
 
 The data flows in one direction. Edit the `.j2` source, never the rendered copy. Flux reconciles
 `kubernetes/` from Git, so a Kubernetes change reaches the cluster by re-rendering, committing and

@@ -29,7 +29,7 @@ In `cluster.toml`, section `[unifi]` (source, `validate.py`, `Unifi`):
 
 - `host`: `https://` and a hostname or IP, no path. Here `https://<router address>`. The validator refuses anything else (pattern `^(https://[^/\s]+)?$`).
 
-A non-empty `host` turns the app on (source, `validate.py`, `unifi_dns_enabled`). Then `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push. The pod carries a Reloader annotation for `unifi-dns-secret`, so a new key restarts it (source, `helmrelease.yaml.j2`).
+A non-empty `host` turns the app on (source, `validate.py`, `unifi_dns_enabled`). Then `just configure`, commit and push. The pod carries a Reloader annotation for `unifi-dns-secret`, so a new key restarts it (source, `helmrelease.yaml.j2`).
 
 ## Which records it writes
 

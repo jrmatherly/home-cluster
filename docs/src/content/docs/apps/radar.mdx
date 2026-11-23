@@ -38,11 +38,7 @@ One field in the config and one in the vault:
 `[radar]` needs `[pocket_id]` (repo, `validate.py`), which in turn needs `[postgres.backup]`.
 
 1. Fill `oidc_client_id` in `cluster.toml` and the field in the vault.
-2. `just configure`, then restore the sops files whose inputs did not change:
-
-   ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-   ```
+2. Run `just configure`.
 
 3. Commit the rendered `kubernetes/apps/radar/` and push. `just kube reconcile` makes Flux pull now.
 

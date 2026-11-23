@@ -70,11 +70,7 @@ client. The eight generated values above and the client's secret, as `OIDC_CLIEN
 the vault item `langfuse` ([External Secrets and 1Password](/apps/external-secrets/)). It needs `[postgres.backup]`, `[redis]`,
 `[pocket_id]` and `[rustfs]`.
 
-Then `just configure`, restore the sops files that did not change:
-
-```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-```
+Then run `just configure`.
 
 Commit the rendered `kubernetes/apps/langfuse/` and the changed `kubernetes/apps/rustfs/`, then
 push. `just kube reconcile` makes Flux pull now.

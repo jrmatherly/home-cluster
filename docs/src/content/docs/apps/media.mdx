@@ -47,7 +47,6 @@ Then, from the repo root:
 ```sh
 just template check-layout
 just configure
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
 ```
 
 Commit and push. After a later change to a media key or the Plex token in the vault, raise

@@ -103,8 +103,7 @@ A custom header instead of a bearer token uses `jsonData.httpHeaderName1` and `s
 
 1. Fill the GitHub and Sentry fields in `cluster.toml`, and the key and the token in the vault. `just template secrets-check` reports a vault field that is missing or malformed.
 2. Run `just configure`. It validates the fields and renders.
-3. Restore every sops file whose plaintext did not change, as `CLAUDE.md` describes.
-4. Commit and push. Flux reconciles within the hour, or run `just kube reconcile`.
+3. Commit and push. Flux reconciles within the hour, or run `just kube reconcile`.
 
 Grafana restarts, because the plugin list is part of its config checksum and Reloader also watches `grafana-secret`, and installs the new plugins at start.
 

@@ -24,11 +24,7 @@ Each step names its source. "Docs" is [Kener's OpenID Connect page](https://kene
 
 1. Set `[redis] enabled = true` if it is not set yet, with `PASSWORD` (at least 24 letters and digits) in the vault item `redis`, and `[kener] enabled = true`. The validator also needs an ingress mode other than `none` (`validate.py`).
 2. Optional: `smtp = true` and the mail fields in the vault (see Mail below).
-3. `just configure`, then restore the sops files whose inputs did not change:
-
-   ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-   ```
+3. Run `just configure`.
 
 4. Commit and push. The `wait-for-stores` init container holds Kener until `kener-db-rw:5432` and `redis:6379` accept connections, because Kener exits when its migrations cannot reach the database (template).
 

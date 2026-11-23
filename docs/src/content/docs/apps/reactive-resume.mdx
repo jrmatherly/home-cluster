@@ -43,11 +43,7 @@ Pocket ID itself must be public, so a browser away from home can finish the sign
 ## Fill `cluster.toml` and deploy
 
 1. In `[reactive_resume]`, set all three fields: `enabled`, `oidc_client_id` and `s3_bucket`. In the vault item `reactive-resume`, set `AUTH_SECRET` and `ENCRYPTION_SECRET` (each from `openssl rand -hex 32`), `OIDC_CLIENT_SECRET`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`. The validator refuses a partial set, and refuses the section without `[pocket_id]` (which in turn needs `[postgres.backup]`) or with `ingress.mode = "none"` (`validate.py`).
-2. `just configure`, then restore the sops files whose inputs did not change:
-
-   ```sh
-   git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-   ```
+2. Run `just configure`.
 
 3. Commit and push. The Flux Kustomization `reactive-resume` waits for `cloudnative-pg` and `plugin-barman-cloud` (template, `ks.yaml.j2`).
 4. Watch it come up. The `wait-for-database` init container holds the app until `reactive-resume-db-rw:5432` accepts connections, because the app exits when its migrations cannot reach the database (template; commit `f09d664`, two restarts on the first install):

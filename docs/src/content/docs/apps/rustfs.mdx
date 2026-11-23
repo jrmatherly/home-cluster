@@ -42,11 +42,7 @@ The vault item `rustfs` holds the root pair ([External Secrets and 1Password](/a
 - `ACCESS_KEY`: the root access key, from `openssl rand -hex 16`.
 - `SECRET_KEY`: the root secret key, from `openssl rand -hex 32`.
 
-Then `just configure`, restore the sops files that did not change:
-
-```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-```
+Then run `just configure`.
 
 Commit the rendered `kubernetes/apps/rustfs/` and push. `just kube reconcile` makes Flux pull now.
 

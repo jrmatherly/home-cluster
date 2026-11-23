@@ -18,7 +18,7 @@ Each step names its source. "Template" is `template/config/kubernetes/apps/mathe
 5. `github_client_id` and `github = true` turn on GitHub sign-in, with the secret in the vault field `GITHUB_CLIENT_SECRET`. Set both or neither; the same for `google_client_id`, `google` and `GOOGLE_CLIENT_SECRET` (source, `validate.py`). The IDs go into the chart's `config.web`, the secrets into `matherlynet-secret` (template).
 6. `playground = true` is optional and needs an NVIDIA node (source, `validate.py`). See "The playground" below.
 7. Every optional field needs `enabled`, because the site only runs when it is set (source, `validate.py`).
-8. `just configure`, restore the unchanged sops files, commit and push.
+8. `just configure`, commit and push.
 
 ## How the release is wired
 

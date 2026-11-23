@@ -15,14 +15,13 @@ sidebar:
 
 ## Before anything: what a rebuild needs from outside Git
 
-Keep a copy of the first three files off these hosts, and not only on the workstation. The private runbook records where each copy is.
+A rebuild needs the 1Password vault and `cluster.toml`. Keep a copy of `cluster.toml` off these hosts, and not only on the workstation. The private runbook records where it is.
 
 | File | What it does | If it is lost |
 | --- | --- | --- |
-| `age.key` | Decrypts the sops files that remain: the two bootstrap Secrets and `talos/secrets.sops.yaml`, the Talos PKI | Nothing replaces it. The Talos secrets bundle is unreadable. |
+| Vault document `talos` | The Talos secrets bundle, the cluster PKI. Fetched only while a topf command runs | Nothing replaces it. Without it the nodes cannot be reconfigured, and a rebuild is a new cluster |
 | `cluster.toml` | Every setting the render uses. It holds no secret | Rebuild it by hand from the sample |
-| `deploy.key` | Flux's Git access | Create a new deploy key |
-| `talosconfig` | Talos API access | Regenerate it from `talos/secrets.sops.yaml` |
+| `talosconfig` | Talos API access | Vault document `talosconfig`, or `just bootstrap talos` regenerates it from the bundle |
 | `kubeconfig` | Kubernetes API access | Regenerate it with `talosctl kubeconfig` |
 
 Every other secret is in the 1Password vault, not in a file: each app's keys, the domain, the DNS token, the tunnel credentials (item `cloudflare-tunnel`) and the Flux webhook token (item `flux`). [External Secrets and 1Password](/apps/external-secrets/) lists the items. A rebuild depends on that vault in two places:
@@ -32,7 +31,14 @@ Every other secret is in the 1Password vault, not in a file: each app's keys, th
 
 A value lost from the vault is recreated at its service, except a key that encrypts stored data, such as PegaProx's `DB_KEY`: what it encrypted stays unreadable.
 
-The Talos secrets bundle, the two bootstrap Secrets and the age key are still the sops path, and that part of this page changes when the migration to 1Password finishes.
+A full rebuild runs in this order:
+
+1. Sign in to the `op` CLI. Every later step that needs a secret reads the vault, so a rebuild needs internet access to 1Password.
+2. `just bootstrap talos`. Each topf call fetches the Talos secrets bundle (vault document `talos`) to `talos/secrets.yaml`, uses it and removes it. Never run bare `topf` in `talos/`: with no bundle on disk it writes a new one, and a new bundle is a new cluster PKI.
+3. `just bootstrap apps`. It applies the Secrets that 1Password Connect starts from and the domain with `op inject`, then the CRDs, then the helmfile charts in order: Cilium, CoreDNS, Spegel, cert-manager, External Secrets, 1Password Connect, and Flux last, so External Secrets and Connect run before Flux applies an app.
+4. Wait for the ExternalSecrets to sync, then recover the databases (below).
+
+No file in the repo is encrypted. Git history still holds the sops ciphertext of the old secrets, so the age key stays in 1Password until those credentials are rotated.
 
 ## Turn on the etcd snapshots
 
@@ -48,7 +54,7 @@ The Talos secrets bundle, the two bootstrap Secrets and the age key are still th
     kubectl -n kube-system logs job/etcd-snapshot-manual --all-containers
     ```
 
-The first ran at 227 MB in a 256 MiB limit (measured 2026-11-01). The 30-day prune has only run against a scratch store so far. The files have no client-side encryption. Secret values inside are encrypted under a key that stays in `talos/secrets.sops.yaml` (config read 2026-11-01, not proved on a stored Secret), and everything else in etcd is plaintext. The bucket has no public access. The `talosctl` image tag in the CronJob tracks the Talos version by hand, so bump it with a Talos upgrade.
+The first ran at 227 MB in a 256 MiB limit (measured 2026-11-01). The 30-day prune has only run against a scratch store so far. The files have no client-side encryption. Secret values inside are encrypted under a key that stays in the Talos secrets bundle (config read 2026-11-01, not proved on a stored Secret), and everything else in etcd is plaintext. The bucket has no public access. The `talosctl` image tag in the CronJob tracks the Talos version by hand, so bump it with a Talos upgrade.
 
 ## Lost etcd quorum
 

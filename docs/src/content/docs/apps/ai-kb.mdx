@@ -33,11 +33,7 @@ The vault item `ai-kb` holds the secrets ([External Secrets and 1Password](/apps
 - `JWT_SECRET`: at least 32 characters, from `openssl rand -hex 32`. Changing it signs everyone out.
 - `AES_KEY`: exactly 32 letters and digits, from `openssl rand -hex 16`. It encrypts the API keys and credentials AI KB stores. Never change it: what it encrypted becomes unreadable.
 
-Then `just configure`, restore the sops files that did not change:
-
-```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-```
+Then run `just configure`.
 
 Commit the rendered `kubernetes/apps/ai-kb/` and push. `just kube reconcile` makes Flux pull now.
 

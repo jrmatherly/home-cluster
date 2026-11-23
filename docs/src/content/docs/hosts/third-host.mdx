@@ -254,11 +254,10 @@ Check. From the workstation, `talosctl get disks -n <worker-4 address> --insecur
     mac_addr   = "<worker-4 MAC>"
     ```
 
-2. Render, restore the untouched secrets, apply, commit.
+2. Render, apply, commit.
 
     ```sh
     just template check-layout && just configure
-    git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
     just talos diff && just talos apply-node k8s-worker-4
     git add -A && git commit -m "feat(talos): add k8s-worker-4 on the media host" && git push
     ```

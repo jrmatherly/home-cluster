@@ -50,11 +50,7 @@ Hubble UI has no login of its own, so an Envoy Gateway `SecurityPolicy` on its r
 ## Fill `cluster.toml` and deploy
 
 1. In `cluster.toml`, section `[cilium.hubble]`, set `oidc_client_id`. The client ID may hold letters, digits and `._~-` (`validate.py`). Put the client secret in the vault item `cilium-hubble` as `OIDC_CLIENT_SECRET` ([External Secrets and 1Password](/apps/external-secrets/)).
-2. `just configure`, then restore the sops files whose plaintext did not change:
-
-    ```sh
-    git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-    ```
+2. Run `just configure`.
 
 3. Commit the rendered `kubernetes/apps/kube-system/cilium/app/` and push. `just kube reconcile` makes Flux pull now.
 4. Watch the Cilium agents roll and the relay and UI start:

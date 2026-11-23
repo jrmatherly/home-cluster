@@ -24,11 +24,7 @@ openssl rand -hex 32                                             # RUSTFS_SECRET
 Never change `APP_ENCRYPTION_KEY` once it is set. The app encrypts the provider keys it stores with it, and a new key makes them unreadable.
 </Aside>
 
-Then run `just configure`, restore the `*.sops.*` files whose inputs did not change, commit and push:
-
-```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-```
+Then run `just configure`, commit and push.
 
 The `rustfs-provision` Job reruns, because its list of consumers changed. It creates the `itsaplan-attachments` bucket and an account scoped to it.
 

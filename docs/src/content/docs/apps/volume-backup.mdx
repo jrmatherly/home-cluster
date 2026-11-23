@@ -12,7 +12,7 @@ each night and keep 7 days.
 ## What it needs first
 
 - `[postgres.backup]`, because the jobs use its endpoint.
-- The age key and `cluster.toml` kept somewhere off the admin machine. PegaProx's `DB_KEY` is in the
+- `cluster.toml` kept somewhere off the admin machine. PegaProx's `DB_KEY` is in the
   1Password vault, item `pegaprox`. Without `DB_KEY` the PegaProx backup is unreadable.
 
 ## The bucket and token
@@ -28,8 +28,8 @@ as the UniFi key. Tokens scope to a bucket, not a prefix, and R2 has no write-on
 
 Put `BUCKET`, `ACCESS_KEY` and `SECRET_KEY` in the vault item `volume-backup`
 ([External Secrets and 1Password](/apps/external-secrets/)). The keys may use letters, digits, `-`
-and `_`. Set `enabled = true` in the `[volume_backup]` block. Then `just configure`, restore the
-sops files that did not change, and commit and push the rendered files.
+and `_`. Set `enabled = true` in the `[volume_backup]` block. Then `just configure`, and
+commit and push the rendered files.
 
 ## First run
 

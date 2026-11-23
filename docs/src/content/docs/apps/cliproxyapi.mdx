@@ -39,11 +39,7 @@ Each is at least 32 characters. The manager's docs describe the key it generates
 
 Section `[cliproxyapi]`: `enabled = true`. It needs no other section. The three values above go in the vault item `cliproxyapi`, under the labels in the comments ([External Secrets and 1Password](/apps/external-secrets/)). An optional `ohmycpa = true`, with the vault field `OHMYCPA_MASTER_KEY` (64 hex characters, never changed once set), deploys a second console, Oh-My-CPA, at `llms-mgmt.${SECRET_DOMAIN}`; see Operations. `just template scaffold cliproxyapi` adds the block in the sample's position with its keys commented.
 
-Then `just configure`, restore the sops files that did not change:
-
-```sh
-git checkout -- ':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'
-```
+Then run `just configure`.
 
 Commit the rendered `kubernetes/apps/llms/`, then push. `just kube reconcile` makes Flux pull now.
 
