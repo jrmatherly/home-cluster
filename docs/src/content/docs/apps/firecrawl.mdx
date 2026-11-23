@@ -14,7 +14,7 @@ This guide takes Firecrawl from the templates in Git to a working scraping API. 
 | Templates, schema and Renovate rules | In Git, and the section is enabled |
 | First rollout | Done on 2026-11-23. Every pod was Ready within a minute |
 | Live checks | Passed on 2026-11-23, including a restart of the queue database |
-| It's a Plan connected | Waits on release 1.14.0 of its fork |
+| It's a Plan connected | Release 1.14.0 and its allow-list entry are in Git. The credential in the app is not added yet |
 
 ## What it is and is not
 
@@ -95,7 +95,7 @@ Point a client at the instance with its base URL and no key:
 - The SDKs take an `api_url` or `base_url` option.
 - A pod in the cluster uses the Service address. Its namespace has to be admitted by the `firecrawl-api` NetworkPolicy, which admits the `network` namespace, where the gateways run, and It's a Plan today.
 
-It's a Plan cannot use the instance until it runs release 1.14.0 of its fork. Up to 1.13.1 its Firecrawl client is fixed to the cloud address. The newer code adds an Instance URL to the credential and lets an allow-listed host be reached over plain http, so the app can call the Service address above.
+It's a Plan uses the instance from release 1.14.0 of its fork on. Its HelmRelease allow-lists the Service host for plain http, and the credential is added in the app: Team settings, Integrations, Firecrawl, with the Instance URL `http://firecrawl-api.firecrawl.svc.cluster.local:3002` and no API key. That allow-list entry is trusted by every outbound path of the app, webhook targets and attachment import included.
 
 ## Updates
 
