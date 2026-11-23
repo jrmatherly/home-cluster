@@ -140,6 +140,7 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("career_ops.anthropic_auth_token", "career_ops_proxy", SECRET),
     ("career_ops.publish_api_key", "career_ops.publish", SECRET),
     ("firecrawl.postgres_password", "firecrawl_enabled", ALNUM_24),
+    ("firecrawl.gateway_api_key", "firecrawl_enabled", API_KEY),
     ("localai.api_key", "nvidia_enabled", API_KEY),
     ("localai.oidc_client_secret", "localai_webui_enabled", SECRET),
     ("github_runner.token", "github_runner_enabled", SECRET),

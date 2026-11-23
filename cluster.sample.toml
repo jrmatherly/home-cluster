@@ -1259,16 +1259,19 @@ schematic_id = ""
 #    Firecrawl, a web scraping API (scrape, crawl, map, search and extract),
 #    self-hosted at https://firecrawl.<domain.name> on the internal gateway
 #    and at firecrawl-api.firecrawl.svc.cluster.local:3002 inside the cluster.
-#    The self-hosted API has no login and takes no API key, so everything on
-#    the LAN can call it; inside the cluster a NetworkPolicy admits only the
-#    network namespace, where the gateways run, and It's a Plan. Needs
+#    The self-hosted API has no login of its own, so the gateway asks for a
+#    key, sent as `Authorization: Bearer <key>`; inside the cluster a
+#    NetworkPolicy admits only the network namespace, where the gateways run,
+#    and It's a Plan, which calls the Service with no key. Needs
 #    [cliproxyapi], which runs the model for extract, and [redis]. Search uses
 #    the AI KB SearXNG when ai_kb.searxng is on, and DuckDuckGo otherwise.
 #    Screenshots and page actions need Firecrawl's closed Fire-engine and do
 #    not work.
 #
 #    The vault item `firecrawl` holds POSTGRES_PASSWORD, at least 24 letters
-#    and digits, for the queue database that lives and dies with its pod.
+#    and digits, for the queue database that lives and dies with its pod, and
+#    GATEWAY_API_KEY, at least 32 letters and digits, the key the gateway asks
+#    for. With [observability], Prometheus scrapes the API's queue metrics.
 # =============================================================================
 [firecrawl]
 

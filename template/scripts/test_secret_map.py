@@ -114,6 +114,7 @@ def test_disabled_feature_needs_nothing():
         ({"cliproxyapi_enabled": True}, "cliproxyapi/API_KEY"),
         ({"career_ops_enabled": True}, "career-ops/PUBLISH_ALLOWED_EMAILS"),
         ({"firecrawl_enabled": True}, "firecrawl/POSTGRES_PASSWORD"),
+        ({"firecrawl_enabled": True}, "firecrawl/GATEWAY_API_KEY"),
     ],
 )
 def test_enabled_feature_needs_its_fields(config, field):

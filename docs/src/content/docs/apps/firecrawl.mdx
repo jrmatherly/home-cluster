@@ -21,7 +21,7 @@ This guide takes Firecrawl from the templates in Git to a working scraping API. 
 It is served at `https://firecrawl.${SECRET_DOMAIN}` on the internal gateway, and at `http://firecrawl-api.firecrawl.svc.cluster.local:3002` inside the cluster.
 
 <Aside type="caution">
-The self-hosted API has no login and takes no API key. Every device on the LAN can call it, and each extract call spends the pooled CLIProxyAPI logins. Firecrawl's own authentication needs a Supabase database, which this deployment does not run.
+The self-hosted API has no login of its own. Firecrawl's authentication needs its cloud database schema, and the functions that look a key up are not published. The gateway asks for a key instead: a request to `https://firecrawl.${SECRET_DOMAIN}` needs `Authorization: Bearer <token>`, where the token is the `GATEWAY_API_KEY` field of the vault item `firecrawl`. A call to the Service inside the cluster passes no gateway and needs no key, so the NetworkPolicy decides who can make one. Each extract call spends the pooled CLIProxyAPI logins.
 </Aside>
 
 | Feature | Self-hosted |
@@ -89,10 +89,10 @@ A failure here while the plain scrape passes points at CLIProxyAPI: look in its 
 
 ## Clients
 
-Point a client at the instance with its base URL and no key:
+Point a client at the instance with its base URL and the gateway key:
 
-- The Firecrawl CLI and the local MCP server read `FIRECRAWL_API_URL`.
-- The SDKs take an `api_url` or `base_url` option.
+- The Firecrawl CLI and the local MCP server read `FIRECRAWL_API_URL` and `FIRECRAWL_API_KEY`.
+- The SDKs take an `api_url` or `base_url` option beside the key.
 - A pod in the cluster uses the Service address. Its namespace has to be admitted by the `firecrawl-api` NetworkPolicy, which admits the `network` namespace, where the gateways run, and It's a Plan today.
 
 It's a Plan uses the instance from release 1.14.0 of its fork on. Its HelmRelease allow-lists the Service host for plain http, and the credential is added in the app: Team settings, Integrations, Firecrawl, with the Instance URL `http://firecrawl-api.firecrawl.svc.cluster.local:3002` and no API key. That allow-list entry is trusted by every outbound path of the app, webhook targets and attachment import included.
@@ -103,8 +103,8 @@ Firecrawl tags its API image several times a day, and publishes the Playwright a
 
 ## Known limits
 
-- No login, as above.
-- No metrics and no dashboard.
+- One shared gateway key and no accounts, as above.
+- With `[observability]`, Prometheus scrapes the queue metrics from a second listener on port 3003, which only the Prometheus pods can reach. There is no dashboard.
 - Egress is limited to public addresses, the model proxy and the search engine. A scrape of a private address returns empty content with status 403. Measured live for private IP addresses and for hostnames that resolve to one.
 - `/v2/extract` still answers but reports itself deprecated. Use `/v2/scrape` with a `json` format.
 

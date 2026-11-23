@@ -55,6 +55,10 @@ spec:
               MODEL_NAME: "claude-sonnet-5-5"
               # Search falls back to DuckDuckGo when this returns nothing.
               SEARXNG_ENDPOINT: http://searxng.ai-kb.svc.cluster.local:8080
+              # A second listener with no key: metrics, and also the queue UI and a
+              # search route, so the NetworkPolicy admits only Prometheus to it.
+              ADMIN_INTERNAL_PORT: &metricsPort 3003
+              ADMIN_INTERNAL_HOST: 0.0.0.0
             envFrom:
               - secretRef:
                   name: firecrawl-secret
@@ -85,7 +89,8 @@ spec:
             resources:
               requests:
                 cpu: 500m
-                memory: 2Gi
+                # It idles at about 2150Mi.
+                memory: 2560Mi
               limits:
                 memory: 6Gi
       playwright:
@@ -223,6 +228,8 @@ spec:
         ports:
           http:
             port: *apiPort
+          metrics:
+            port: *metricsPort
       playwright:
         controller: playwright
         ports:
@@ -238,26 +245,42 @@ spec:
         ports:
           postgres:
             port: *postgresPort
+    serviceMonitor:
+      api:
+        service:
+          identifier: api
+        endpoints:
+          - port: metrics
+            path: /admin/metrics
+            interval: 60s
+          - port: metrics
+            path: /admin/nuq-metrics
+            interval: 60s
+    # A pod that fills a volume past its limit is evicted, which empties the queue.
     persistence:
       tmp:
         type: emptyDir
+        sizeLimit: 1Gi
         globalMounts:
           - path: /tmp
       # The queue is throwaway: a new pod runs the image's nuq.sql again at initdb.
       postgres-data:
         type: emptyDir
+        sizeLimit: 5Gi
         advancedMounts:
           postgres:
             app:
               - path: /var/lib/postgresql/data
       postgres-run:
         type: emptyDir
+        sizeLimit: 16Mi
         advancedMounts:
           postgres:
             app:
               - path: /var/run/postgresql
       rabbitmq-data:
         type: emptyDir
+        sizeLimit: 1Gi
         advancedMounts:
           rabbitmq:
             app:

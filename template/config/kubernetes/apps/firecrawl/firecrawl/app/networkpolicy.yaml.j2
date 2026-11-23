@@ -26,6 +26,20 @@ spec:
       ports:
         - protocol: TCP
           port: 3002
+    #% if observability_enabled %#
+    # The keyless admin listener, for the Prometheus pods only: the namespace also
+    # holds Grafana and the log stack.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 3003
+    #% endif %#
   egress:
     - to:
         - namespaceSelector:
