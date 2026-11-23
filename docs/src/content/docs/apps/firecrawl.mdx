@@ -13,7 +13,7 @@ This guide takes Firecrawl from the templates in Git to a working scraping API. 
 | --- | --- |
 | Templates, schema and Renovate rules | In Git, and the section is enabled |
 | First rollout | Done on 2026-11-23. Every pod was Ready within a minute |
-| Live checks | Passed on 2026-11-23, except a restart of the queue database, which is not run yet |
+| Live checks | Passed on 2026-11-23, including a restart of the queue database |
 | It's a Plan connected | Waits on release 1.14.0 of its fork |
 
 ## What it is and is not
@@ -40,6 +40,7 @@ One release holds four workloads, and the namespace has its own Redis.
 - The Playwright service renders pages that need a browser.
 - RabbitMQ and a queue Postgres carry the job queue. The Postgres is Firecrawl's own image, with `pg_cron` and its schema created at first start.
 - The queue Postgres and RabbitMQ keep their data in the pod. A restart drops crawls in flight and stored results, which expire after 24 hours anyway. Nothing here is backed up.
+- When the queue Postgres restarts, the API exits and its container restarts until the database is back. Measured live: about two minutes, with no step by hand.
 
 ## Fill the section
 
