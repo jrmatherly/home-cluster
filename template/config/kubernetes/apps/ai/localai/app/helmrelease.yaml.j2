@@ -26,7 +26,7 @@ spec:
               # The CPU build. The llama-cpp backend image below carries its own CUDA 12.8
               # runtime libraries, loader and libc; only the driver comes from the host.
               repository: localai/localai
-              tag: v4.12.1@sha256:c8556c4f7b6dd9b76e915d515ab5cfe5a765d8ea8fd3f0cf563f9c690b48a7f4
+              tag: v5.0.1@sha256:7240f75f2b7f00eeb4e77ff2921c25f77ab265b4e5888933e702e0c3b49d876d
             env:
               # Closes every API route but /healthz, /readyz and discovery to a request without
               # the key; a legacy key grants full admin, which is why the gallery endpoint and
