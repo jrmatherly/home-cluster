@@ -160,6 +160,21 @@ url = ""
 
 
 # =============================================================================
+#    The 1Password vault that External Secrets Operator reads deployment
+#    secrets from, through a 1Password Connect server in the cluster. Leave
+#    the vault empty to keep both out of the cluster.
+# =============================================================================
+[onepassword]
+
+# Name of the vault the Connect server can read. The name is rendered into
+# this repo, so pick one you are content to publish. Letters, digits, `_`
+# and `-` only.
+# OPTIONAL. Default: "" (off). Example: "homelab"
+
+# vault = ""
+
+
+# =============================================================================
 #    The domain your cluster's hostnames live under. Used for every rendered
 #    hostname (echo, flux-webhook, internal split DNS) and the wildcard
 #    certificate, regardless of DNS provider.

@@ -179,6 +179,10 @@ class Repository(Model):
         return self
 
 
+class Onepassword(Model):
+    vault: str = Field(default="", pattern=r"^[A-Za-z0-9_-]*$")
+
+
 class Domain(Model):
     name: Fqdn
 
@@ -898,6 +902,7 @@ class Config(Model):
     kubernetes: Kubernetes
     gateways: Gateways
     repository: Repository
+    onepassword: Onepassword = Onepassword()
     domain: Domain
     dns: Dns
     # Defaults to "cloudflare-tunnel" when dns.provider is "cloudflare",
@@ -941,6 +946,11 @@ class Config(Model):
     def cilium_bgp_enabled(self) -> bool:
         bgp = self.cilium.bgp
         return bgp.router_addr != "" and bgp.router_asn != "" and bgp.node_asn != ""
+
+    @computed_field
+    @property
+    def onepassword_enabled(self) -> bool:
+        return self.onepassword.vault != ""
 
     # The UI has no login of its own, so Hubble is only turned on when its gateway login exists.
     @computed_field

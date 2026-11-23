@@ -987,6 +987,19 @@
       "title": "Observability",
       "type": "object"
     },
+    "Onepassword": {
+      "additionalProperties": false,
+      "properties": {
+        "vault": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "title": "Vault",
+          "type": "string"
+        }
+      },
+      "title": "Onepassword",
+      "type": "object"
+    },
     "PegaProx": {
       "additionalProperties": false,
       "properties": {
@@ -1300,6 +1313,12 @@
     },
     "repository": {
       "$ref": "#/$defs/Repository"
+    },
+    "onepassword": {
+      "$ref": "#/$defs/Onepassword",
+      "default": {
+        "vault": ""
+      }
     },
     "domain": {
       "$ref": "#/$defs/Domain"

@@ -64,6 +64,12 @@ def _load_raw(raw: dict) -> Config:
         raise ConfigError(format_errors(e)) from None
 
 
+def test_onepassword_gate_follows_vault():
+    on = _load_raw(config_from("public.toml", **{"onepassword.vault": "homelab"}))
+    assert on.onepassword_enabled is True
+    assert _load_raw(config_from("public.toml")).onepassword_enabled is False
+
+
 def test_host_bits_error_suggests_network_address():
     raw = config_from("public.toml", **{"network.node_cidr": "10.10.10.5/24"})
     with pytest.raises(ConfigError, match=r"did you mean 10\.10\.10\.0/24"):
