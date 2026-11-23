@@ -38,7 +38,7 @@ spec:
     api:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-api
-        tag: 1.13.0@sha256:e25f0404f528fe1dd295e7f942b4831ba285e0d5543f07867da5f52216ed8355
+        tag: 1.13.1@sha256:f1ea7bfb9ead8e73000e42df01699f184fb5b56ce43160da068a806e4eafe282
       env:
         API_URL: https://plan.${SECRET_DOMAIN}/api
         APP_URL: https://plan.${SECRET_DOMAIN}
@@ -59,7 +59,7 @@ spec:
     web:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-web
-        tag: 1.13.0@sha256:b3cad53e66f5b06458585bf1d0277b40a4f9c92c288eb98cb4602e7f57e229a5
+        tag: 1.13.1@sha256:ecb3da1aa4f53a0cd935eb610e87cdbe6ec858851880993850de152615b7db5a
       resources:
         requests:
           cpu: 50m
@@ -69,7 +69,7 @@ spec:
     worker:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-worker
-        tag: 1.13.0@sha256:082ee7fcc36145e754fb4b785ca5a206554223e89d1fcdf941ef438b450121b7
+        tag: 1.13.1@sha256:1f1fea273b899622e7e408e1987bfc23f225df9c29cb7da857b324916ba204f2
       env:
         DO_NOT_TRACK: "1"
       resources:
@@ -94,27 +94,4 @@ spec:
     externalS3:
       endpoint: http://rustfs-svc.rustfs.svc.cluster.local:9000
     # ingress and certificate stay at their defaults (off): the HTTPRoute is the route.
-  postRenderers:
-    - kustomize:
-        patches:
-          # next/image caches under .next/cache, and on a read-only root every
-          # optimized image logs an unhandledRejection and is re-optimized
-          # (measured in Docker). The chart has no volume value for the web.
-          # No namespace: the chart renders none, and a patch naming one matches nothing.
-          - patch: |
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: itsaplan-web
-              spec:
-                template:
-                  spec:
-                    containers:
-                      - name: web
-                        volumeMounts:
-                          - name: next-cache
-                            mountPath: /app/apps/web/.next/cache
-                    volumes:
-                      - name: next-cache
-                        emptyDir: {}
 #% endif %#
