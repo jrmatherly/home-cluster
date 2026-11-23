@@ -4,11 +4,11 @@ kind: Kustomization
 resources:
   - ./backup-cronjob.yaml
   - ./backup-secret.sops.yaml
+  - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
-  - ./oidc-secret.sops.yaml
+  - ./oidc-externalsecret.yaml
   - ./scan-cronjob.yaml
-  - ./secret.sops.yaml
   - ./securitypolicy.yaml
