@@ -13,7 +13,7 @@ talos: talos-secret talos-apply talos-talosconfig talos-kubeconfig
 
 [doc('Bootstrap apps into the Talos cluster')]
 [group('bootstrap')]
-apps: apps-ready apps-namespaces apps-secrets apps-crds apps-helm
+apps: apps-ready apps-namespaces apps-secrets apps-secrets-onepassword apps-crds apps-helm
     just log info "Cluster is bootstrapped — Flux will start syncing the Git repository"
 
 # No sops call or existence guard is needed: the bundle is stored already
@@ -88,6 +88,24 @@ apps-secrets:
             just log fatal "Failed to apply secret" resource "$name"
         fi
     done
+
+# The two Secrets 1Password Connect starts from. onepassword.yaml is rendered
+# only when [onepassword].vault is set. OP_CONNECT_* would point the CLI at a
+# Connect server that does not exist yet.
+[private]
+apps-secrets-onepassword:
+    if [[ ! -s "{{ source_directory() }}/onepassword.yaml" ]]; then
+        exit 0
+    fi
+    just log info "Applying 1Password Connect secrets" stage "{{ recipe_name() }}"
+    unset OP_CONNECT_HOST OP_CONNECT_TOKEN
+    if ! op signin >/dev/null || ! op whoami &>/dev/null; then
+        just log fatal "1Password is unreachable or signed out, bootstrap cannot continue"
+    fi
+    if ! op inject --in-file "{{ source_directory() }}/onepassword.yaml" \
+            | kubectl apply --server-side --filename - &>/dev/null; then
+        just log fatal "Failed to apply 1Password Connect secrets"
+    fi
 
 # Wait until nodes register as Ready=False. They only become Ready=True once the CNI is healthy.
 [private]

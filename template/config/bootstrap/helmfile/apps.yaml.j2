@@ -55,12 +55,30 @@ releases:
     #% else %#
     needs: ["kube-system/coredns"]
     #% endif %#
+  #% if onepassword_enabled %#
+
+  - name: external-secrets
+    namespace: external-secrets
+    inherit:
+      - template: default
+    needs: ["cert-manager/cert-manager"]
+
+  - name: onepassword-connect
+    namespace: external-secrets
+    inherit:
+      - template: default
+    needs: ["external-secrets/external-secrets"]
+  #% endif %#
 
   - name: flux-operator
     namespace: flux-system
     inherit:
       - template: default
+    #% if onepassword_enabled %#
+    needs: ["external-secrets/onepassword-connect"]
+    #% else %#
     needs: ["cert-manager/cert-manager"]
+    #% endif %#
 
   - name: flux-instance
     namespace: flux-system
