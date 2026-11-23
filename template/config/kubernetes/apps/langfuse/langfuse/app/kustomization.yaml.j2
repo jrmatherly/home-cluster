@@ -6,13 +6,13 @@ components:
   - ../../../../components/postgres
   - ../../../../components/redis
 resources:
-  - ./clickhouse-auth.sops.yaml
+  - ./clickhouse-externalsecret.yaml
   - ./clickhouse.yaml
   - ./cluster.yaml
+  - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
-  - ./secret.sops.yaml
 #% endif %#
