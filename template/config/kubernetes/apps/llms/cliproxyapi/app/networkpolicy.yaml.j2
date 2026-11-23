@@ -1,7 +1,7 @@
 #% if cliproxyapi_enabled %#
 ---
-# The gateways, the two consoles and, when it is routed through the proxy, the
-# career-ops web pod only. Egress stays open: the proxy dials the providers and its
+# The gateways, the two consoles, Firecrawl's API pod and, when it is routed
+# through the proxy, the career-ops web pod only. Egress stays open: the proxy dials the providers and its
 # version checks on the internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -34,6 +34,15 @@ spec:
             matchLabels:
               app.kubernetes.io/name: career-ops
               app.kubernetes.io/controller: web
+        #% endif %#
+        #% if firecrawl_enabled %#
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firecrawl
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firecrawl
+              app.kubernetes.io/controller: api
         #% endif %#
       ports:
         - protocol: TCP

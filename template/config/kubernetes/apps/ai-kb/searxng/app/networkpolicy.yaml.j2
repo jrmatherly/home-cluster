@@ -1,6 +1,7 @@
 #% if ai_kb_searxng %#
 ---
-# Only the AI KB app pod queries it, and it reaches public search engines only.
+# Only the AI KB app pod and Firecrawl's API pod query it, and it reaches public
+# search engines only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -15,6 +16,15 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: app
+        #% if firecrawl_enabled %#
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firecrawl
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firecrawl
+              app.kubernetes.io/controller: api
+        #% endif %#
       ports:
         - protocol: TCP
           port: 8080

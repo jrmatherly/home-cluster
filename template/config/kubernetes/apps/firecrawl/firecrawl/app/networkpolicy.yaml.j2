@@ -1,0 +1,132 @@
+#% if firecrawl_enabled %#
+---
+# The gateways and It's a Plan call the API. It fetches pages itself as well as
+# through Playwright, so its egress is fenced to public addresses plus the
+# stores, the model proxy and the search engine.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl
+      app.kubernetes.io/controller: api
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+        #% if itsaplan_enabled %#
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: itsaplan
+        #% endif %#
+      ports:
+        - protocol: TCP
+          port: 3002
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: llms
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cliproxyapi
+      ports:
+        - protocol: TCP
+          port: 8317
+    #% if ai_kb_searxng %#
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-kb
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080
+    #% endif %#
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+#% for cidr in private_cidrs %#
+              - #{ cidr }#
+#% endfor %#
+---
+# Only the API drives the browser, and the browser reaches public addresses only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-playwright
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl
+      app.kubernetes.io/controller: playwright
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/controller: api
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+#% for cidr in private_cidrs %#
+              - #{ cidr }#
+#% endfor %#
+---
+# The queue broker and the queue database answer the API and dial nothing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-backends
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl
+    matchExpressions:
+      - key: app.kubernetes.io/controller
+        operator: In
+        values: ["rabbitmq", "postgres"]
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/controller: api
+      ports:
+        - protocol: TCP
+          port: 5672
+        - protocol: TCP
+          port: 5432
+#% endif %#

@@ -1,0 +1,251 @@
+#% if firecrawl_enabled %#
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firecrawl
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: firecrawl
+  interval: 1h
+  values:
+    controllers:
+      api:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        strategy: Recreate
+        pod:
+          # The image sets no USER, so without this the API runs as root.
+          securityContext: &node
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+        containers:
+          app:
+            image:
+              repository: ghcr.io/firecrawl/firecrawl
+              tag: 2.11.816@sha256:060a247438227b419bfdc8d2afc4980c2fd34e53fcc248a117f0d3e0264dd193
+            # One process tree: the API and every worker, as upstream's Compose file runs it.
+            command: ["node", "dist/src/harness.js", "--start-docker"]
+            env:
+              HOST: 0.0.0.0
+              PORT: &apiPort 3002
+              ENV: local
+              # Database authentication needs Supabase. The NetworkPolicy and the internal
+              # gateway are the boundary instead.
+              USE_DB_AUTHENTICATION: "false"
+              REDIS_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: redis-auth
+                    key: password
+              REDIS_URL: redis://:$(REDIS_PASSWORD)@redis:6379
+              REDIS_RATE_LIMIT_URL: redis://:$(REDIS_PASSWORD)@redis:6379
+              PLAYWRIGHT_MICROSERVICE_URL: http://firecrawl-playwright:3000/scrape
+              NUQ_RABBITMQ_URL: amqp://firecrawl-rabbitmq:5672
+              POSTGRES_HOST: firecrawl-postgres
+              POSTGRES_PORT: &postgresPort 5432
+              POSTGRES_USER: postgres
+              # The image's pg_cron targets this database.
+              POSTGRES_DB: postgres
+              # Extract and JSON-format scrapes call the Responses API here.
+              OPENAI_BASE_URL: http://cliproxyapi.llms.svc.cluster.local:8317/v1
+              MODEL_NAME: #{ firecrawl.model }#
+              #% if ai_kb_searxng %#
+              # Search falls back to DuckDuckGo when this returns nothing.
+              SEARXNG_ENDPOINT: http://searxng.ai-kb.svc.cluster.local:8080
+              #% endif %#
+            envFrom:
+              - secretRef:
+                  name: firecrawl-secret
+            probes:
+              liveness: &apiProbe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /v0/health/readiness
+                    port: *apiPort
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *apiProbe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /v0/health/readiness
+                    port: *apiPort
+                  periodSeconds: 5
+                  failureThreshold: 24
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 500m
+                memory: 2Gi
+              limits:
+                memory: 6Gi
+      playwright:
+        strategy: Recreate
+        pod:
+          securityContext: *node
+        containers:
+          app:
+            image:
+              repository: ghcr.io/firecrawl/playwright-service
+              tag: latest@sha256:227ce3d8059173925a5a0697c63a1e947662cca934a609151651f578774edd5d
+            # The image's `pnpm start` goes through corepack, which downloads pnpm into a
+            # home directory that does not exist and exits on the read-only root.
+            command: ["node", "dist/api.js"]
+            env:
+              PORT: &playwrightPort 3000
+              MAX_CONCURRENT_PAGES: 10
+            probes:
+              liveness: &playwrightProbe
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: *playwrightPort
+                  periodSeconds: 10
+              readiness: *playwrightProbe
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 4Gi
+      rabbitmq:
+        strategy: Recreate
+        pod:
+          securityContext: &stores
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile: { type: RuntimeDefault }
+        containers:
+          app:
+            image:
+              repository: docker.io/library/rabbitmq
+              tag: 3-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+            probes:
+              liveness: &rabbitmqProbe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["rabbitmq-diagnostics", "-q", "check_running"]
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+              readiness: *rabbitmqProbe
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["rabbitmq-diagnostics", "-q", "check_running"]
+                  periodSeconds: 5
+                  timeoutSeconds: 10
+                  failureThreshold: 24
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+      postgres:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        strategy: Recreate
+        pod:
+          securityContext: *stores
+        containers:
+          app:
+            image:
+              repository: ghcr.io/firecrawl/nuq-postgres
+              tag: latest@sha256:d719b36160eac2fcbe16dc7e7360ddb9c82c40ea5da183d07bf4a755c6a0b2ae
+            env:
+              POSTGRES_USER: postgres
+              POSTGRES_DB: postgres
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: firecrawl-secret
+                    key: POSTGRES_PASSWORD
+              # initdb refuses a mount root it does not own.
+              PGDATA: /var/lib/postgresql/data/pgdata
+            probes:
+              liveness: &postgresProbe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["pg_isready", "-U", "postgres", "-d", "postgres"]
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+              readiness: *postgresProbe
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    defaultPodOptions:
+      # A Service here would otherwise inject FIRECRAWL_*_PORT variables into every pod.
+      enableServiceLinks: false
+    service:
+      api:
+        controller: api
+        ports:
+          http:
+            port: *apiPort
+      playwright:
+        controller: playwright
+        ports:
+          http:
+            port: *playwrightPort
+      rabbitmq:
+        controller: rabbitmq
+        ports:
+          amqp:
+            port: 5672
+      postgres:
+        controller: postgres
+        ports:
+          postgres:
+            port: *postgresPort
+    persistence:
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      # The queue is throwaway: a new pod runs the image's nuq.sql again at initdb.
+      postgres-data:
+        type: emptyDir
+        advancedMounts:
+          postgres:
+            app:
+              - path: /var/lib/postgresql/data
+      postgres-run:
+        type: emptyDir
+        advancedMounts:
+          postgres:
+            app:
+              - path: /var/run/postgresql
+      rabbitmq-data:
+        type: emptyDir
+        advancedMounts:
+          rabbitmq:
+            app:
+              - path: /var/lib/rabbitmq
+#% endif %#
