@@ -9,7 +9,7 @@ spec:
     name: itsaplan
   interval: 1h
   # The first install waits for itsaplan-db, then the migrate init container
-  # applies every migration (187 at 1.12.0) and the api's readiness probe
+  # applies every migration (196 at 1.13.0) and the api's readiness probe
   # starts 60 s later, so Helm's default 5m can run out on a fresh cluster.
   timeout: 10m
   valuesFrom:
@@ -36,8 +36,8 @@ spec:
       capabilities: { drop: ["ALL"] }
     api:
       image:
-        repository: ghcr.io/croffasia/itsaplan-api
-        tag: 1.12.0@sha256:b46a6c56396b3e57eda3a56eb625da310e1ff55a65fce9abd6f36ae6d2479113
+        repository: ghcr.io/jrmatherly/itsaplan-api
+        tag: 1.13.0@sha256:e25f0404f528fe1dd295e7f942b4831ba285e0d5543f07867da5f52216ed8355
       env:
         API_URL: https://plan.${SECRET_DOMAIN}/api
         APP_URL: https://plan.${SECRET_DOMAIN}
@@ -57,8 +57,8 @@ spec:
           memory: 1Gi
     web:
       image:
-        repository: ghcr.io/croffasia/itsaplan-web
-        tag: 1.12.0@sha256:95d4a9253608a00e2e6b82c68f92dd7e24bbf86bca537d66b8868c3a12926e24
+        repository: ghcr.io/jrmatherly/itsaplan-web
+        tag: 1.13.0@sha256:b3cad53e66f5b06458585bf1d0277b40a4f9c92c288eb98cb4602e7f57e229a5
       resources:
         requests:
           cpu: 50m
@@ -67,10 +67,9 @@ spec:
           memory: 1Gi
     worker:
       image:
-        repository: ghcr.io/croffasia/itsaplan-worker
-        tag: 1.12.0@sha256:5ae5d1123f3dc9f366b1516d110a043f9caa60fcb043a54abc9f99ab0be3d200
+        repository: ghcr.io/jrmatherly/itsaplan-worker
+        tag: 1.13.0@sha256:082ee7fcc36145e754fb4b785ca5a206554223e89d1fcdf941ef438b450121b7
       env:
-        TELEMETRY_DISABLED: "1"
         DO_NOT_TRACK: "1"
       resources:
         requests:
