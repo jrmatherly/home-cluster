@@ -1,0 +1,163 @@
+---
+# The gateways and It's a Plan call the API. It fetches pages itself as well as
+# through Playwright, so its egress is fenced to public addresses plus the
+# stores, the model proxy and the search engine.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl
+      app.kubernetes.io/controller: api
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: network
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: itsaplan
+      ports:
+        - protocol: TCP
+          port: 3002
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Playwright, Postgres, RabbitMQ and Redis, on their client ports only: RabbitMQ's
+    # management port stays closed to a scrape that names the pod.
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 5672
+        - protocol: TCP
+          port: 6379
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: llms
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cliproxyapi
+      ports:
+        - protocol: TCP
+          port: 8317
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-kb
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+              - 0.0.0.0/8
+              - 192.0.0.0/24
+              - 198.18.0.0/15
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+              - 10.42.0.0/16
+              - 10.43.0.0/16
+              - 192.168.20.0/22
+      ports:
+        - protocol: TCP
+---
+# Only the API drives the browser, and the browser reaches public addresses only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-playwright
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl
+      app.kubernetes.io/controller: playwright
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/controller: api
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+              - 0.0.0.0/8
+              - 192.0.0.0/24
+              - 198.18.0.0/15
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+              - 10.42.0.0/16
+              - 10.43.0.0/16
+              - 192.168.20.0/22
+      ports:
+        - protocol: TCP
+---
+# The queue broker and the queue database answer the API and dial nothing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: firecrawl-backends
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: firecrawl
+    matchExpressions:
+      - key: app.kubernetes.io/controller
+        operator: In
+        values: ["rabbitmq", "postgres"]
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/controller: api
+      ports:
+        - protocol: TCP
+          port: 5672
+        - protocol: TCP
+          port: 5432

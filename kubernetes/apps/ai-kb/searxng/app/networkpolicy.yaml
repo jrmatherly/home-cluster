@@ -1,5 +1,6 @@
 ---
-# Only the AI KB app pod queries it, and it reaches public search engines only.
+# Only the AI KB app pod and, when Firecrawl is deployed, its API pod query it, and
+# it reaches public search engines only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -14,6 +15,13 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/component: app
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: firecrawl
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: firecrawl
+              app.kubernetes.io/controller: api
       ports:
         - protocol: TCP
           port: 8080
