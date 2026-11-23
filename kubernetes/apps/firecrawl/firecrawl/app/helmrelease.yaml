@@ -22,11 +22,32 @@ spec:
             runAsGroup: 1000
             fsGroup: 1000
             seccompProfile: { type: RuntimeDefault }
-        containers:
-          app:
-            image:
+        # The harness exits when a worker cannot reach Postgres, so a rollout that
+        # recreates both pods left the API with two restarts on its counter.
+        initContainers:
+          wait-for-postgres:
+            image: &apiImage
               repository: ghcr.io/firecrawl/firecrawl
               tag: 2.11.816@sha256:060a247438227b419bfdc8d2afc4980c2fd34e53fcc248a117f0d3e0264dd193
+            command:
+              - node
+              - -e
+              - |
+                const net = require("net");
+                const attempt = () => {
+                  const socket = net.connect(5432, "firecrawl-postgres");
+                  socket.setTimeout(2000, () => socket.destroy(new Error("timeout")));
+                  socket.on("connect", () => process.exit(0));
+                  socket.on("error", () => setTimeout(attempt, 2000));
+                };
+                attempt();
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+        containers:
+          app:
+            image: *apiImage
             # One process tree: the API and every worker, as upstream's Compose file runs it.
             command: ["node", "dist/src/harness.js", "--start-docker"]
             env:
@@ -82,10 +103,7 @@ spec:
                     port: *apiPort
                   periodSeconds: 5
                   failureThreshold: 24
-            securityContext: &securityContext
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
+            securityContext: *securityContext
             resources:
               requests:
                 cpu: 500m
