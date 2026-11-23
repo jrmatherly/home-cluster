@@ -44,6 +44,16 @@ scaffold section:
     uv run --quiet --locked --no-dev "{{ template_dir }}/scripts/scaffold.py" "{{ section }}" "{{ sample_config_file }}" "{{ config_file }}"
     just template check-layout
 
+[doc('Create the 1Password items that do not exist yet; --dry-run lists them and checks them offline')]
+[group('template')]
+secrets-seed *flag:
+    uv run --quiet --locked --no-dev "{{ template_dir }}/scripts/op_seed.py" "{{ config_file }}" {{ flag }}
+
+[doc('Check the 1Password items against the secret map; prints item and field names, never a value')]
+[group('template')]
+secrets-check:
+    uv run --quiet --locked --no-dev "{{ template_dir }}/scripts/secrets_check.py" "{{ config_file }}"
+
 [doc('Check that all prerequisite files exist and cluster.toml validates against the schema')]
 [group('template')]
 [no-exit-message]
