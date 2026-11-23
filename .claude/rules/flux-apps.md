@@ -8,14 +8,14 @@ paths:
 
 Flux reconciles `kubernetes/` from Git. During the template stage, edit the `.j2` sources under `template/config/kubernetes/`. After `just template tidy`, edit `kubernetes/` directly. The layout is the same in both.
 
-- `apps/<namespace>/kustomization.yaml` sets `namespace:`, includes the `../../components/sops` component, and lists `./namespace.yaml` plus each app's `./<app>/ks.yaml`. A new app is not deployed until it is listed there.
+- `apps/<namespace>/kustomization.yaml` sets `namespace:` and lists `./namespace.yaml` plus each app's `./<app>/ks.yaml`. A new app is not deployed until it is listed there.
 - `apps/<namespace>/<app>/ks.yaml` is a Flux `Kustomization`. Every existing app uses these settings, so copy them from `apps/default/echo/ks.yaml.j2`:
     - `path: ./kubernetes/apps/<namespace>/<app>/app`
     - `interval: 1h`
     - `prune: true`
     - `targetNamespace: <namespace>`
     - `sourceRef` set to the `flux-system` GitRepository
-    - `postBuild.substituteFrom` set to the `cluster-secrets` Secret, which provides `${SECRET_DOMAIN}` and the other cluster values
+    - `postBuild.substituteFrom` set to the `cluster-secrets` Secret, which provides `${SECRET_DOMAIN}`; the `ClusterExternalSecret` in `external-secrets/onepassword-connect` writes a copy into each namespace
 - `wait: false` is the default. Nine apps set `wait: true` (`arc-controller`, `flux-operator`, `cloudflare-dns`, `cloudnative-pg`, `plugin-barman-cloud`, `csi-driver-nfs`, `media-shared`, `rustfs`, `rustfs-provision`), and `cert-manager` uses `healthChecks`. Use `dependsOn` only for a real ordering need: `flux-instance` depends on `flux-operator`, and an app with a Postgres database depends on `cloudnative-pg` and `plugin-barman-cloud` (both in `cnpg-system`), because its manifests use their CRDs. A RustFS consumer (`ai-kb`, `langfuse`, `itsaplan`) depends on `rustfs-provision` in `rustfs`, because its key pair has to exist before it starts, and `ai-kb` with tracing also depends on `langfuse`. `home-cluster-runners` depends on `arc-controller`, `rustfs-provision` on `rustfs`, each media app on `media-shared`, and `media-shared` on `csi-driver-nfs`.
 - `apps/<namespace>/<app>/app/` holds a `kustomization.yaml` that lists `helmrelease.yaml`, `ocirepository.yaml`, and any extra manifests. The `HelmRelease` uses `chartRef: {kind: OCIRepository, name: <app>}`, and the `OCIRepository` pins the chart with `ref.tag`. When upstream publishes no OCI chart, a `helmrepository.yaml` holds a `HelmRepository` instead and the `HelmRelease` pins the chart with `spec.chart.spec.version`.
 - Renovate updates chart tags and images in these files without annotations, because the `home-operations/renovate-presets` default extends the flux, kubernetes, and helm-values managers to `.yaml.j2`. Don't add `# renovate:` comments here.

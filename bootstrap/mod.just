@@ -77,8 +77,7 @@ apps-secrets:
     just log info "Applying secrets for apps" stage "{{ recipe_name() }}"
     for secret in \
         "{{ source_directory() }}/deploy-key.sops.yaml" \
-        "{{ source_directory() }}/sops-age.sops.yaml" \
-        "{{ kubernetes_dir }}/components/sops/cluster-secrets.sops.yaml"
+        "{{ source_directory() }}/sops-age.sops.yaml"
     do
         name="$(basename "$secret" .sops.yaml)"
         if sops decrypt "$secret" \
@@ -89,7 +88,7 @@ apps-secrets:
         fi
     done
 
-# The two Secrets 1Password Connect starts from. onepassword.yaml is rendered
+# The Secrets 1Password Connect starts from, and the domain. onepassword.yaml is rendered
 # only when [onepassword].vault is set. OP_CONNECT_* would point the CLI at a
 # Connect server that does not exist yet.
 [private]
@@ -97,14 +96,14 @@ apps-secrets-onepassword:
     if [[ ! -s "{{ source_directory() }}/onepassword.yaml" ]]; then
         exit 0
     fi
-    just log info "Applying 1Password Connect secrets" stage "{{ recipe_name() }}"
+    just log info "Applying secrets from 1Password" stage "{{ recipe_name() }}"
     unset OP_CONNECT_HOST OP_CONNECT_TOKEN
     if ! op signin >/dev/null || ! op whoami &>/dev/null; then
         just log fatal "1Password is unreachable or signed out, bootstrap cannot continue"
     fi
     if ! op inject --in-file "{{ source_directory() }}/onepassword.yaml" \
             | kubectl apply --server-side --filename - &>/dev/null; then
-        just log fatal "Failed to apply 1Password Connect secrets"
+        just log fatal "Failed to apply secrets from 1Password"
     fi
 
 # Wait until nodes register as Ready=False. They only become Ready=True once the CNI is healthy.
