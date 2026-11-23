@@ -67,7 +67,7 @@ order, and the next app starts only when the current one is healthy.
    `cluster.toml` field follows `.claude/rules/validator.md`. When the update needed a step that
    `references/apps.md` does not mention, add it there now so it lands in the same commit. That file is only as
    current as this step keeps it.
-6. **Render and validate.** Run `just configure`. Restore the re-encrypted secret files as `CLAUDE.md` describes.
+6. **Render and validate.** Run `just configure`.
    Confirm `git status` lists only this app's template and rendered files. Run `just template test-helmfile` when
    the app is also a bootstrap release, meaning it is listed in `template/config/bootstrap/helmfile/apps.yaml.j2`.
    When the render fails or the diff holds something the report did not predict, stop and report it instead of
