@@ -338,6 +338,18 @@ function readsSecret(parts: Word[][], cwd: string): boolean {
   });
 }
 
+// The op verbs that print or inject a secret's value, wherever global flags sit. A just recipe
+// that calls op is not seen here, because the command word is just.
+function printsOpSecret(ws: Word[]): boolean {
+  const { base, args } = command(ws);
+  if (base !== "op") return false;
+  const t = args.map((w) => w.text);
+  return t.some(
+    (w, i) =>
+      /^(?:read|inject|run)$/.test(w) || (/^(?:item|document)$/.test(w) && t[i + 1] === "get"),
+  );
+}
+
 function count(porcelain: string, re: RegExp): number {
   return porcelain.split("\n").filter((l) => re.test(l)).length;
 }
@@ -370,6 +382,11 @@ export const register: Register = (on) => {
     if (readsSecret(parts, cwd)) {
       return {
         deny: "that command names a secrets file; read one only with template/scripts/validate.py piped into a narrow jq path, check_layout.py, just template recipes or taplo check. A git commit message or a grep pattern may mention the name",
+      };
+    }
+    if (parts.some(printsOpSecret)) {
+      return {
+        deny: "that op command prints a secret's value; reading 1Password is the owner's to run",
       };
     }
     if (writesRendered(parts, cwd)) {

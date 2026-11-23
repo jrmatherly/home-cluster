@@ -175,6 +175,30 @@ test("quoted, globbed, spliced and flag-separated secret reads are refused", asy
     "ls [z-a]*",
   ]);
 });
+test("op commands that print a secret are refused, the rest run", async ($, on) => {
+  world(on);
+  await denied(
+    $,
+    [
+      "op read op://vault/item/field",
+      "op inject --in-file bootstrap/onepassword.yaml",
+      "op run -- env",
+      "op document get talos --vault vault",
+      "op item get 1password --format json",
+      "op --account work read op://vault/item/field",
+      "bash -c 'op read op://vault/item/field'",
+      "echo $(op read op://vault/item/field)",
+    ],
+    /owner's to run/,
+  );
+  await allowed($, [
+    "op --version",
+    "op whoami",
+    "op vault list",
+    "op item list --vault vault",
+    "just bootstrap apps",
+  ]);
+});
 test("just's flags and module path do not hide node maintenance", async ($, on) => {
   world(on, "", at(3, 0));
   await denied(
