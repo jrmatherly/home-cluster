@@ -11,10 +11,13 @@ resources:
 #% endif %#
   - ./cluster.yaml
   - ./database.yaml
+#% if ai_workspace.env %#
+  - ./env-externalsecret.yaml
+#% endif %#
+  - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
-  - ./secret.sops.yaml
 #% endif %#

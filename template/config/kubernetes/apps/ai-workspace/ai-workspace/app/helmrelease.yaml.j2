@@ -48,6 +48,10 @@ spec:
             envFrom:
               - secretRef:
                   name: ai-workspace-secret
+#% if ai_workspace.env %#
+              - secretRef:
+                  name: ai-workspace-env
+#% endif %#
             probes:
               # The app has no health route, so the probes ask for a cheap JSON
               # endpoint that needs no input.

@@ -8,9 +8,9 @@ resources:
   - ./browserless-networkpolicy.yaml
   - ./cluster.yaml
   - ./database.yaml
+  - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
   - ./scheduledbackup.yaml
-  - ./secret.sops.yaml
