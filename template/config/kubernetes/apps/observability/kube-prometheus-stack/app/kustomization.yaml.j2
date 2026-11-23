@@ -4,8 +4,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   #% if observability.discord_webhook %#
-  - ./alertmanager-secret.sops.yaml
+  - ./alertmanager-externalsecret.yaml
   #% endif %#
+  - ./externalsecret.yaml
   #% if nvidia_enabled %#
   - ./grafana-llm-app.yaml
   #% endif %#
@@ -16,7 +17,6 @@ resources:
   - ./proxmox-hosts-prometheusrule.yaml
   - ./proxmox-hosts-scrapeconfig.yaml
   #% endif %#
-  - ./secret.sops.yaml
 #% if observability.github_app_id or observability.sentry_org %#
 configMapGenerator:
   #% if observability.github_app_id %#
