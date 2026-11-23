@@ -4,12 +4,12 @@ kind: Kustomization
 resources:
   - ./backup-cronjob.yaml
   - ./backup-secret.sops.yaml
+  - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
-  - ./secret.sops.yaml
-  - ./metrics-secret.sops.yaml
+  - ./metrics-externalsecret.yaml
 configMapGenerator:
   - name: pegaprox-dashboard
     files:
