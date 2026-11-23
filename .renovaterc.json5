@@ -108,7 +108,7 @@
       allowedVersions: "<3",
     },
     {
-      description: "The docs and career-ops images are rebuilt on every push to main, and Firecrawl publishes its Playwright and queue Postgres images as latest only: pin latest to its digest.pinDigests must sit in a rule without matchUpdateTypes, because update types are only known after the lookup that pinDigests steers",
+      description: "The docs and career-ops images are rebuilt on every push to main, and Firecrawl publishes its Playwright and queue Postgres images as latest only: pin latest to its digest. pinDigests must sit in a rule without matchUpdateTypes, because update types are only known after the lookup that pinDigests steers",
       matchDatasources: ["docker"],
       matchPackageNames: [
         "ghcr.io/jrmatherly/home-cluster/docs",

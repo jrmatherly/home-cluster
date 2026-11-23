@@ -53,7 +53,7 @@ spec:
               POSTGRES_DB: postgres
               # Extract and JSON-format scrapes call the Responses API here.
               OPENAI_BASE_URL: http://cliproxyapi.llms.svc.cluster.local:8317/v1
-              MODEL_NAME: #{ firecrawl.model }#
+              MODEL_NAME: "#{ firecrawl.model }#"
               #% if ai_kb_searxng %#
               # Search falls back to DuckDuckGo when this returns nothing.
               SEARXNG_ENDPOINT: http://searxng.ai-kb.svc.cluster.local:8080

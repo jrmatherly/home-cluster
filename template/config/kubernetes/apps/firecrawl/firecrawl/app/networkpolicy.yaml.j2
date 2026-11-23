@@ -78,6 +78,8 @@ spec:
 #% for cidr in private_cidrs %#
               - #{ cidr }#
 #% endfor %#
+      ports:
+        - protocol: TCP
 ---
 # Only the API drives the browser, and the browser reaches public addresses only.
 apiVersion: networking.k8s.io/v1
@@ -115,6 +117,8 @@ spec:
 #% for cidr in private_cidrs %#
               - #{ cidr }#
 #% endfor %#
+      ports:
+        - protocol: TCP
 ---
 # The queue broker and the queue database answer the API and dial nothing.
 apiVersion: networking.k8s.io/v1

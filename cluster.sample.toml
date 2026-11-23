@@ -1260,8 +1260,8 @@ schematic_id = ""
 #    self-hosted at https://firecrawl.<domain.name> on the internal gateway
 #    and at firecrawl-api.firecrawl.svc.cluster.local:3002 inside the cluster.
 #    The self-hosted API has no login and takes no API key, so everything on
-#    the LAN can call it; a NetworkPolicy admits only the gateways and
-#    It's a Plan inside the cluster. Needs [cliproxyapi], which runs the model
+#    the LAN can call it; inside the cluster a NetworkPolicy admits only the
+#    network namespace, where the gateways run, and It's a Plan. Needs [cliproxyapi], which runs the model
 #    for extract, and [redis]. Search uses the AI KB SearXNG when
 #    ai_kb.searxng is on, and DuckDuckGo otherwise. Screenshots and page
 #    actions need Firecrawl's closed Fire-engine and do not work.

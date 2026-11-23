@@ -92,7 +92,7 @@ Point a client at the instance with its base URL and no key:
 
 - The Firecrawl CLI and the local MCP server read `FIRECRAWL_API_URL`.
 - The SDKs take an `api_url` or `base_url` option.
-- A pod in the cluster uses the Service address. Its namespace has to be admitted by the `firecrawl-api` NetworkPolicy, which admits the gateways and It's a Plan today.
+- A pod in the cluster uses the Service address. Its namespace has to be admitted by the `firecrawl-api` NetworkPolicy, which admits the `network` namespace, where the gateways run, and It's a Plan today.
 
 It's a Plan cannot use the instance until its fork accepts a Firecrawl base URL, because its client is fixed to the cloud address.
 
