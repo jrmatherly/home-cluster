@@ -1,6 +1,6 @@
-# Negative fixture: [career_ops] set with no Claude credential.
+# Negative fixture: [career_ops] set to the proxy credential without the proxy URL.
 # Expected to be rejected by the career_ops Claude credential check.
-# expect: career_ops needs one Claude credential: claude_oauth_token or anthropic_base_url with anthropic_auth_token
+# expect: career_ops: claude_credential 'proxy' and anthropic_base_url are set together
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,25 +26,18 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [volume_backup]
-bucket = "fake-volumes"
-access_key = "fake-volumes"
-secret_key = "fake"
+enabled = true
 
 [pocket_id]
-encryption_key = "fakefakefakefake"
+enabled = true
 
 [career_ops]
+enabled = true
 oidc_client_id = "fake-career-ops"
-oidc_client_secret = "fake-career-ops-secret"
-publish_secret = "fakefakefakefakefakefakefakefakefake"
-publish_auth_secret = "fakefakefakefakefakefakefakefakefake"
+claude_credential = "proxy"
 publish_oidc_client_id = "fake-publish"
-publish_oidc_client_secret = "fake-publish-secret"
-publish_allowed_emails = ["me@example.com"]
 
 [[nodes]]
 name = "k8s-0"

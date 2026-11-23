@@ -1,6 +1,6 @@
-# Negative fixture: [cliproxyapi] with only the Oh-My-CPA master key set.
-# Expected to be rejected because the console needs the proxy's keys.
-# expect: cliproxyapi: cliproxyapi.ohmycpa_master_key needs management_key, api_key and manager_admin_key
+# Negative fixture: [cliproxyapi] with only the Oh-My-CPA console turned on.
+# Expected to be rejected because the console needs the proxy.
+# expect: cliproxyapi: cliproxyapi.ohmycpa needs enabled
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,13 +16,15 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [cliproxyapi]
-ohmycpa_master_key = "0000000000000000000000000000000000000000000000000000000000000000"
+ohmycpa = true
 
 [[nodes]]
 name = "k8s-0"

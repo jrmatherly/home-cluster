@@ -1,6 +1,6 @@
-# Negative fixture: the Discord webhook set without the observability secrets.
-# Expected to be rejected by the discord_webhook requires check.
-# expect: observability: discord_webhook requires grafana_password, influxdb_password and influxdb_token: Alertmanager only runs with the rest of the stack
+# Negative fixture: the Discord receiver turned on without the observability stack.
+# Expected to be rejected by the discord requires enabled check.
+# expect: observability: discord requires enabled: it only runs with the rest of the stack
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,13 +16,15 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [observability]
-discord_webhook = "https://discord.com/api/webhooks/123456789012345678/example-token"
+discord = true
 
 [[nodes]]
 name = "k8s-0"

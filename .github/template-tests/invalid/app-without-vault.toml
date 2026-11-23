@@ -1,7 +1,7 @@
 # Negative fixture: an app is enabled while [onepassword].vault is unset.
 # Expected to be rejected by the cross-field check in Config: the app's Secret
 # comes from 1Password, and clearing the vault would remove the store.
-# expect: github_runner_enabled needs [onepassword].vault
+# expect: onepassword.vault is required: the domain and every secret are read from it
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -22,7 +22,7 @@ name = "example.com"
 provider = "none"
 
 [github_runner]
-token = "fake"
+enabled = true
 
 [[nodes]]
 name = "k8s-0"

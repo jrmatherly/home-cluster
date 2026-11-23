@@ -29,7 +29,9 @@ vault = "homelab"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [cilium]
 loadbalancer_mode = "dsr"
@@ -41,7 +43,6 @@ node_asn = "64514"
 
 [cilium.hubble]
 oidc_client_id = "fake-hubble-client"
-oidc_client_secret = "fake-hubble-client-secret"
 
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
@@ -49,80 +50,57 @@ schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [observability]
-grafana_password = "fake"
-influxdb_password = "fakefake"
-influxdb_token = "fake"
-discord_webhook = "https://discord.com/api/webhooks/123456789012345678/example-token"
+enabled = true
+discord = true
+secret_key = true
 grafana_oidc_client_id = "fake-grafana-client"
-grafana_oidc_client_secret = "fake-grafana-client-secret"
-grafana_secret_key = "fake-grafana-secret-key-32-chars"
 github_app_id = "123456"
 github_app_installation_id = "12345678"
-github_app_private_key = '''
------BEGIN RSA PRIVATE KEY-----
-MIIEfakefakefakefakefakefakefakefakefakefakefakefakefakefakefake
-ZmFrZQ==
------END RSA PRIVATE KEY-----
-'''
 sentry_org = "fake-org"
-sentry_token = "fake-sentry-token"
 sentry_url = "https://us.sentry.io"
 
 [unifi]
 host = "https://192.0.2.1"
-api_key = "fake"
 
 [pocket_id]
-encryption_key = "fakefakefakefake"
+enabled = true
 public = true
 
 [radar]
 oidc_client_id = "fake"
-oidc_client_secret = "fake"
 
 [matherlynet]
-better_auth_secret = "fake"
-admin_email = "admin@example.com"
-smtp_url = "smtps://fake:fake@smtp.example.com:465"
-mail_from = "matherlynet <noreply@example.com>"
+enabled = true
+smtp = true
+mail = true
+github = true
 github_client_id = "fake-github-client"
-github_client_secret = "fake"
 playground = true
 
 [reactive_resume]
-auth_secret = "fakefakefakefakefakefakefakefake"
-encryption_secret = "fakefakefakefakefakefakefakefake"
+enabled = true
 oidc_client_id = "fake-resume-client"
-oidc_client_secret = "fake"
-s3_endpoint = "https://fake.r2.cloudflarestorage.com"
 s3_bucket = "fake-resume"
-s3_access_key_id = "fake"
-s3_secret_access_key = "fake"
 
 [redis]
-password = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [kener]
-secret_key = "fakefakefakefakefakefakefakefake"
-smtp_url = "smtp://fake:fake@smtp.example.com:587"
-mail_from = "status@example.com"
+enabled = true
+smtp = true
 
 [network_optimizer]
-app_password = "fakefake1"
+enabled = true
 oidc_client_id = "fake-network-optimizer"
-oidc_client_secret = "fake-network-optimizer-secret"
 
 [pegaprox]
-db_key = "fakefakefakefakefakefakefakefakefakefakeabc="
-metrics_token = "fake"
+enabled = true
+metrics = true
 
 [actual_budget]
 oidc_client_id = "fake-actual-budget"
-oidc_client_secret = "fake-actual-budget-secret"
 public = true
 
 [media]
@@ -130,23 +108,14 @@ nfs_server = "10.10.10.50"
 nfs_share = "/srv/media"
 node = "k8s-1"
 timezone = "America/Chicago"
-sonarr_api_key = "fakefakefakefakefakefakefakefak1"
-radarr_api_key = "fakefakefakefakefakefakefakefak2"
-prowlarr_api_key = "fakefakefakefakefakefakefakefak3"
-sabnzbd_api_key = "fakefakefakefakefakefakefakefak4"
-sabnzbd_nzb_key = "fakefakefakefakefakefakefakefak5"
 oidc_client_id = "fake-media"
-oidc_client_secret = "fake-media-secret"
 recyclarr = true
 public = true
 
 [localai]
-api_key = "fakefakefakefakefakefakefakefake"
 
 [ai_workspace]
 oidc_client_id = "fake-ai-workspace"
-oidc_client_secret = "fake-ai-workspace-secret"
-auth_secret = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

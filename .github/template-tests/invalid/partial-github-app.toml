@@ -1,6 +1,6 @@
-# Negative fixture: the GitHub App ID set without its installation ID and key.
+# Negative fixture: the GitHub App ID set without its installation ID.
 # Expected to be rejected by the observability all-or-nothing check.
-# expect: observability: observability is partially configured: set github_app_id, github_app_installation_id and github_app_private_key together (missing: github_app_installation_id, github_app_private_key)
+# expect: observability: observability is partially configured: set github_app_id and github_app_installation_id together (missing: github_app_installation_id)
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,16 +26,12 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [pocket_id]
-encryption_key = "fakefakefakefake"
+enabled = true
 
 [observability]
-grafana_password = "fake"
-influxdb_password = "fakefake"
-influxdb_token = "fake"
+enabled = true
 github_app_id = "123456"
 
 [[nodes]]

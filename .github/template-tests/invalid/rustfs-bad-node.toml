@@ -16,14 +16,15 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [rustfs]
-access_key = "fakefakefakefake"
-secret_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 node = "k8s-9"
 
 

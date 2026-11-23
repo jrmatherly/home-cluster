@@ -27,7 +27,7 @@ spec:
           annotations:
             # A key change rolls the pod in the same upgrade, so the configure
             # hook below reaches a pod that already runs the new key.
-            media.keys/checksum: "#{ media_keys_checksum }#"
+            media.keys/checksum: "#{ media.keys_revision }#"
         # SABnzbd's ini and queue on a local-path volume: two pods would share them.
         strategy: Recreate
         containers:
@@ -108,7 +108,7 @@ spec:
           helm.sh/hook-delete-policy: before-hook-creation
           # A key change re-renders this and upgrades the release, so the hook
           # pushes the new keys into the app.
-          media.keys/checksum: "#{ media_keys_checksum }#"
+          media.keys/checksum: "#{ media.keys_revision }#"
         job:
           backoffLimit: 0
           activeDeadlineSeconds: 1200

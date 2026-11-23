@@ -19,12 +19,12 @@ url = "ssh://git@github.com/onedr0p/cluster-template.git"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [localai]
-api_key = "fakefakefakefakefakefakefakefake"
 oidc_client_id = "fake"
-oidc_client_secret = "fake"
 
 [[nodes]]
 name = "k8s-0"

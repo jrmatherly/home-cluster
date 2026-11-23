@@ -16,17 +16,16 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [observability]
-grafana_password = "fake"
-influxdb_password = "fakefake"
-influxdb_token = "fake"
+enabled = true
 grafana_oidc_client_id = "fake"
-grafana_oidc_client_secret = "fake"
 
 [[nodes]]
 name = "k8s-0"

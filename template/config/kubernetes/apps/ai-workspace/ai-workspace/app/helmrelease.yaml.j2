@@ -48,7 +48,7 @@ spec:
             envFrom:
               - secretRef:
                   name: ai-workspace-secret
-#% if ai_workspace.env %#
+#% if ai_workspace.env_keys %#
               - secretRef:
                   name: ai-workspace-env
 #% endif %#

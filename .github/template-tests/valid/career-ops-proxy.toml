@@ -33,7 +33,9 @@ vault = "homelab"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
@@ -41,35 +43,25 @@ schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [volume_backup]
-bucket = "fake-volumes"
-access_key = "fake-volumes"
-secret_key = "fake"
+enabled = true
 
 [pocket_id]
-encryption_key = "fakefakefakefake"
+enabled = true
 public = true
 
 [cliproxyapi]
-management_key = "fakefakefakefakefakefakefakefakefake"
-api_key = "fakefakefakefakefakefakefakefakefake"
-manager_admin_key = "cpamp_fakefakefakefakefakefakefakefake"
-ohmycpa_master_key = "0000000000000000000000000000000000000000000000000000000000000000"
-github_token = "github_pat_fakefakefakefakefakefake"
+enabled = true
+ohmycpa = true
+github = true
 
 [career_ops]
 oidc_client_id = "fake-career-ops"
-oidc_client_secret = "fake-career-ops-secret"
+enabled = true
+claude_credential = "proxy"
 anthropic_base_url = "http://cliproxyapi.llms.svc.cluster.local:8317"
-anthropic_auth_token = "fake-proxy-key"
-publish_secret = "fakefakefakefakefakefakefakefakefake"
-publish_auth_secret = "fakefakefakefakefakefakefakefakefake"
 publish_oidc_client_id = "fake-publish"
-publish_oidc_client_secret = "fake-publish-secret"
-publish_allowed_emails = ["me@example.com"]
 
 [[nodes]]
 name = "k8s-0"

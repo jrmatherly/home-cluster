@@ -64,15 +64,17 @@ def _load_raw(raw: dict) -> Config:
         raise ConfigError(format_errors(e)) from None
 
 
-def test_onepassword_gate_follows_vault():
-    on = _load_raw(config_from("single-node.toml", **{"onepassword.vault": "homelab"}))
-    assert on.onepassword_enabled is True
-    assert _load_raw(config_from("single-node.toml")).onepassword_enabled is False
+def test_vault_is_required():
+    assert _load_raw(config_from("single-node.toml")).onepassword_enabled is True
+    for fixture in ("single-node.toml", "public.toml"):
+        raw = config_from(fixture, **{"onepassword.vault": None})
+        with pytest.raises(ConfigError, match=r"onepassword\.vault is required"):
+            _load_raw(raw)
 
 
-def test_vault_required_while_apps_enabled():
-    raw = config_from("public.toml", **{"onepassword.vault": None})
-    with pytest.raises(ConfigError, match=r"needs \[onepassword\]\.vault"):
+def test_ai_workspace_env_keys_are_unique():
+    raw = config_from("public.toml", **{"ai_workspace.env_keys": ["A_KEY", "A_KEY"]})
+    with pytest.raises(ConfigError, match="listed twice"):
         _load_raw(raw)
 
 
@@ -132,7 +134,6 @@ def test_nvidia_enabled_follows_kernel_modules():
         **{
             "matherlynet.playground": False,
             "localai.oidc_client_id": None,
-            "localai.oidc_client_secret": None,
         },
     )
     assert raw["nodes"][1]["kernel_modules"] == ["nvidia", "nvidia_uvm"]
@@ -166,7 +167,7 @@ def test_cert_sans_single_source():
 
 
 def test_ingress_mode_follows_dns_provider():
-    cloudflare = config_from("public.toml", ingress=None)
+    cloudflare = config_from("public.toml", **{"ingress.mode": None})
     assert _load_raw(cloudflare).ingress.mode == "cloudflare-tunnel"
     internal = config_from("internal.toml")
     assert (REPO_ROOT / ".github/template-tests/valid/internal.toml").exists()
@@ -198,9 +199,28 @@ def test_partial_bgp_rejected():
 POSTGRES_BACKUP = {
     "postgres.backup.endpoint": "https://fake.r2.cloudflarestorage.com",
     "postgres.backup.bucket": "fake",
-    "postgres.backup.access_key_id": "fake",
-    "postgres.backup.secret_access_key": "fake",
 }
+
+
+def test_gates_read_booleans():
+    cfg = _load_raw(config_from("public.toml", **{"kener.enabled": True}))
+    assert cfg.kener_enabled is True
+    assert _load_raw(config_from("private.toml", **POSTGRES_BACKUP)).kener_enabled is False
+
+
+def test_rustfs_consumers_carry_no_keys():
+    cfg = _load_raw(
+        config_from("public.toml", **{"rustfs.enabled": True, "langfuse.enabled": True})
+    )
+    assert cfg.rustfs_consumers
+    assert all(set(c) == {"name", "bucket"} for c in cfg.rustfs_consumers)
+
+
+def test_tunnel_mode_requires_the_tunnel_id():
+    raw = config_from("public.toml", **{"ingress.tunnel_id": None})
+    with pytest.raises(ConfigError, match=r"ingress\.tunnel_id is required"):
+        _load_raw(raw)
+    assert _load_raw(config_from("public.toml")).ingress.tunnel_id == "fake"
 
 
 def test_postgres_backup_enabled_only_when_configured():
@@ -223,19 +243,16 @@ def test_postgres_backup_endpoint_must_be_https_host():
         _load_raw(raw)
 
 
-def test_postgres_backup_key_rejects_yaml_escapes():
-    raw = config_from(
-        "private.toml", **POSTGRES_BACKUP | {"postgres.backup.secret_access_key": "a\\tb"}
-    )
-    with pytest.raises(ConfigError, match=r"postgres\.backup\.secret_access_key"):
-        _load_raw(raw)
+@pytest.mark.parametrize("section", ["etcd_backup", "volume_backup"])
+def test_bucket_backups_require_postgres_backup(section):
+    assert getattr(_load_raw(config_from("private.toml")), f"{section}_enabled") is False
+    on = config_from("private.toml", **POSTGRES_BACKUP | {f"{section}.enabled": True})
+    assert getattr(_load_raw(on), f"{section}_enabled") is True
+    with pytest.raises(ConfigError, match=rf"{section} requires postgres\.backup"):
+        _load_raw(config_from("private.toml", **{f"{section}.enabled": True}))
 
 
-OBSERVABILITY = {
-    "observability.grafana_password": "fake",
-    "observability.influxdb_password": "fakefake",
-    "observability.influxdb_token": "fake",
-}
+OBSERVABILITY = {"observability.enabled": True}
 
 
 def test_observability_enabled_only_when_configured():
@@ -243,69 +260,36 @@ def test_observability_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **OBSERVABILITY)).observability_enabled is True
 
 
-def test_partial_observability_names_missing_fields():
-    raw = config_from("private.toml", **OBSERVABILITY | {"observability.influxdb_token": None})
-    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: influxdb_token\)"):
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("discord", True),
+        ("grafana_oidc_client_id", "grafana"),
+        ("secret_key", True),
+        ("sentry_org", "home"),
+        ("proxmox_hosts", ["10.10.10.2"]),
+    ],
+)
+def test_observability_option_requires_the_stack(field, value):
+    raw = config_from("private.toml", **{f"observability.{field}": value})
+    with pytest.raises(ConfigError, match=rf"{field} requires enabled"):
         _load_raw(raw)
 
 
-def test_influxdb_password_needs_eight_characters():
-    raw = config_from(
-        "private.toml", **OBSERVABILITY | {"observability.influxdb_password": "short"}
-    )
-    with pytest.raises(ConfigError, match=r"observability\.influxdb_password"):
+def test_discord_accepted_with_observability():
+    raw = config_from("private.toml", **OBSERVABILITY | {"observability.discord": True})
+    assert _load_raw(raw).observability.discord is True
+
+
+def test_heartbeat_requires_discord():
+    raw = config_from("private.toml", **OBSERVABILITY | {"observability.heartbeat": True})
+    with pytest.raises(ConfigError, match="heartbeat requires discord"):
         _load_raw(raw)
+    raw["observability"]["discord"] = True
+    assert _load_raw(raw).observability.heartbeat is True
 
 
-DISCORD_WEBHOOK = "https://discord.com/api/webhooks/123456789012345678/example-token"
-
-
-def test_discord_webhook_accepted_with_observability():
-    raw = config_from(
-        "private.toml", **OBSERVABILITY | {"observability.discord_webhook": DISCORD_WEBHOOK}
-    )
-    assert _load_raw(raw).observability.discord_webhook == DISCORD_WEBHOOK
-
-
-def test_discord_webhook_requires_observability():
-    raw = config_from("private.toml", **{"observability.discord_webhook": DISCORD_WEBHOOK})
-    with pytest.raises(ConfigError, match=r"discord_webhook requires grafana_password"):
-        _load_raw(raw)
-
-
-def test_discord_webhook_must_be_discord_url():
-    raw = config_from(
-        "private.toml",
-        **OBSERVABILITY | {"observability.discord_webhook": "https://example.com/hook/1/abc"},
-    )
-    with pytest.raises(ConfigError, match=r"observability\.discord_webhook"):
-        _load_raw(raw)
-
-
-HEARTBEAT_URL = "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
-
-
-def test_heartbeat_url_accepted_with_discord():
-    raw = config_from(
-        "private.toml",
-        **OBSERVABILITY
-        | {
-            "observability.discord_webhook": DISCORD_WEBHOOK,
-            "observability.heartbeat_url": HEARTBEAT_URL,
-        },
-    )
-    assert _load_raw(raw).observability.heartbeat_url == HEARTBEAT_URL
-
-
-def test_heartbeat_url_requires_discord_webhook():
-    raw = config_from(
-        "private.toml", **OBSERVABILITY | {"observability.heartbeat_url": HEARTBEAT_URL}
-    )
-    with pytest.raises(ConfigError, match="heartbeat_url requires discord_webhook"):
-        _load_raw(raw)
-
-
-UNIFI = {"unifi.host": "https://192.0.2.1", "unifi.api_key": "fake"}
+UNIFI = {"unifi.host": "https://192.0.2.1"}
 
 
 def test_unifi_dns_enabled_only_when_configured():
@@ -322,14 +306,8 @@ def test_unifi_dns_addr_is_the_console_address_only_when_it_is_an_ip():
     assert _load_raw(config_from("private.toml", **by_name)).unifi_dns_addr == ""
 
 
-def test_partial_unifi_names_missing_field():
-    raw = config_from("private.toml", **UNIFI | {"unifi.api_key": None})
-    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: api_key\)"):
-        _load_raw(raw)
-
-
-POCKET_ID = POSTGRES_BACKUP | {"pocket_id.encryption_key": "fakefakefakefake"}
-RADAR = POCKET_ID | {"radar.oidc_client_id": "fake", "radar.oidc_client_secret": "fake"}
+POCKET_ID = POSTGRES_BACKUP | {"pocket_id.enabled": True}
+RADAR = POCKET_ID | {"radar.oidc_client_id": "fake"}
 
 
 def test_pocket_id_enabled_only_when_configured():
@@ -337,14 +315,8 @@ def test_pocket_id_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **POCKET_ID)).pocket_id_enabled is True
 
 
-def test_pocket_id_key_needs_sixteen_characters():
-    raw = config_from("private.toml", **POCKET_ID | {"pocket_id.encryption_key": "fifteen-chars-x"})
-    with pytest.raises(ConfigError, match=r"pocket_id\.encryption_key"):
-        _load_raw(raw)
-
-
 def test_pocket_id_requires_postgres_backup():
-    raw = config_from("private.toml", **{"pocket_id.encryption_key": "fakefakefakefake"})
+    raw = config_from("private.toml", **{"pocket_id.enabled": True})
     with pytest.raises(ConfigError, match=r"pocket_id requires postgres\.backup"):
         _load_raw(raw)
 
@@ -356,7 +328,7 @@ def test_pocket_id_public_accepted_with_pocket_id():
 
 def test_pocket_id_public_requires_pocket_id():
     raw = config_from("private.toml", **{"pocket_id.public": True})
-    with pytest.raises(ConfigError, match=r"pocket_id\.public requires pocket_id\.encryption_key"):
+    with pytest.raises(ConfigError, match=r"pocket_id\.public requires pocket_id\.enabled"):
         _load_raw(raw)
 
 
@@ -373,22 +345,13 @@ def test_radar_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **RADAR)).radar_enabled is True
 
 
-def test_partial_radar_names_missing_field():
-    raw = config_from("private.toml", **RADAR | {"radar.oidc_client_secret": None})
-    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: oidc_client_secret\)"):
-        _load_raw(raw)
-
-
 def test_radar_requires_pocket_id():
-    raw = config_from("private.toml", **RADAR | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **RADAR | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"radar requires pocket_id"):
         _load_raw(raw)
 
 
-HUBBLE = POCKET_ID | {
-    "cilium.hubble.oidc_client_id": "hubble",
-    "cilium.hubble.oidc_client_secret": "fake",
-}
+HUBBLE = POCKET_ID | {"cilium.hubble.oidc_client_id": "hubble"}
 
 
 def test_hubble_enabled_only_when_configured():
@@ -396,51 +359,18 @@ def test_hubble_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **HUBBLE)).hubble_enabled is True
 
 
-def test_partial_hubble_names_missing_field():
-    raw = config_from("private.toml", **HUBBLE | {"cilium.hubble.oidc_client_id": None})
-    with pytest.raises(
-        ConfigError, match=r"cilium\.hubble is partially configured.*\(missing: oidc_client_id\)"
-    ):
-        _load_raw(raw)
-
-
 def test_hubble_requires_pocket_id():
-    raw = config_from("private.toml", **HUBBLE | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **HUBBLE | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"cilium\.hubble requires pocket_id"):
         _load_raw(raw)
 
 
-GRAFANA_OIDC = {
-    "observability.grafana_oidc_client_id": "grafana",
-    "observability.grafana_oidc_client_secret": "fake",
-}
+GRAFANA_OIDC = {"observability.grafana_oidc_client_id": "grafana"}
 
 
 def test_grafana_oidc_accepted_with_observability_and_pocket_id():
     raw = config_from("private.toml", **POCKET_ID | OBSERVABILITY | GRAFANA_OIDC)
-    observability = _load_raw(raw).observability
-    assert observability.grafana_oidc_client_id == "grafana"
-    assert observability.grafana_oidc_client_secret == "fake"
-
-
-def test_partial_grafana_oidc_names_missing_field():
-    raw = config_from(
-        "private.toml",
-        **POCKET_ID
-        | OBSERVABILITY
-        | GRAFANA_OIDC
-        | {"observability.grafana_oidc_client_secret": None},
-    )
-    with pytest.raises(
-        ConfigError, match=r"partially configured.*\(missing: grafana_oidc_client_secret\)"
-    ):
-        _load_raw(raw)
-
-
-def test_grafana_oidc_requires_observability():
-    raw = config_from("private.toml", **POCKET_ID | GRAFANA_OIDC)
-    with pytest.raises(ConfigError, match=r"grafana_oidc_client_id requires grafana_password"):
-        _load_raw(raw)
+    assert _load_raw(raw).observability.grafana_oidc_client_id == "grafana"
 
 
 def test_grafana_oidc_requires_pocket_id():
@@ -451,45 +381,15 @@ def test_grafana_oidc_requires_pocket_id():
         _load_raw(raw)
 
 
-GRAFANA_SECRET_KEY = "a" * 32
-
-
-def test_grafana_secret_key_accepted_with_observability():
-    raw = config_from(
-        "private.toml", **OBSERVABILITY | {"observability.grafana_secret_key": GRAFANA_SECRET_KEY}
-    )
-    assert _load_raw(raw).observability.grafana_secret_key == GRAFANA_SECRET_KEY
-
-
-def test_grafana_secret_key_requires_observability():
-    raw = config_from("private.toml", **{"observability.grafana_secret_key": GRAFANA_SECRET_KEY})
-    with pytest.raises(ConfigError, match=r"observability.*grafana_secret_key"):
-        _load_raw(raw)
-
-
-def test_grafana_secret_key_must_be_32_characters():
-    raw = config_from(
-        "private.toml", **OBSERVABILITY | {"observability.grafana_secret_key": "a" * 31}
-    )
-    with pytest.raises(ConfigError, match=r"observability\.grafana_secret_key"):
-        _load_raw(raw)
-
-
-GITHUB_APP_KEY = (
-    "-----BEGIN RSA PRIVATE KEY-----\nMIIEfake+/=\nAAAA\n-----END RSA PRIVATE KEY-----\n"
-)
 GITHUB_APP = {
     "observability.github_app_id": "123456",
     "observability.github_app_installation_id": "7890123",
-    "observability.github_app_private_key": GITHUB_APP_KEY,
 }
 
 
 def test_github_app_accepted_with_observability():
     raw = config_from("private.toml", **OBSERVABILITY | GITHUB_APP)
-    observability = _load_raw(raw).observability
-    assert observability.github_app_id == "123456"
-    assert observability.github_app_private_key == GITHUB_APP_KEY
+    assert _load_raw(raw).observability.github_app_id == "123456"
 
 
 def test_partial_github_app_names_missing_field():
@@ -505,46 +405,22 @@ def test_partial_github_app_names_missing_field():
 
 def test_github_app_requires_observability():
     raw = config_from("private.toml", **GITHUB_APP)
-    with pytest.raises(ConfigError, match=r"github_app_id requires grafana_password"):
+    with pytest.raises(ConfigError, match=r"github_app_id requires enabled"):
         _load_raw(raw)
-
-
-def test_github_app_private_key_must_be_pem():
-    raw = config_from(
-        "private.toml",
-        **OBSERVABILITY | GITHUB_APP | {"observability.github_app_private_key": "MIIEfake"},
-    )
-    with pytest.raises(ConfigError, match=r"observability\.github_app_private_key"):
-        _load_raw(raw)
-
-
-SENTRY = {"observability.sentry_org": "home", "observability.sentry_token": "fake"}
 
 
 def test_sentry_accepted_with_observability_and_url_defaults():
-    observability = _load_raw(config_from("private.toml", **OBSERVABILITY | SENTRY)).observability
+    raw = config_from("private.toml", **OBSERVABILITY | {"observability.sentry_org": "home"})
+    observability = _load_raw(raw).observability
     assert observability.sentry_org == "home"
     assert observability.sentry_url == "https://sentry.io"
-
-
-def test_partial_sentry_names_missing_field():
-    raw = config_from(
-        "private.toml", **OBSERVABILITY | SENTRY | {"observability.sentry_token": None}
-    )
-    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: sentry_token\)"):
-        _load_raw(raw)
-
-
-def test_sentry_requires_observability():
-    raw = config_from("private.toml", **SENTRY)
-    with pytest.raises(ConfigError, match=r"sentry_org requires grafana_password"):
-        _load_raw(raw)
 
 
 def test_sentry_url_must_be_a_host():
     raw = config_from(
         "private.toml",
-        **OBSERVABILITY | SENTRY | {"observability.sentry_url": "https://sentry.io/org"},
+        **OBSERVABILITY
+        | {"observability.sentry_org": "home", "observability.sentry_url": "https://sentry.io/org"},
     )
     with pytest.raises(ConfigError, match=r"observability\.sentry_url"):
         _load_raw(raw)
@@ -575,14 +451,8 @@ def test_schema_omits_computed_fields():
     assert "cluster_issuer" not in schema()["properties"]
 
 
-MATHERLYNET = POSTGRES_BACKUP | {
-    "matherlynet.better_auth_secret": "fake",
-    "matherlynet.admin_email": "admin@example.com",
-}
-GITHUB_OAUTH = {
-    "matherlynet.github_client_id": "fake-github-client",
-    "matherlynet.github_client_secret": "fake",
-}
+MATHERLYNET = POSTGRES_BACKUP | {"matherlynet.enabled": True}
+GITHUB_OAUTH = {"matherlynet.github_client_id": "fake-github-client", "matherlynet.github": True}
 
 
 def test_matherlynet_enabled_only_when_configured():
@@ -590,20 +460,12 @@ def test_matherlynet_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **MATHERLYNET)).matherlynet_enabled is True
 
 
-def test_partial_matherlynet_names_missing_field():
-    raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.admin_email": None})
-    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: admin_email\)"):
-        _load_raw(raw)
-
-
-def test_partial_matherlynet_oauth_names_missing_field():
+@pytest.mark.parametrize("dropped", ["github_client_id", "github"])
+def test_partial_matherlynet_oauth_names_missing_field(dropped):
     raw = config_from(
-        "private.toml",
-        **MATHERLYNET | GITHUB_OAUTH | {"matherlynet.github_client_secret": None},
+        "private.toml", **MATHERLYNET | GITHUB_OAUTH | {f"matherlynet.{dropped}": None}
     )
-    with pytest.raises(
-        ConfigError, match=r"partially configured.*\(missing: github_client_secret\)"
-    ):
+    with pytest.raises(ConfigError, match=rf"partially configured.*\(missing: {dropped}\)"):
         _load_raw(raw)
 
 
@@ -612,53 +474,29 @@ def test_matherlynet_optional_fields_accepted():
         "private.toml",
         **MATHERLYNET
         | GITHUB_OAUTH
-        | {
-            "matherlynet.smtp_url": "smtps://user:p%40ss@smtp.example.com:465",
-            "matherlynet.mail_from": "matherlynet <noreply@example.com>",
-            "matherlynet.playground": True,
-        },
+        | {"matherlynet.smtp": True, "matherlynet.mail": True, "matherlynet.playground": True},
     )
     matherlynet = _load_raw(raw).matherlynet
-    assert matherlynet.mail_from == "matherlynet <noreply@example.com>"
+    assert (matherlynet.smtp, matherlynet.mail, matherlynet.github) == (True, True, True)
     assert matherlynet.github_client_id == "fake-github-client"
     assert matherlynet.playground is True
 
 
 @pytest.mark.parametrize(
     "field, value",
-    [
-        ("smtp_url", "smtps://smtp.example.com"),
-        ("mail_from", "noreply@example.com"),
-        ("google_client_id", "fake"),
-        ("playground", True),
-    ],
+    [("smtp", True), ("mail", True), ("google_client_id", "fake"), ("playground", True)],
 )
 def test_matherlynet_option_requires_section(field, value):
     overrides = {f"matherlynet.{field}": value}
     if field == "google_client_id":
-        overrides["matherlynet.google_client_secret"] = "fake"
+        overrides["matherlynet.google"] = True
     raw = config_from("private.toml", **overrides)
-    with pytest.raises(ConfigError, match=rf"{field} requires better_auth_secret and admin_email"):
-        _load_raw(raw)
-
-
-def test_matherlynet_smtp_url_must_be_a_url():
-    raw = config_from("public.toml", **{"matherlynet.smtp_url": "smtp.example.com"})
-    with pytest.raises(ConfigError, match=r"matherlynet\.smtp_url"):
-        _load_raw(raw)
-
-
-def test_matherlynet_mail_from_rejects_dollar():
-    raw = config_from("private.toml", **MATHERLYNET | {"matherlynet.mail_from": "a$b@example.com"})
-    with pytest.raises(ConfigError, match=r"matherlynet\.mail_from"):
+    with pytest.raises(ConfigError, match=rf"{field} requires enabled"):
         _load_raw(raw)
 
 
 def test_matherlynet_requires_postgres_backup():
-    raw = config_from(
-        "private.toml",
-        **{"matherlynet.better_auth_secret": "fake", "matherlynet.admin_email": "a@example.com"},
-    )
+    raw = config_from("private.toml", **{"matherlynet.enabled": True})
     with pytest.raises(ConfigError, match=r"matherlynet requires postgres\.backup"):
         _load_raw(raw)
 
@@ -678,30 +516,10 @@ def test_matherlynet_playground_requires_nvidia():
         _load_raw(raw)
 
 
-LOCALAI = {"localai.api_key": "a" * 32}
-
-
-def test_nvidia_node_requires_localai_key():
-    raw = config_from("private.toml", **{"localai.api_key": None})
-    with pytest.raises(ConfigError, match=r"localai\.api_key is required"):
-        _load_raw(raw)
-
-
-def test_localai_key_without_nvidia_is_accepted():
-    raw = config_from("private.toml", **LOCALAI)
-    raw["nodes"][1]["kernel_modules"] = []
-    assert _load_raw(raw).localai.api_key == "a" * 32
-
-
 REACTIVE_RESUME = POCKET_ID | {
-    "reactive_resume.auth_secret": "x" * 32,
-    "reactive_resume.encryption_secret": "x" * 32,
+    "reactive_resume.enabled": True,
     "reactive_resume.oidc_client_id": "resume",
-    "reactive_resume.oidc_client_secret": "fake",
-    "reactive_resume.s3_endpoint": "https://fake.r2.cloudflarestorage.com",
     "reactive_resume.s3_bucket": "resume",
-    "reactive_resume.s3_access_key_id": "fake",
-    "reactive_resume.s3_secret_access_key": "fake",
 }
 
 
@@ -711,24 +529,17 @@ def test_reactive_resume_enabled_only_when_configured():
     assert _load_raw(raw).reactive_resume_enabled is True
 
 
-def test_partial_reactive_resume_names_missing_field():
-    raw = config_from("private.toml", **REACTIVE_RESUME | {"reactive_resume.s3_bucket": None})
+@pytest.mark.parametrize("dropped", ["enabled", "oidc_client_id", "s3_bucket"])
+def test_partial_reactive_resume_names_missing_field(dropped):
+    raw = config_from("private.toml", **REACTIVE_RESUME | {f"reactive_resume.{dropped}": None})
     with pytest.raises(
-        ConfigError, match=r"reactive_resume is partially configured.*\(missing: s3_bucket\)"
+        ConfigError, match=rf"reactive_resume is partially configured.*\(missing: {dropped}\)"
     ):
         _load_raw(raw)
 
 
-def test_reactive_resume_encryption_secret_needs_32_characters():
-    raw = config_from(
-        "private.toml", **REACTIVE_RESUME | {"reactive_resume.encryption_secret": "x" * 31}
-    )
-    with pytest.raises(ConfigError, match=r"reactive_resume\.encryption_secret"):
-        _load_raw(raw)
-
-
 def test_reactive_resume_requires_pocket_id():
-    raw = config_from("private.toml", **REACTIVE_RESUME | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **REACTIVE_RESUME | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"reactive_resume requires pocket_id"):
         _load_raw(raw)
 
@@ -739,7 +550,7 @@ def test_reactive_resume_requires_ingress():
         _load_raw(raw)
 
 
-REDIS = {"redis.password": "x" * 24}
+REDIS = {"redis.enabled": True}
 
 
 def test_redis_enabled_only_when_configured():
@@ -747,18 +558,7 @@ def test_redis_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **REDIS)).redis_enabled is True
 
 
-@pytest.mark.parametrize("password", ["x" * 23, "x" * 23 + "@", "x" * 23 + "/"])
-def test_redis_password_is_long_and_safe_in_a_url(password):
-    raw = config_from("private.toml", **{"redis.password": password})
-    with pytest.raises(ConfigError, match=r"redis\.password"):
-        _load_raw(raw)
-
-
-KENER = POSTGRES_BACKUP | REDIS | {"kener.secret_key": "x" * 32}
-KENER_SMTP = KENER | {
-    "kener.smtp_url": "smtps://user%40example.com:pass%2Fword@smtp.example.com",
-    "kener.mail_from": "status@example.com",
-}
+KENER = POSTGRES_BACKUP | REDIS | {"kener.enabled": True}
 
 
 def test_kener_enabled_only_when_configured():
@@ -766,20 +566,14 @@ def test_kener_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **KENER)).kener_enabled is True
 
 
-def test_kener_secret_key_needs_32_characters():
-    raw = config_from("private.toml", **KENER | {"kener.secret_key": "x" * 31})
-    with pytest.raises(ConfigError, match=r"kener\.secret_key"):
-        _load_raw(raw)
-
-
 def test_kener_requires_redis():
-    raw = config_from("private.toml", **KENER | {"redis.password": None})
-    with pytest.raises(ConfigError, match=r"kener requires redis\.password"):
+    raw = config_from("private.toml", **KENER | {"redis.enabled": None})
+    with pytest.raises(ConfigError, match=r"kener requires redis"):
         _load_raw(raw)
 
 
 def test_kener_requires_postgres_backup():
-    raw = config_from("private.toml", **REDIS | {"kener.secret_key": "x" * 32})
+    raw = config_from("private.toml", **REDIS | {"kener.enabled": True})
     with pytest.raises(ConfigError, match=r"kener requires postgres\.backup"):
         _load_raw(raw)
 
@@ -790,60 +584,16 @@ def test_kener_requires_ingress():
         _load_raw(raw)
 
 
-def test_kener_smtp_is_empty_when_unset():
-    assert _load_raw(config_from("private.toml", **KENER)).kener_smtp == {}
+def test_kener_smtp_follows_the_flag_and_requires_kener():
+    assert _load_raw(config_from("private.toml", **KENER)).kener_smtp is False
+    assert _load_raw(config_from("private.toml", **KENER | {"kener.smtp": True})).kener_smtp is True
+    with pytest.raises(ConfigError, match=r"smtp requires enabled"):
+        _load_raw(config_from("private.toml", **{"kener.smtp": True}))
 
 
-def test_kener_smtp_splits_the_url_and_decodes_the_credentials():
-    assert _load_raw(config_from("private.toml", **KENER_SMTP)).kener_smtp == {
-        "host": "smtp.example.com",
-        "port": "465",
-        "user": "user@example.com",
-        "password": "pass/word",
-        "secure": "1",
-    }
-    plain = KENER_SMTP | {"kener.smtp_url": "smtp://u:p@smtp.example.com"}
-    assert _load_raw(config_from("private.toml", **plain)).kener_smtp["port"] == "587"
-    assert _load_raw(config_from("private.toml", **plain)).kener_smtp["secure"] == "0"
-    custom = KENER_SMTP | {"kener.smtp_url": "smtp://u:p@smtp.example.com:2525"}
-    assert _load_raw(config_from("private.toml", **custom)).kener_smtp["port"] == "2525"
-
-
-def test_partial_kener_smtp_names_missing_field():
-    raw = config_from("private.toml", **KENER_SMTP | {"kener.mail_from": None})
-    with pytest.raises(ConfigError, match=r"kener is partially configured.*\(missing: mail_from\)"):
-        _load_raw(raw)
-
-
-@pytest.mark.parametrize(
-    ("url", "message"),
-    [
-        ("smtp://smtp.example.com:587", "needs a user, a password and a host"),
-        ("smtp://user@smtp.example.com", "needs a user, a password and a host"),
-        ("smtp://u:p@smtp.example.com:port", "port that is not a number"),
-        ("smtp://u:p%24word@smtp.example.com", "must not contain"),
-    ],
-)
-def test_kener_smtp_url_is_rejected(url, message):
-    raw = config_from("private.toml", **KENER_SMTP | {"kener.smtp_url": url})
-    with pytest.raises(ConfigError, match=message):
-        _load_raw(raw)
-
-
-def test_kener_smtp_requires_secret_key():
-    raw = config_from("private.toml", **KENER_SMTP | {"kener.secret_key": None})
-    with pytest.raises(ConfigError, match=r"smtp_url requires secret_key"):
-        _load_raw(raw)
-
-
-NETWORK_OPTIMIZER = OBSERVABILITY | {"network_optimizer.app_password": "fakefake1"}
+NETWORK_OPTIMIZER = OBSERVABILITY | {"network_optimizer.enabled": True}
 NETWORK_OPTIMIZER_OIDC = (
-    NETWORK_OPTIMIZER
-    | POCKET_ID
-    | {
-        "network_optimizer.oidc_client_id": "network-optimizer",
-        "network_optimizer.oidc_client_secret": "fake",
-    }
+    NETWORK_OPTIMIZER | POCKET_ID | {"network_optimizer.oidc_client_id": "network-optimizer"}
 )
 
 
@@ -856,98 +606,49 @@ def test_network_optimizer_flags():
     assert (oidc.network_optimizer_enabled, oidc.network_optimizer_oidc) == (True, True)
 
 
-@pytest.mark.parametrize("password", ["fakefake", "fake1"])
-def test_network_optimizer_app_password_is_rejected(password):
-    raw = config_from(
-        "private.toml", **NETWORK_OPTIMIZER | {"network_optimizer.app_password": password}
-    )
-    with pytest.raises(ConfigError, match=r"network_optimizer.*app_password"):
-        _load_raw(raw)
-
-
 def test_network_optimizer_requires_observability():
-    raw = config_from("private.toml", **{"network_optimizer.app_password": "fakefake1"})
+    raw = config_from("private.toml", **{"network_optimizer.enabled": True})
     with pytest.raises(ConfigError, match=r"network_optimizer requires observability"):
         _load_raw(raw)
 
 
 def test_network_optimizer_oidc_requires_pocket_id():
-    raw = config_from("private.toml", **NETWORK_OPTIMIZER_OIDC | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **NETWORK_OPTIMIZER_OIDC | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"network_optimizer\.oidc_client_id requires pocket_id"):
         _load_raw(raw)
 
 
-def test_partial_network_optimizer_oidc_names_missing_field():
+def test_network_optimizer_oidc_requires_the_app():
     raw = config_from(
-        "private.toml", **NETWORK_OPTIMIZER_OIDC | {"network_optimizer.oidc_client_secret": None}
+        "private.toml", **NETWORK_OPTIMIZER_OIDC | {"network_optimizer.enabled": None}
     )
-    with pytest.raises(
-        ConfigError,
-        match=r"network_optimizer is partially configured.*\(missing: oidc_client_secret\)",
-    ):
+    with pytest.raises(ConfigError, match=r"oidc_client_id requires enabled"):
         _load_raw(raw)
 
 
-def test_network_optimizer_oidc_requires_app_password():
-    raw = config_from(
-        "private.toml", **NETWORK_OPTIMIZER_OIDC | {"network_optimizer.app_password": None}
-    )
-    with pytest.raises(ConfigError, match=r"oidc_client_id requires app_password"):
-        _load_raw(raw)
+PEGAPROX_METRICS = OBSERVABILITY | {"pegaprox.enabled": True, "pegaprox.metrics": True}
 
 
-PEGAPROX_KEY = "fake" * 10 + "abc="
-
-
-def test_pegaprox_flag():
+def test_pegaprox_flags():
     assert not _load_raw(config_from("private.toml")).pegaprox_enabled
-    on = _load_raw(config_from("private.toml", **{"pegaprox.db_key": PEGAPROX_KEY}))
-    assert on.pegaprox_enabled
-    for hex_key in ("0f" * 32, "0F" * 32):
-        assert _load_raw(
-            config_from("private.toml", **{"pegaprox.db_key": hex_key})
-        ).pegaprox_enabled
-
-
-@pytest.mark.parametrize("key", ["tooshort", "fake" * 10 + "ab$="])
-def test_pegaprox_db_key_is_rejected(key):
-    raw = config_from("private.toml", **{"pegaprox.db_key": key})
-    with pytest.raises(ConfigError, match=r"pegaprox.*db_key"):
-        _load_raw(raw)
-
-
-PEGAPROX_METRICS = OBSERVABILITY | {
-    "pegaprox.db_key": PEGAPROX_KEY,
-    "pegaprox.metrics_token": "fake",
-}
-
-
-def test_pegaprox_metrics_flag():
-    off = _load_raw(
-        config_from("private.toml", **OBSERVABILITY | {"pegaprox.db_key": PEGAPROX_KEY})
-    )
-    assert off.pegaprox_metrics is False
+    on = _load_raw(config_from("private.toml", **{"pegaprox.enabled": True}))
+    assert (on.pegaprox_enabled, on.pegaprox_metrics) == (True, False)
     assert _load_raw(config_from("private.toml", **PEGAPROX_METRICS)).pegaprox_metrics is True
 
 
 def test_pegaprox_metrics_requires_observability():
-    raw = config_from(
-        "private.toml", **{"pegaprox.db_key": PEGAPROX_KEY, "pegaprox.metrics_token": "fake"}
-    )
-    with pytest.raises(ConfigError, match=r"pegaprox.*metrics_token"):
+    raw = config_from("private.toml", **{"pegaprox.enabled": True, "pegaprox.metrics": True})
+    with pytest.raises(ConfigError, match=r"pegaprox\.metrics requires observability"):
         _load_raw(raw)
 
 
-def test_pegaprox_metrics_requires_db_key():
-    raw = config_from("private.toml", **PEGAPROX_METRICS | {"pegaprox.db_key": None})
-    with pytest.raises(ConfigError, match=r"pegaprox.*metrics_token"):
+def test_pegaprox_metrics_requires_pegaprox():
+    raw = config_from("private.toml", **PEGAPROX_METRICS | {"pegaprox.enabled": None})
+    with pytest.raises(ConfigError, match=r"metrics requires enabled"):
         _load_raw(raw)
 
 
-ACTUAL_BUDGET = POCKET_ID | {
-    "actual_budget.oidc_client_id": "fake",
-    "actual_budget.oidc_client_secret": "fake",
-}
+ACTUAL_BUDGET = POCKET_ID | {"actual_budget.oidc_client_id": "fake"}
 
 
 def test_actual_budget_enabled_only_when_configured():
@@ -955,16 +656,8 @@ def test_actual_budget_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **ACTUAL_BUDGET)).actual_budget_enabled is True
 
 
-def test_partial_actual_budget_names_missing_field():
-    raw = config_from("private.toml", **ACTUAL_BUDGET | {"actual_budget.oidc_client_secret": None})
-    with pytest.raises(
-        ConfigError, match=r"actual_budget is partially configured.*\(missing: oidc_client_secret\)"
-    ):
-        _load_raw(raw)
-
-
 def test_actual_budget_requires_pocket_id():
-    raw = config_from("private.toml", **ACTUAL_BUDGET | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **ACTUAL_BUDGET | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"actual_budget requires pocket_id"):
         _load_raw(raw)
 
@@ -981,11 +674,7 @@ def test_actual_budget_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
-CLIPROXYAPI = {
-    "cliproxyapi.management_key": "m" * 32,
-    "cliproxyapi.api_key": "a" * 32,
-    "cliproxyapi.manager_admin_key": "k" * 32,
-}
+CLIPROXYAPI = {"cliproxyapi.enabled": True}
 
 
 def test_cliproxyapi_enabled_only_when_configured():
@@ -993,55 +682,27 @@ def test_cliproxyapi_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **CLIPROXYAPI)).cliproxyapi_enabled is True
 
 
-def test_partial_cliproxyapi_names_missing_field():
-    raw = config_from("private.toml", **CLIPROXYAPI | {"cliproxyapi.api_key": None})
-    with pytest.raises(
-        ConfigError, match=r"cliproxyapi is partially configured.*\(missing: api_key\)"
-    ):
-        _load_raw(raw)
-
-
-def test_ohmycpa_enabled_by_master_key():
+def test_ohmycpa_enabled_by_its_flag():
     assert _load_raw(config_from("private.toml", **CLIPROXYAPI)).ohmycpa_enabled is False
-    raw = config_from("private.toml", **CLIPROXYAPI, **{"cliproxyapi.ohmycpa_master_key": "0" * 64})
+    raw = config_from("private.toml", **CLIPROXYAPI, **{"cliproxyapi.ohmycpa": True})
     assert _load_raw(raw).ohmycpa_enabled is True
 
 
-def test_ohmycpa_master_key_needs_cliproxyapi():
-    raw = config_from("private.toml", **{"cliproxyapi.ohmycpa_master_key": "0" * 64})
-    with pytest.raises(ConfigError, match=r"ohmycpa_master_key needs management_key"):
+@pytest.mark.parametrize("field", ["ohmycpa", "github"])
+def test_cliproxyapi_option_needs_cliproxyapi(field):
+    raw = config_from("private.toml", **{f"cliproxyapi.{field}": True})
+    with pytest.raises(ConfigError, match=rf"cliproxyapi\.{field} needs enabled"):
         _load_raw(raw)
 
 
-def test_cliproxyapi_github_token_needs_cliproxyapi():
-    raw = config_from("private.toml", **{"cliproxyapi.github_token": "github_pat_fake"})
-    with pytest.raises(ConfigError, match=r"github_token needs management_key"):
-        _load_raw(raw)
-
-
-def test_ohmycpa_master_key_must_be_hex64():
-    raw = config_from("private.toml", **CLIPROXYAPI, **{"cliproxyapi.ohmycpa_master_key": "x" * 64})
-    with pytest.raises(ConfigError, match=r"ohmycpa_master_key"):
-        _load_raw(raw)
-
-
-VOLUME_BACKUP = POSTGRES_BACKUP | {
-    "volume_backup.bucket": "fake-volumes",
-    "volume_backup.access_key": "fakev",
-    "volume_backup.secret_key": "fakev",
-}
+VOLUME_BACKUP = POSTGRES_BACKUP | {"volume_backup.enabled": True}
 CAREER_OPS = (
     POCKET_ID
     | VOLUME_BACKUP
     | {
+        "career_ops.enabled": True,
         "career_ops.oidc_client_id": "fake",
-        "career_ops.oidc_client_secret": "fake",
-        "career_ops.claude_oauth_token": "fake",
-        "career_ops.publish_secret": "p" * 32,
-        "career_ops.publish_auth_secret": "a" * 32,
         "career_ops.publish_oidc_client_id": "fake-publish",
-        "career_ops.publish_oidc_client_secret": "fake",
-        "career_ops.publish_allowed_emails": ["me@example.com"],
     }
 )
 
@@ -1052,42 +713,32 @@ def test_career_ops_enabled_only_when_configured():
 
 
 def test_partial_career_ops_names_missing_field():
-    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_secret": None})
+    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_oidc_client_id": None})
     with pytest.raises(
-        ConfigError, match=r"career_ops is partially configured.*\(missing: publish_secret\)"
+        ConfigError,
+        match=r"career_ops is partially configured.*\(missing: publish_oidc_client_id\)",
     ):
         _load_raw(raw)
 
 
 PROXY = {
-    "career_ops.claude_oauth_token": None,
+    "career_ops.claude_credential": "proxy",
     "career_ops.anthropic_base_url": "http://cliproxyapi.llms.svc.cluster.local:8317",
-    "career_ops.anthropic_auth_token": "sk-fake",
 }
 
 
-def test_career_ops_proxy_pair_replaces_oauth_token():
+def test_career_ops_claude_credential_defaults_to_oauth():
+    assert _load_raw(config_from("private.toml", **CAREER_OPS)).career_ops.claude_credential == (
+        "oauth"
+    )
     career_ops = _load_raw(config_from("private.toml", **CAREER_OPS | PROXY)).career_ops
-    assert career_ops.claude_oauth_token == ""
-    assert career_ops.anthropic_base_url == "http://cliproxyapi.llms.svc.cluster.local:8317"
-    assert career_ops.anthropic_auth_token == "sk-fake"
+    assert career_ops.claude_credential == "proxy"
 
 
-def test_career_ops_proxy_half_pair_refused():
-    raw = config_from(
-        "private.toml", **CAREER_OPS | PROXY | {"career_ops.anthropic_base_url": None}
-    )
-    with pytest.raises(ConfigError, match=r"partially configured.*\(missing: anthropic_base_url\)"):
-        _load_raw(raw)
-    raw = config_from(
-        "private.toml", **CAREER_OPS | PROXY | {"career_ops.anthropic_auth_token": None}
-    )
-    with pytest.raises(
-        ConfigError, match=r"partially configured.*\(missing: anthropic_auth_token\)"
-    ):
-        _load_raw(raw)
-    raw = config_from("private.toml", **{"career_ops.anthropic_auth_token": "sk-fake"})
-    with pytest.raises(ConfigError, match=r"anthropic_auth_token requires oidc_client_secret"):
+@pytest.mark.parametrize("dropped", list(PROXY))
+def test_career_ops_proxy_needs_the_credential_and_the_url(dropped):
+    raw = config_from("private.toml", **CAREER_OPS | PROXY | {dropped: None})
+    with pytest.raises(ConfigError, match=r"claude_credential 'proxy' and anthropic_base_url"):
         _load_raw(raw)
 
 
@@ -1100,42 +751,18 @@ def test_career_ops_proxy_url_needs_no_trailing_slash():
         _load_raw(raw)
 
 
-def test_career_ops_proxy_and_oauth_refused():
-    raw = config_from(
-        "private.toml", **CAREER_OPS | PROXY | {"career_ops.claude_oauth_token": "fake"}
-    )
-    with pytest.raises(
-        ConfigError, match=r"set claude_oauth_token or the anthropic_base_url pair, not both"
-    ):
+@pytest.mark.parametrize(
+    ("field", "value"), [("publish", True), ("anthropic_base_url", "http://cliproxyapi:8317")]
+)
+def test_career_ops_option_needs_the_section(field, value):
+    raw = config_from("private.toml", **{f"career_ops.{field}": value})
+    with pytest.raises(ConfigError, match=rf"career_ops\.{field} requires enabled"):
         _load_raw(raw)
-
-
-def test_career_ops_needs_one_claude_credential():
-    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.claude_oauth_token": None})
-    with pytest.raises(ConfigError, match=r"career_ops needs one Claude credential"):
-        _load_raw(raw)
-
-
-def test_career_ops_requires_allowed_emails():
-    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_allowed_emails": None})
-    with pytest.raises(ConfigError, match=r"career_ops\.publish_allowed_emails is required"):
-        _load_raw(raw)
-    raw = config_from("private.toml", **{"career_ops.publish_allowed_emails": ["me@example.com"]})
-    with pytest.raises(ConfigError, match=r"publish_allowed_emails requires oidc_client_secret"):
-        _load_raw(raw)
-
-
-def test_career_ops_publish_api_key_is_optional_but_needs_the_section():
-    assert _load_raw(config_from("private.toml", **CAREER_OPS)).career_ops.publish_api_key == ""
-    raw = config_from("private.toml", **CAREER_OPS | {"career_ops.publish_api_key": "cops_fake"})
-    assert _load_raw(raw).career_ops.publish_api_key == "cops_fake"
-    raw = config_from("private.toml", **{"career_ops.publish_api_key": "cops_fake"})
-    with pytest.raises(ConfigError, match=r"publish_api_key requires oidc_client_secret"):
-        _load_raw(raw)
+    assert _load_raw(config_from("private.toml", **CAREER_OPS)).career_ops.publish is False
 
 
 def test_career_ops_requires_pocket_id():
-    raw = config_from("private.toml", **CAREER_OPS | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **CAREER_OPS | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"career_ops requires pocket_id"):
         _load_raw(raw)
 
@@ -1158,30 +785,15 @@ def test_career_ops_public_requires_public_pocket_id():
     with pytest.raises(ConfigError, match=r"career_ops\.public requires pocket_id\.public"):
         _load_raw(raw)
     raw = config_from("private.toml", **{"career_ops.public": True})
-    with pytest.raises(ConfigError, match=r"career_ops\.public requires oidc_client_secret"):
+    with pytest.raises(ConfigError, match=r"career_ops\.public requires enabled"):
         _load_raw(raw)
 
 
-MEDIA_KEYS = {
-    f"media.{name}": "a" * 32
-    for name in (
-        "sonarr_api_key",
-        "radarr_api_key",
-        "prowlarr_api_key",
-        "sabnzbd_api_key",
-        "sabnzbd_nzb_key",
-    )
+MEDIA = POCKET_ID | {
+    "media.nfs_server": "10.10.10.50",
+    "media.node": "k8s-1",
+    "media.oidc_client_id": "fake",
 }
-MEDIA = (
-    POCKET_ID
-    | MEDIA_KEYS
-    | {
-        "media.nfs_server": "10.10.10.50",
-        "media.node": "k8s-1",
-        "media.oidc_client_id": "fake",
-        "media.oidc_client_secret": "fake",
-    }
-)
 
 
 def test_media_enabled_only_when_configured():
@@ -1190,36 +802,18 @@ def test_media_enabled_only_when_configured():
     assert _load_raw(blank).media_enabled is False
     assert _load_raw(config_from("private.toml", **MEDIA)).media_enabled is True
     assert _load_raw(config_from("private.toml", **MEDIA)).media_plex_enabled is False
-    with_plex = MEDIA | {"media.plex_host": "10.10.10.60", "media.plex_token": "fake"}
+    with_plex = MEDIA | {"media.plex_host": "10.10.10.60"}
     assert _load_raw(config_from("private.toml", **with_plex)).media_plex_enabled is True
-
-
-def test_partial_media_keys_names_missing_field():
-    raw = config_from("private.toml", **MEDIA | {"media.sabnzbd_nzb_key": None})
-    with pytest.raises(
-        ConfigError, match=r"media is partially configured.*\(missing: sabnzbd_nzb_key\)"
-    ):
-        _load_raw(raw)
-
-
-def test_media_keys_checksum_follows_the_keys():
-    base = _load_raw(config_from("private.toml", **MEDIA)).media_keys_checksum
-    rotated = config_from("private.toml", **MEDIA | {"media.sonarr_api_key": "b" * 32})
-    assert len(base) == 16
-    assert _load_raw(rotated).media_keys_checksum != base
-
-
-def test_plex_host_without_token_names_missing_field():
-    raw = config_from("private.toml", **MEDIA | {"media.plex_host": "10.10.10.60"})
-    with pytest.raises(
-        ConfigError, match=r"media is partially configured.*\(missing: plex_token\)"
-    ):
-        _load_raw(raw)
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("recyclarr", True), ("nfs_share", "/tank/media"), ("timezone", "America/Chicago")],
+    [
+        ("recyclarr", True),
+        ("nfs_share", "/tank/media"),
+        ("timezone", "America/Chicago"),
+        ("keys_revision", 1),
+    ],
 )
 def test_media_field_requires_nfs_server(field, value):
     raw = config_from("private.toml", **{f"media.{field}": value})
@@ -1229,12 +823,12 @@ def test_media_field_requires_nfs_server(field, value):
 
 def test_media_nfs_server_requires_the_rest():
     raw = config_from("private.toml", **POCKET_ID | {"media.nfs_server": "10.10.10.50"})
-    with pytest.raises(ConfigError, match=r"media requires node, the five API keys"):
+    with pytest.raises(ConfigError, match=r"media requires node and oidc_client_id"):
         _load_raw(raw)
 
 
 def test_media_requires_pocket_id():
-    raw = config_from("private.toml", **MEDIA | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **MEDIA | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"media requires pocket_id"):
         _load_raw(raw)
 
@@ -1252,11 +846,7 @@ def test_media_public_requires_public_pocket_id():
         _load_raw(raw)
 
 
-AI_WORKSPACE = POCKET_ID | {
-    "ai_workspace.oidc_client_id": "fake",
-    "ai_workspace.oidc_client_secret": "fake",
-    "ai_workspace.auth_secret": "x" * 32,
-}
+AI_WORKSPACE = POCKET_ID | {"ai_workspace.oidc_client_id": "fake"}
 
 
 def test_ai_workspace_enabled_only_when_configured():
@@ -1264,61 +854,8 @@ def test_ai_workspace_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **AI_WORKSPACE)).ai_workspace_enabled is True
 
 
-@pytest.mark.parametrize("field", ["oidc_client_secret", "auth_secret"])
-def test_partial_ai_workspace_names_missing_field(field):
-    raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.{field}": None})
-    with pytest.raises(
-        ConfigError,
-        match=rf"ai_workspace is partially configured.*\(missing: {field}\)",
-    ):
-        _load_raw(raw)
-
-
-def test_ai_workspace_auth_secret_needs_32_characters():
-    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.auth_secret": "x" * 31})
-    with pytest.raises(ConfigError, match=r"ai_workspace\.auth_secret"):
-        _load_raw(raw)
-
-
-@pytest.mark.parametrize(
-    ("allowed", "admin", "admitted"),
-    [
-        ([], "me@family.example", True),
-        (["@family.example"], "me@family.example", True),
-        (["Me@Family.example"], "me@family.example", True),
-        (["me@example.com", "@family.example"], "you@example.com", False),
-        (["@example.com"], "me@sub.example.com", False),
-    ],
-)
-def test_ai_workspace_admin_admission(allowed, admin, admitted):
-    raw = config_from(
-        "private.toml",
-        **AI_WORKSPACE
-        | {"ai_workspace.allowed_emails": allowed, "ai_workspace.admin_emails": [admin]},
-    )
-    if admitted:
-        assert _load_raw(raw).ai_workspace.admin_emails == [admin]
-    else:
-        with pytest.raises(ConfigError, match=rf"admin_emails: {admin!r} is not admitted"):
-            _load_raw(raw)
-
-
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("allowed_emails", ["family.example"]),
-        ("allowed_emails", ["a@b.example,c@d.example"]),
-        ("admin_emails", ["@example.com"]),
-    ],
-)
-def test_ai_workspace_malformed_email_is_rejected(field, value):
-    raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.{field}": value})
-    with pytest.raises(ConfigError, match=rf"ai_workspace\.{field}"):
-        _load_raw(raw)
-
-
 def test_ai_workspace_requires_pocket_id():
-    raw = config_from("private.toml", **AI_WORKSPACE | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **AI_WORKSPACE | {"pocket_id.enabled": None})
     with pytest.raises(ConfigError, match=r"ai_workspace requires pocket_id"):
         _load_raw(raw)
 
@@ -1326,11 +863,11 @@ def test_ai_workspace_requires_pocket_id():
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("allowed_emails", ["@example.com"]),
-        ("admin_emails", ["me@example.com"]),
-        ("browsing_token", "a" * 32),
+        ("allowlist", True),
+        ("admins", True),
+        ("browsing", True),
         ("public", True),
-        ("env", {"ANTHROPIC_API_KEY": "fake"}),
+        ("env_keys", ["ANTHROPIC_API_KEY"]),
     ],
 )
 def test_ai_workspace_options_require_client(field, value):
@@ -1355,33 +892,20 @@ def test_ai_workspace_public_requires_public_pocket_id():
         "lowercase_key",
     ],
 )
-def test_ai_workspace_env_rejects_reserved_and_malformed_keys(key):
-    raw = config_from("private.toml", **AI_WORKSPACE | {f"ai_workspace.env.{key}": "fake"})
-    with pytest.raises(ConfigError):
+def test_ai_workspace_env_keys_reject_reserved_and_malformed_names(key):
+    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.env_keys": [key]})
+    with pytest.raises(ConfigError, match=r"ai_workspace"):
         _load_raw(raw)
 
 
-@pytest.mark.parametrize("token", ["a" * 31, "a" * 31 + "-"])
-def test_ai_workspace_browsing_token_rejects_short_or_unsafe(token):
-    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.browsing_token": token})
-    with pytest.raises(ConfigError, match=r"ai_workspace\.browsing_token"):
-        _load_raw(raw)
+def test_ai_workspace_env_keys_accept_the_button_label():
+    raw = config_from(
+        "private.toml", **AI_WORKSPACE | {"ai_workspace.env_keys": ["AUTH_OIDC_NAME"]}
+    )
+    assert _load_raw(raw).ai_workspace.env_keys == ["AUTH_OIDC_NAME"]
 
 
-def test_ai_workspace_env_accepts_button_label():
-    raw = config_from("private.toml", **AI_WORKSPACE | {"ai_workspace.env.AUTH_OIDC_NAME": "Home"})
-    assert _load_raw(raw).ai_workspace.env == {"AUTH_OIDC_NAME": "Home"}
-
-
-AI_KB = (
-    POSTGRES_BACKUP
-    | REDIS
-    | {
-        "ai_kb.jwt_secret": "x" * 32,
-        "ai_kb.aes_key": "a" * 32,
-        "ai_kb.admin_email": "admin@example.com",
-    }
-)
+AI_KB = POSTGRES_BACKUP | REDIS | {"ai_kb.enabled": True, "ai_kb.admin_email": "admin@example.com"}
 
 
 def test_ai_kb_enabled_only_when_configured():
@@ -1389,20 +913,20 @@ def test_ai_kb_enabled_only_when_configured():
     assert _load_raw(config_from("private.toml", **AI_KB)).ai_kb_enabled is True
 
 
-@pytest.mark.parametrize("key", ["a" * 31, "a" * 33, "a" * 31 + "-"])
-def test_ai_kb_aes_key_is_32_letters_and_digits(key):
-    raw = config_from("private.toml", **AI_KB | {"ai_kb.aes_key": key})
-    with pytest.raises(ConfigError, match=r"ai_kb\.aes_key"):
+def test_ai_kb_needs_its_admin_email():
+    raw = config_from("private.toml", **AI_KB | {"ai_kb.admin_email": None})
+    with pytest.raises(ConfigError, match=r"ai_kb is partially configured.*admin_email"):
         _load_raw(raw)
 
 
-AI_KB_OIDC = AI_KB | {"ai_kb.oidc_client_id": "ai-kb", "ai_kb.oidc_client_secret": "s" * 32}
+AI_KB_OIDC = AI_KB | {"ai_kb.oidc_client_id": "ai-kb"}
 
 
 def test_ai_kb_oidc_requires_pocket_id():
-    raw = config_from("private.toml", **AI_KB_OIDC | {"pocket_id.encryption_key": None})
+    raw = config_from("private.toml", **AI_KB_OIDC)
     with pytest.raises(ConfigError, match=r"ai_kb\.oidc_client_id requires pocket_id"):
         _load_raw(raw)
+    assert _load_raw(config_from("private.toml", **AI_KB_OIDC | POCKET_ID)).ai_kb_oidc is True
 
 
 def test_ai_kb_requires_ingress():
@@ -1411,94 +935,65 @@ def test_ai_kb_requires_ingress():
         _load_raw(raw)
 
 
-RUSTFS = {"rustfs.access_key": "k" * 16, "rustfs.secret_key": "s" * 32, "rustfs.node": "k8s-1"}
-AI_KB_RUSTFS = AI_KB | {"ai_kb.rustfs_access_key": "a" * 16, "ai_kb.rustfs_secret_key": "b" * 32}
+RUSTFS = {"rustfs.enabled": True, "rustfs.node": "k8s-1"}
+AI_KB_RUSTFS = AI_KB | {"ai_kb.rustfs": True}
 
 
-def test_rustfs_consumers_lists_ai_kb_when_its_pair_is_set():
+def test_rustfs_needs_its_node():
+    with pytest.raises(ConfigError, match=r"rustfs is partially configured.*\(missing: node\)"):
+        _load_raw(config_from("private.toml", **{"rustfs.enabled": True}))
+    with pytest.raises(ConfigError, match=r"rustfs\.node k8s-0 must name"):
+        _load_raw(config_from("private.toml", **RUSTFS | {"rustfs.node": "k8s-0"}))
+
+
+def test_rustfs_consumers_lists_ai_kb_when_its_flag_is_set():
     assert _load_raw(config_from("private.toml", **RUSTFS)).rustfs_consumers == []
     config = _load_raw(config_from("private.toml", **RUSTFS | AI_KB_RUSTFS))
-    assert config.rustfs_consumers == [
-        {"name": "ai-kb", "bucket": "ai-kb-files", "access_key": "a" * 16, "secret_key": "b" * 32}
-    ]
+    assert config.rustfs_consumers == [{"name": "ai-kb", "bucket": "ai-kb-files"}]
 
 
-def test_rustfs_consumers_checksum_changes_with_a_consumer():
-    before = _load_raw(config_from("private.toml", **RUSTFS)).rustfs_consumers_checksum
-    after = _load_raw(
-        config_from("private.toml", **RUSTFS | AI_KB_RUSTFS)
-    ).rustfs_consumers_checksum
-    assert before != after
+def test_ai_kb_rustfs_requires_the_rest_of_the_section():
+    with pytest.raises(ConfigError, match=r"ai_kb\.rustfs requires the rest of \[ai_kb\]"):
+        _load_raw(config_from("private.toml", **RUSTFS | {"ai_kb.rustfs": True}))
 
 
-def test_ai_kb_rustfs_pair_requires_the_rest_of_the_section():
-    pair = {"ai_kb.rustfs_access_key": "a" * 16, "ai_kb.rustfs_secret_key": "b" * 32}
-    with pytest.raises(
-        ConfigError, match=r"ai_kb\.rustfs_access_key requires the rest of \[ai_kb\]"
-    ):
-        _load_raw(config_from("private.toml", **RUSTFS | pair))
-
-
-def test_ai_kb_rustfs_pair_requires_rustfs():
-    with pytest.raises(ConfigError, match=r"ai_kb\.rustfs_access_key requires rustfs"):
+def test_ai_kb_rustfs_requires_rustfs():
+    with pytest.raises(ConfigError, match=r"ai_kb\.rustfs requires rustfs"):
         _load_raw(config_from("private.toml", **AI_KB_RUSTFS))
 
 
-LANGFUSE_FIELDS = {
-    "langfuse.public_key": "pk-lf-" + "p" * 32,
-    "langfuse.secret_key": "sk-lf-" + "s" * 32,
-    "langfuse.salt": "a" * 32,
-    "langfuse.encryption_key": "0" * 64,
-    "langfuse.nextauth_secret": "n" * 32,
-    "langfuse.oidc_client_id": "langfuse",
-    "langfuse.oidc_client_secret": "secret",
-    "langfuse.clickhouse_password": "c" * 24,
-    "langfuse.rustfs_access_key": "l" * 16,
-    "langfuse.rustfs_secret_key": "m" * 32,
-}
-LANGFUSE = POCKET_ID | REDIS | RUSTFS | LANGFUSE_FIELDS
+LANGFUSE = (
+    POCKET_ID | REDIS | RUSTFS | {"langfuse.enabled": True, "langfuse.oidc_client_id": "langfuse"}
+)
 
 
 def test_rustfs_consumers_lists_langfuse_when_it_is_enabled():
     config = _load_raw(config_from("private.toml", **LANGFUSE))
     assert config.langfuse_enabled
-    assert config.rustfs_consumers == [
-        {
-            "name": "langfuse",
-            "bucket": "langfuse-events",
-            "access_key": "l" * 16,
-            "secret_key": "m" * 32,
-        }
+    assert config.rustfs_consumers == [{"name": "langfuse", "bucket": "langfuse-events"}]
+
+
+def test_rustfs_consumers_lists_itsaplan_when_it_is_enabled():
+    raw = config_from("private.toml", **POSTGRES_BACKUP | RUSTFS | {"itsaplan.enabled": True})
+    assert _load_raw(raw).rustfs_consumers == [
+        {"name": "itsaplan", "bucket": "itsaplan-attachments"}
     ]
+    with pytest.raises(ConfigError, match=r"itsaplan requires rustfs"):
+        _load_raw(config_from("private.toml", **POSTGRES_BACKUP | {"itsaplan.enabled": True}))
 
 
 @pytest.mark.parametrize(
     ("dropped", "message"),
     [
-        (REDIS, r"langfuse requires redis\.password"),
+        (REDIS, r"langfuse requires redis"),
         (POCKET_ID.keys() - POSTGRES_BACKUP.keys(), r"langfuse\.oidc_client_id requires pocket_id"),
-        (RUSTFS, r"langfuse\.rustfs_access_key requires rustfs"),
+        (RUSTFS, r"langfuse requires rustfs"),
     ],
 )
 def test_langfuse_requires_its_datastores_and_login(dropped, message):
     raw = {key: value for key, value in LANGFUSE.items() if key not in dropped}
     with pytest.raises(ConfigError, match=message):
         _load_raw(config_from("private.toml", **raw))
-
-
-def test_rustfs_access_keys_must_differ():
-    shared = AI_KB_RUSTFS | {"ai_kb.rustfs_access_key": "l" * 16}
-    with pytest.raises(
-        ConfigError,
-        match=r"langfuse\.rustfs_access_key and ai_kb\.rustfs_access_key share an access key",
-    ):
-        _load_raw(config_from("private.toml", **LANGFUSE | shared))
-    with pytest.raises(
-        ConfigError, match=r"langfuse\.rustfs_access_key and rustfs\.access_key share"
-    ):
-        _load_raw(
-            config_from("private.toml", **LANGFUSE | {"langfuse.rustfs_access_key": "k" * 16})
-        )
 
 
 def test_ai_kb_tracing_requires_langfuse():
@@ -1508,27 +1003,22 @@ def test_ai_kb_tracing_requires_langfuse():
     assert config.ai_kb_tracing
 
 
-def test_ai_kb_tracing_requires_the_rest_of_the_section():
-    with pytest.raises(ConfigError, match=r"ai_kb\.tracing requires the rest of \[ai_kb\]"):
-        _load_raw(config_from("private.toml", **LANGFUSE | {"ai_kb.tracing": True}))
+@pytest.mark.parametrize("field", ["tracing", "neo4j", "searxng"])
+def test_ai_kb_option_requires_the_rest_of_the_section(field):
+    with pytest.raises(ConfigError, match=rf"ai_kb\.{field} requires the rest of \[ai_kb\]"):
+        _load_raw(config_from("private.toml", **LANGFUSE | {f"ai_kb.{field}": True}))
 
 
-def test_ai_kb_neo4j_requires_the_rest_of_the_section():
-    with pytest.raises(ConfigError, match=r"ai_kb\.neo4j_password requires the rest of \[ai_kb\]"):
-        _load_raw(config_from("private.toml", **{"ai_kb.neo4j_password": "n" * 32}))
-    config = _load_raw(config_from("private.toml", **AI_KB | {"ai_kb.neo4j_password": "n" * 32}))
-    assert config.ai_kb_neo4j
-
-
-def test_ai_kb_searxng_requires_the_rest_of_the_section():
-    with pytest.raises(ConfigError, match=r"ai_kb\.searxng_secret requires the rest of \[ai_kb\]"):
-        _load_raw(config_from("private.toml", **{"ai_kb.searxng_secret": "s" * 64}))
-    config = _load_raw(config_from("private.toml", **AI_KB | {"ai_kb.searxng_secret": "s" * 64}))
-    assert config.ai_kb_searxng
+def test_ai_kb_neo4j_and_searxng_follow_their_flags():
+    config = _load_raw(
+        config_from("private.toml", **AI_KB | {"ai_kb.neo4j": True, "ai_kb.searxng": True})
+    )
+    assert (config.ai_kb_neo4j, config.ai_kb_searxng) == (True, True)
+    assert _load_raw(config_from("private.toml", **AI_KB)).ai_kb_neo4j is False
 
 
 def test_langfuse_is_all_or_none():
-    raw = POCKET_ID | REDIS | RUSTFS | {"langfuse.public_key": "pk-lf-" + "p" * 32}
+    raw = POCKET_ID | REDIS | RUSTFS | {"langfuse.enabled": True}
     with pytest.raises(ConfigError, match=r"langfuse is partially configured"):
         _load_raw(config_from("private.toml", **raw))
 

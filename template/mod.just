@@ -8,7 +8,7 @@ set working-directory := '..'
 bootstrap_dir := justfile_dir() + '/bootstrap'
 kubernetes_dir := justfile_dir() + '/kubernetes'
 talos_dir := justfile_dir() + '/talos'
-sops_pathspec := "':(glob)bootstrap/**/*.sops.*' ':(glob)kubernetes/**/*.sops.*' ':(glob)talos/**/*.sops.*'"
+sops_pathspec := "':(glob)bootstrap/**/*.sops.*' ':(glob)talos/**/*.sops.*'"
 private_dir := justfile_dir() + '/.private'
 
 template_dir := justfile_dir() + '/template'
@@ -23,7 +23,6 @@ validate_script := template_dir + '/scripts/validate.py'
 check_layout_script := template_dir + '/scripts/check_layout.py'
 deploy_key := justfile_dir() + '/deploy.key'
 webhook_token_file := justfile_dir() + '/flux-webhook-token.txt'
-cloudflare_tunnel := justfile_dir() + '/cloudflare-tunnel.json'
 
 [doc('Render and validate configuration files')]
 [group('template')]
@@ -43,11 +42,6 @@ check-layout:
 scaffold section:
     uv run --quiet --locked --no-dev "{{ template_dir }}/scripts/scaffold.py" "{{ section }}" "{{ sample_config_file }}" "{{ config_file }}"
     just template check-layout
-
-[doc('Create the 1Password items that do not exist yet; --dry-run lists them and checks them offline')]
-[group('template')]
-secrets-seed *flag:
-    uv run --quiet --locked --no-dev "{{ template_dir }}/scripts/op_seed.py" "{{ config_file }}" {{ flag }}
 
 [doc('Check the 1Password items against the secret map; prints item and field names, never a value')]
 [group('template')]
@@ -71,12 +65,8 @@ doctor:
         fi
     fi
     config_json="$(just template config-json 2>/dev/null || true)"
-    if [ "$(jq -r '.ingress.mode' <<< "$config_json" 2>/dev/null)" = "cloudflare-tunnel" ]; then
-        just template doctor-check "cloudflare-tunnel.json" "{{ cloudflare_tunnel }}" || rc=1
-    fi
     just template doctor-check "age.key"                "$SOPS_AGE_KEY_FILE"          || rc=1
     just template doctor-check "deploy.key"             "{{ deploy_key }}"            || rc=1
-    just template doctor-check "flux-webhook-token.txt" "{{ webhook_token_file }}"    || rc=1
     just template doctor-check "template/"              "{{ template_dir }}"          || rc=1
     just template doctor-check "makejinja.toml"         "{{ makejinja_config }}"      || rc=1
     just template doctor-check "validate.py"            "{{ validate_script }}"       || rc=1

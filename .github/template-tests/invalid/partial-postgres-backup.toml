@@ -1,7 +1,6 @@
-# Negative fixture: two of the four Postgres backup fields set, so the
-# credentials are missing.
+# Negative fixture: the Postgres backup endpoint set without its bucket.
 # Expected to be rejected by the PostgresBackup all-or-nothing check.
-# expect: postgres.backup: backup is partially configured: set endpoint, bucket, access_key_id and secret_access_key together (missing: access_key_id, secret_access_key)
+# expect: postgres.backup: backup is partially configured: set endpoint and bucket together (missing: bucket)
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -17,14 +16,15 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
-bucket = "fake"
 
 [[nodes]]
 name = "k8s-0"

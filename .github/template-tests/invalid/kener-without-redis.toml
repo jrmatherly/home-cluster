@@ -1,6 +1,6 @@
-# Negative fixture: kener set without [redis].
-# Expected to be rejected by the kener requires redis.password check.
-# expect: kener requires redis.password: Kener's job queue lives in Redis
+# Negative fixture: kener enabled without [redis].
+# Expected to be rejected by the kener requires redis check.
+# expect: kener requires redis: Kener's job queue lives in Redis
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,11 +26,9 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [kener]
-secret_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [[nodes]]
 name = "k8s-0"

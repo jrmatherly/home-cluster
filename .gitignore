@@ -15,6 +15,7 @@ talosconfig
 
 # Template config and render output
 /cluster.toml
+/cluster.toml.bak
 /talos/output/
 /talos/rendered/
 .private/

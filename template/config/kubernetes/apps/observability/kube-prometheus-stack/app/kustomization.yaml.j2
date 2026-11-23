@@ -3,7 +3,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  #% if observability.discord_webhook %#
+  #% if observability.discord %#
   - ./alertmanager-externalsecret.yaml
   #% endif %#
   - ./externalsecret.yaml

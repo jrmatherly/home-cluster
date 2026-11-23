@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,16 +26,12 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [pocket_id]
-encryption_key = "fakefakefakefake"
+enabled = true
 
 [ai_workspace]
 oidc_client_id = "fake"
-oidc_client_secret = "fake"
-auth_secret = "fakefakefakefakefakefakefakefake"
 public = true
 
 [[nodes]]

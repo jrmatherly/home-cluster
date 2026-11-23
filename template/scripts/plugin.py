@@ -1,5 +1,3 @@
-import base64
-import json
 import re
 from pathlib import Path
 from typing import Any
@@ -17,14 +15,6 @@ def _read_stripped(file_path: str) -> str:
     if not content:
         raise ValueError(f"{file_path} is empty")
     return content
-
-
-# Return the parsed contents of a JSON file
-def _read_json(file_path: str) -> dict[str, Any]:
-    try:
-        return json.loads(_read_stripped(file_path))
-    except json.JSONDecodeError:
-        raise ValueError(f"Could not decode JSON file: {file_path}") from None
 
 
 # Return the age public or private key from age.key
@@ -46,37 +36,8 @@ def age_key(key_type: str, file_path: str = 'age.key') -> str:
         raise ValueError("Invalid key type. Use 'public' or 'private'.")
 
 
-# Return cloudflare tunnel fields from cloudflare-tunnel.json
-def cloudflare_tunnel_id(file_path: str = 'cloudflare-tunnel.json') -> str:
-    data = _read_json(file_path)
-    tunnel_id = data.get("TunnelID")
-    if tunnel_id is None:
-        raise KeyError(f"Missing 'TunnelID' key in {file_path}")
-    if not tunnel_id:
-        raise ValueError(f"'TunnelID' is empty in {file_path}")
-    return tunnel_id
-
-
-# Return cloudflare tunnel fields from cloudflare-tunnel.json in TUNNEL_TOKEN format
-def cloudflare_tunnel_secret(file_path: str = 'cloudflare-tunnel.json') -> str:
-    data = _read_json(file_path)
-    for field in ("AccountTag", "TunnelID", "TunnelSecret"):
-        if field not in data:
-            raise KeyError(f"Missing '{field}' key in {file_path}")
-        if not data[field]:
-            raise ValueError(f"'{field}' is empty in {file_path}")
-    transformed_data = {"a": data["AccountTag"], "t": data["TunnelID"], "s": data["TunnelSecret"]}
-    json_string = json.dumps(transformed_data, separators=(',', ':'))
-    return base64.b64encode(json_string.encode('utf-8')).decode('utf-8')
-
-
 # Return the Flux deploy key from deploy.key
 def deploy_key(file_path: str = 'deploy.key') -> str:
-    return _read_stripped(file_path)
-
-
-# Return the Flux webhook token from flux-webhook-token.txt
-def webhook_token(file_path: str = 'flux-webhook-token.txt') -> str:
     return _read_stripped(file_path)
 
 
@@ -117,11 +78,6 @@ def validate_config() -> dict[str, Any]:
 class Plugin(makejinja.plugin.Plugin):
     def data(self) -> makejinja.plugin.Data:
         data = validate_config()
-        if (
-            data['ingress']['mode'] == 'cloudflare-tunnel'
-            and not Path('cloudflare-tunnel.json').is_file()
-        ):
-            raise RuntimeError('cloudflare-tunnel.json not found — see README')
         # The deploy key secret always pins every bundled provider host key
         # (entries are matched per-hostname, so unused ones are inert);
         # user-supplied entries for self-hosted git servers are appended.
@@ -132,4 +88,4 @@ class Plugin(makejinja.plugin.Plugin):
         return data
 
     def functions(self) -> makejinja.plugin.Functions:
-        return [age_key, cloudflare_tunnel_id, cloudflare_tunnel_secret, deploy_key, webhook_token]
+        return [age_key, deploy_key]

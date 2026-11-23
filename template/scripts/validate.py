@@ -8,7 +8,6 @@ Exits non-zero with one human-readable error per line on stderr when the
 config is invalid.
 """
 
-import hashlib
 import json
 import re
 import sys
@@ -16,7 +15,6 @@ import tomllib
 from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
-from urllib.parse import unquote, urlsplit
 
 from pydantic import (
     AfterValidator,
@@ -64,26 +62,11 @@ def _asn(value: str) -> str:
 type Cidr = Annotated[IPv4Network, BeforeValidator(_network)]
 type Asn = Annotated[str, AfterValidator(_asn)]
 type Fqdn = Annotated[str, Field(pattern=FQDN_PATTERN)]
-# A secret rendered inside a double-quoted YAML string, where a quote or a
-# backslash would change the value. Flux substitutes ${...} in the rendered
-# manifest, so a dollar sign is out too.
-type Secret = Annotated[str, Field(pattern=r'^[^"\\\s$]*$')]
-# A Secret of at least 32 characters, for keys the app refuses when shorter.
-type LongSecret = Annotated[str, Field(pattern=r'^([^"\\\s$]{32,})?$')]
-# An address or an @domain rule, with the same forbidden characters as Secret
-# plus the comma that joins them into one env var.
+# An address with none of the characters a double-quoted YAML string or a Flux
+# substitution would change.
 _SAFE = r'[^\s"\\$,@]+'
 EMAIL = rf"{_SAFE}@{_SAFE}\.{_SAFE}"
 type EmailAddress = Annotated[str, Field(pattern=f"^{EMAIL}$")]
-type EmailRule = Annotated[str, Field(pattern=rf"^({EMAIL}|@{_SAFE}\.{_SAFE})$")]
-# The arrs and SABnzbd generate 32 hex characters; a hand-made key is at least that long.
-type ApiKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{32,})?$")]
-# A RustFS access key; its secret key is an ApiKey. Letters and digits, because
-# the provisioning Job passes both to rc as arguments.
-type S3AccessKey = Annotated[str, Field(pattern=r"^([A-Za-z0-9]{16,})?$")]
-# A key pair the snapshot job builds into an https://key:secret@host URL, where a
-# slash or an at sign would send the keys to another host. R2's are hex.
-type UrlCredential = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]*$")]
 # A [[nodes]] name that _worker checks against the node list.
 type WorkerName = Annotated[str, Field(pattern=r"^[a-z0-9-]*$")]
 
@@ -94,20 +77,12 @@ class Model(BaseModel):
 
 # Reject a section where only some of the fields in names are set.
 def _all_or_none(model: Model, label: str, names: tuple[str, ...]) -> None:
-    unset = [name for name in names if getattr(model, name) == ""]
+    unset = [name for name in names if not getattr(model, name)]
     if unset and len(unset) < len(names):
         raise ValueError(
             f"{label} is partially configured: set {', '.join(names[:-1])} and "
             f"{names[-1]} together (missing: {', '.join(unset)})"
         )
-
-
-def _admitted(address: str, rules: list[str]) -> bool:
-    """AI Workspace's allowlist match: case-insensitive, and an @domain rule
-    matches that domain only, not its subdomains. An empty list admits everyone."""
-    lowered = address.lower()
-    allowed = {rule.lower() for rule in rules}
-    return not allowed or lowered in allowed or "@" + lowered.partition("@")[2] in allowed
 
 
 class Network(Model):
@@ -189,19 +164,12 @@ class Domain(Model):
 
 class Dns(Model):
     provider: Literal["cloudflare", "none"] = "cloudflare"
-    token: str = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        if self.provider == "cloudflare" and not self.token:
-            raise ValueError("token is required when dns.provider is 'cloudflare'")
-        if self.provider == "none" and self.token:
-            raise ValueError("token must be empty when dns.provider is 'none'")
-        return self
 
 
 class Ingress(Model):
     mode: Literal["cloudflare-tunnel", "direct", "none"] = "cloudflare-tunnel"
+    # The Cloudflare tunnel's ID, which is public: external.<domain> is a CNAME to it.
+    tunnel_id: str = Field(default="", pattern=r"^[A-Za-z0-9-]*$")
 
 
 class Bgp(Model):
@@ -235,12 +203,6 @@ class Spegel(Model):
 class Hubble(Model):
     # The OIDC client created for the Hubble UI in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "cilium.hubble", ("oidc_client_id", "oidc_client_secret"))
-        return self
 
 
 class Cilium(Model):
@@ -253,12 +215,10 @@ class PostgresBackup(Model):
     # S3 API endpoint of the object store, without a path.
     endpoint: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
     bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    access_key_id: Secret = ""
-    secret_access_key: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "backup", ("endpoint", "bucket", "access_key_id", "secret_access_key"))
+        _all_or_none(self, "backup", ("endpoint", "bucket"))
         return self
 
 
@@ -267,77 +227,43 @@ class Postgres(Model):
 
 
 class EtcdBackup(Model):
-    bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    access_key: UrlCredential = ""
-    secret_key: UrlCredential = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "backup", ("bucket", "access_key", "secret_key"))
-        return self
+    enabled: bool = False
 
 
 class VolumeBackup(Model):
-    bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    access_key: UrlCredential = ""
-    secret_key: UrlCredential = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "backup", ("bucket", "access_key", "secret_key"))
-        return self
+    enabled: bool = False
 
 
 class Redis(Model):
-    # Shared by every Redis the redis component creates. Clients put it in a
-    # connection URL unencoded, hence letters and digits only.
-    password: str = Field(default="", pattern=r"^([A-Za-z0-9]{24,})?$")
+    # Gives every app that includes the redis component a Redis of its own.
+    enabled: bool = False
 
 
 class LocalAi(Model):
-    # Every client sends it as a bearer token; LocalAI closes every route but the health
-    # checks when it is set. Required whenever a node loads the nvidia kernel module.
-    api_key: ApiKey = ""
     # The OIDC client created for the LocalAI WebUI in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "localai", ("oidc_client_id", "oidc_client_secret"))
-        return self
 
 
 class Observability(Model):
-    grafana_password: Secret = ""
-    # InfluxDB rejects a password shorter than 8 characters.
-    influxdb_password: Secret = Field(default="", pattern=r'^([^"\\\s$]{8,})?$')
-    influxdb_token: Secret = ""
-    # Where Alertmanager sends alerts. Unset, every alert goes to the null receiver.
-    discord_webhook: str = Field(
-        default="", pattern=r"^(https://discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$"
-    )
-    # An external heartbeat that Alertmanager pings with the Watchdog alert, so a dead
-    # Prometheus, Alertmanager or node is noticed; the service pages when the pings stop. It
-    # does not detect a broken Discord webhook, because the heartbeat is its own receiver.
-    heartbeat_url: str = Field(default="", pattern=r'^(https://[^\s"\\]+)?$')
+    enabled: bool = False
+    # Alertmanager sends alerts to the Discord webhook in the vault. Off, every alert
+    # goes to the null receiver.
+    discord: bool = False
+    # Alertmanager pings the heartbeat URL in the vault with the Watchdog alert, so a
+    # dead Prometheus, Alertmanager or node is noticed. It is a second receiver beside
+    # Discord and does not detect a broken Discord webhook.
+    heartbeat: bool = False
     # The OIDC client created for Grafana in the Pocket ID admin UI.
     grafana_oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    grafana_oidc_client_secret: Secret = ""
-    # Encrypts Grafana's stored data source secrets, all provisioned here and re-encoded
-    # at start. The advisor flags the built-in default. Never change it without reprovisioning.
-    grafana_secret_key: LongSecret = ""
-    # A GitHub App for Grafana's GitHub data source. The private key is the PEM file
-    # GitHub downloads, kept to base64 lines so Grafana's $VAR expansion leaves it alone.
+    # Grafana encrypts its stored data source secrets with the key in the vault
+    # instead of its built-in default. Never turn it off or change the key without
+    # reprovisioning.
+    secret_key: bool = False
+    # A GitHub App for Grafana's GitHub data source.
     github_app_id: str = Field(default="", pattern=r"^[0-9]*$")
     github_app_installation_id: str = Field(default="", pattern=r"^[0-9]*$")
-    github_app_private_key: str = Field(
-        default="",
-        pattern=r"^(-----BEGIN [A-Z ]+-----\n[A-Za-z0-9+/=\n]+-----END [A-Z ]+-----\n?)?$",
-    )
-    # An internal integration token for Grafana's Sentry data source.
+    # The organization Grafana's Sentry data source reads.
     sentry_org: str = Field(default="", pattern=r"^[a-z0-9-]*$")
-    sentry_token: Secret = ""
     # Regional organizations use their region's host.
     sentry_url: str = Field(default="https://sentry.io", pattern=r"^https://[^/\s]+$")
     # Proxmox hosts running prometheus-node-exporter, scraped on port 9100.
@@ -345,67 +271,34 @@ class Observability(Model):
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(
-            self, "observability", ("grafana_password", "influxdb_password", "influxdb_token")
-        )
-        if self.discord_webhook and not self.grafana_password:
+        if self.heartbeat and not self.discord:
             raise ValueError(
-                "discord_webhook requires grafana_password, influxdb_password and "
-                "influxdb_token: Alertmanager only runs with the rest of the stack"
+                "heartbeat requires discord: the heartbeat is a second receiver beside Discord"
             )
-        if self.heartbeat_url and not self.discord_webhook:
-            raise ValueError(
-                "heartbeat_url requires discord_webhook: the heartbeat is a second receiver "
-                "beside Discord"
-            )
-        _all_or_none(
-            self, "observability", ("grafana_oidc_client_id", "grafana_oidc_client_secret")
-        )
-        if self.grafana_oidc_client_id and not self.grafana_password:
-            raise ValueError(
-                "grafana_oidc_client_id requires grafana_password, influxdb_password and "
-                "influxdb_token: Grafana only runs with the rest of the stack"
-            )
-        if self.grafana_secret_key and not self.grafana_password:
-            raise ValueError(
-                "grafana_secret_key requires grafana_password, influxdb_password and "
-                "influxdb_token: Grafana only runs with the rest of the stack"
-            )
-        _all_or_none(
-            self,
-            "observability",
-            ("github_app_id", "github_app_installation_id", "github_app_private_key"),
-        )
-        _all_or_none(self, "observability", ("sentry_org", "sentry_token"))
-        for name in ("github_app_id", "sentry_org"):
-            if getattr(self, name) and not self.grafana_password:
-                raise ValueError(
-                    f"{name} requires grafana_password, influxdb_password and "
-                    "influxdb_token: Grafana only runs with the rest of the stack"
-                )
-        if self.proxmox_hosts and not self.grafana_password:
-            raise ValueError(
-                "proxmox_hosts requires grafana_password, influxdb_password and "
-                "influxdb_token: Prometheus only runs with the rest of the stack"
-            )
+        _all_or_none(self, "observability", ("github_app_id", "github_app_installation_id"))
+        if not self.enabled:
+            for name in (
+                "discord",
+                "grafana_oidc_client_id",
+                "secret_key",
+                "github_app_id",
+                "sentry_org",
+                "proxmox_hosts",
+            ):
+                if getattr(self, name):
+                    raise ValueError(
+                        f"{name} requires enabled: it only runs with the rest of the stack"
+                    )
         return self
 
 
 class Unifi(Model):
     # Address of the UniFi console, without a path.
     host: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
-    api_key: Secret = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "unifi", ("host", "api_key"))
-        return self
 
 
 class PocketId(Model):
-    # Encrypts the token signing keys in Pocket ID's database. Pocket ID rejects
-    # a key under 16 bytes. The characters are the ones Secret allows.
-    encryption_key: str = Field(default="", pattern=r'^([^"\\\s$]{16,})?$')
+    enabled: bool = False
     # Also attaches the route to the external gateway, so the internet reaches it.
     public: bool = False
 
@@ -413,167 +306,92 @@ class PocketId(Model):
 class Radar(Model):
     # The OIDC client created for Radar in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "radar", ("oidc_client_id", "oidc_client_secret"))
-        return self
 
 
 class Matherlynet(Model):
-    # Signs the site's sessions.
-    better_auth_secret: Secret = ""
-    admin_email: str = Field(default="", pattern=f"^({EMAIL})?$")
-    # Where the site sends mail. Unset, it sends none. A bare host name makes the
-    # site's mail library throw on every request, so require the URL form.
-    smtp_url: str = Field(default="", pattern=r'^(smtps?://[^"\\\s$]+)?$')
-    # Sender address, which may carry a display name: "Name <a@b.c>".
-    mail_from: str = Field(default="", pattern=r'^[^"\\$\r\n]*$')
-    # OAuth apps for signing in with GitHub or Google.
+    enabled: bool = False
+    # The site sends mail through the SMTP URL in the vault. Off, it sends none.
+    smtp: bool = False
+    # The site's mail carries the sender address in the vault.
+    mail: bool = False
+    # OAuth apps for signing in with GitHub or Google. Each flag says the app's
+    # secret is in the vault.
     github_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    github_client_secret: Secret = ""
+    github: bool = False
     google_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    google_client_secret: Secret = ""
+    google: bool = False
     # Lets the site call the in-cluster LocalAI.
     playground: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "matherlynet", ("better_auth_secret", "admin_email"))
-        _all_or_none(self, "matherlynet", ("github_client_id", "github_client_secret"))
-        _all_or_none(self, "matherlynet", ("google_client_id", "google_client_secret"))
-        if not self.better_auth_secret:
-            for name in (
-                "smtp_url",
-                "mail_from",
-                "github_client_id",
-                "google_client_id",
-                "playground",
-            ):
+        _all_or_none(self, "matherlynet", ("github_client_id", "github"))
+        _all_or_none(self, "matherlynet", ("google_client_id", "google"))
+        if not self.enabled:
+            for name in ("smtp", "mail", "github_client_id", "google_client_id", "playground"):
                 if getattr(self, name):
                     raise ValueError(
-                        f"{name} requires better_auth_secret and admin_email: "
-                        "the site only runs when both are set"
+                        f"{name} requires enabled: the site only runs when it is enabled"
                     )
         return self
 
 
 class ReactiveResume(Model):
-    # Signs sessions and encrypts two-factor secrets; changing it signs everyone out.
-    # v6.0.5 refuses to start on fewer than 32 characters.
-    auth_secret: LongSecret = ""
-    # Encrypts users' saved AI keys. The server refuses to start on fewer than 32 characters.
-    encryption_secret: LongSecret = ""
+    enabled: bool = False
     # The OIDC client created for Reactive Resume in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-    # S3 API endpoint of the bucket that holds uploads, without a path.
-    s3_endpoint: str = Field(default="", pattern=r"^(https://[^/\s]+)?$")
+    # The bucket that holds uploads. Its endpoint and key pair are in the vault.
     s3_bucket: str = Field(default="", pattern=r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$")
-    s3_access_key_id: Secret = ""
-    s3_secret_access_key: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(
-            self,
-            "reactive_resume",
-            (
-                "auth_secret",
-                "encryption_secret",
-                "oidc_client_id",
-                "oidc_client_secret",
-                "s3_endpoint",
-                "s3_bucket",
-                "s3_access_key_id",
-                "s3_secret_access_key",
-            ),
-        )
+        _all_or_none(self, "reactive_resume", ("enabled", "oidc_client_id", "s3_bucket"))
         return self
 
 
 class Kener(Model):
-    # Signs sessions and API keys. Kener's documentation asks for 32 characters.
-    secret_key: str = Field(default="", pattern=r'^([^"\\\s$]{32,})?$')
-    # Where Kener sends mail. smtps:// means TLS from the first byte. Kener
-    # ignores its mail settings unless it has a host, a user and a password.
-    smtp_url: str = Field(default="", pattern=r'^(smtps?://[^"\\\s$]+)?$')
-    # Sender address of that mail.
-    mail_from: str = Field(default="", pattern=r'^[^"\\$\r\n]*$')
+    enabled: bool = False
+    # Kener sends mail with the SMTP settings and the sender address in the vault.
+    smtp: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "kener", ("smtp_url", "mail_from"))
-        if self.smtp_url and not self.secret_key:
-            raise ValueError("smtp_url requires secret_key: Kener only runs when the key is set")
-        if self.smtp_url:
-            url = urlsplit(self.smtp_url)
-            if not (url.hostname and url.username and url.password):
-                raise ValueError("smtp_url needs a user, a password and a host")
-            try:
-                _ = url.port
-            except ValueError:
-                raise ValueError("smtp_url has a port that is not a number") from None
-            # The decoded values go into a quoted YAML string that Flux substitutes.
-            for part in (unquote(url.username), unquote(url.password)):
-                if re.search(r'["\\\s$]', part):
-                    raise ValueError(
-                        "smtp_url user and password must not contain a double quote, "
-                        "a backslash, a space or a dollar sign, even when encoded"
-                    )
+        if self.smtp and not self.enabled:
+            raise ValueError("smtp requires enabled: Kener only runs when it is enabled")
         return self
 
 
 class NetworkOptimizer(Model):
-    # Password of the app's built-in admin account. Its identity store refuses
-    # a password without a digit.
-    app_password: str = Field(default="", pattern=r'^([^"\\\s$]{8,})?$')
+    enabled: bool = False
     # The OIDC client created for Network Optimizer in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "network_optimizer", ("oidc_client_id", "oidc_client_secret"))
-        if self.app_password and not re.search(r"[0-9]", self.app_password):
-            raise ValueError("app_password must contain a digit: the app refuses it otherwise")
-        if self.oidc_client_id and not self.app_password:
+        if self.oidc_client_id and not self.enabled:
             raise ValueError(
-                "oidc_client_id requires app_password: Network Optimizer only runs "
-                "when the password is set"
+                "oidc_client_id requires enabled: Network Optimizer only runs when it is enabled"
             )
         return self
 
 
 class PegaProx(Model):
-    # Master key that encrypts PegaProx's SQLite database and the Proxmox
-    # credentials stored in it: 32 bytes as urlsafe base64 or as 64 hex characters.
-    # Never change it once set: the database becomes unreadable.
-    db_key: str = Field(default="", pattern=r"^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$")
-    # The API token Prometheus scrapes /api/metrics with.
-    metrics_token: Secret = ""
+    enabled: bool = False
+    # Prometheus scrapes /api/metrics with the API token in the vault.
+    metrics: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        if self.metrics_token and not self.db_key:
-            raise ValueError(
-                "metrics_token requires db_key: PegaProx only runs when the key is set"
-            )
+        if self.metrics and not self.enabled:
+            raise ValueError("metrics requires enabled: PegaProx only runs when it is enabled")
         return self
 
 
 class ActualBudget(Model):
     # The OIDC client created for Actual Budget in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
     # Also attaches the route to the external gateway, so the internet reaches it.
     public: bool = False
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "actual_budget", ("oidc_client_id", "oidc_client_secret"))
-        return self
 
 
 class Media(Model):
@@ -583,33 +401,19 @@ class Media(Model):
     # The worker whose Proxmox host serves the export.
     node: WorkerName = ""
     timezone: str = Field(default="Etc/UTC", pattern=r"^[A-Za-z0-9_+/-]+$")
-    # New random keys, shared with the other apps through the media-keys Secret.
-    sonarr_api_key: ApiKey = ""
-    radarr_api_key: ApiKey = ""
-    prowlarr_api_key: ApiKey = ""
-    sabnzbd_api_key: ApiKey = ""
-    sabnzbd_nzb_key: ApiKey = ""
     # The OIDC client created in the Pocket ID admin UI for the gateway sign-in.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
     recyclarr: bool = False
     plex_host: IPv4Address | Literal[""] = ""
-    plex_token: Secret = ""
     # Also attaches every app's UI route to the external gateway, so the internet reaches it.
     public: bool = False
+    # Raise it after changing a media key or the Plex token in the vault: the
+    # HelmReleases that carry it are upgraded, and their configure hooks push the
+    # new keys into the apps.
+    keys_revision: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        keys = (
-            "sonarr_api_key",
-            "radarr_api_key",
-            "prowlarr_api_key",
-            "sabnzbd_api_key",
-            "sabnzbd_nzb_key",
-        )
-        _all_or_none(self, "media", keys)
-        _all_or_none(self, "media", ("oidc_client_id", "oidc_client_secret"))
-        _all_or_none(self, "media", ("plex_host", "plex_token"))
         if self.nfs_server == "":
             for name, field in type(self).model_fields.items():
                 if name != "nfs_server" and getattr(self, name) != field.default:
@@ -617,9 +421,8 @@ class Media(Model):
                         f"{name} requires nfs_server: the media stack only runs when "
                         "the export is set"
                     )
-        # One field per group is enough: _all_or_none above holds the rest of each group.
-        elif not (self.node and self.sonarr_api_key and self.oidc_client_id):
-            raise ValueError("media requires node, the five API keys and the OIDC client pair")
+        elif not (self.node and self.oidc_client_id):
+            raise ValueError("media requires node and oidc_client_id")
         return self
 
 
@@ -647,225 +450,136 @@ AI_WORKSPACE_OWNED_ENV = (
 class AiWorkspace(Model):
     # The OIDC client created in the Pocket ID admin UI for the app's own sign-in.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-    auth_secret: LongSecret = ""
-    # Who may sign in: exact addresses and @domain rules. Empty means every Pocket ID user.
-    allowed_emails: list[EmailRule] = []
-    # Who is an admin: exact addresses, each admitted by allowed_emails when that is set.
-    admin_emails: list[EmailAddress] = []
-    # The browserless websocket token; setting it runs the Browsing pod.
-    browsing_token: ApiKey = ""
+    # Only the addresses and @domain rules in the vault may sign in. Off, every
+    # Pocket ID user may.
+    allowlist: bool = False
+    # The addresses in the vault are admins.
+    admins: bool = False
+    # Runs the Browsing pod, with the browserless token in the vault.
+    browsing: bool = False
     # Also attaches the route to the external gateway, so the internet reaches it.
     public: bool = False
-    # Extra server env vars, such as vendor API keys, written to the app's Secret.
-    env: dict[Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]*$")], Secret] = {}
+    # Names of the extra server env vars, such as vendor API keys, whose values are
+    # in the vault item `ai-workspace-env`.
+    env_keys: list[Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9_]*$")]] = []
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "ai_workspace", ("oidc_client_id", "oidc_client_secret", "auth_secret"))
-        for address in self.admin_emails:
-            if not _admitted(address, self.allowed_emails):
-                raise ValueError(
-                    f"ai_workspace.admin_emails: {address!r} is not admitted by allowed_emails"
-                )
-        for key in self.env:
+        if len(set(self.env_keys)) != len(self.env_keys):
+            raise ValueError("ai_workspace.env_keys: a name is listed twice")
+        for key in self.env_keys:
             if key in AI_WORKSPACE_OWNED_ENV:
                 raise ValueError(
-                    f"ai_workspace.env.{key} belongs to the templates and cannot be overridden"
+                    f"ai_workspace.env_keys: {key} belongs to the templates and cannot "
+                    "be overridden"
                 )
         return self
 
 
 class AiKb(Model):
-    # Signs sessions. Changing it signs everyone out.
-    jwt_secret: LongSecret = ""
-    # The AES-256 key for stored API keys and credentials. Never change it once
-    # set: the rows it encrypted become unreadable.
-    aes_key: str = Field(default="", pattern=r"^([A-Za-z0-9]{32})?$")
+    enabled: bool = False
     # Promoted to system administrator at startup once that account exists.
     admin_email: EmailAddress = ""
     # The OIDC client created for AI KB in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-    # The app's own RustFS key pair; the provisioning Job scopes it to the ai-kb-files bucket.
-    rustfs_access_key: S3AccessKey = ""
-    rustfs_secret_key: ApiKey = ""
+    # Stores files in RustFS with the app's own key pair from the vault; the
+    # provisioning Job scopes the pair to the ai-kb-files bucket.
+    rustfs: bool = False
     # Sends traces to Langfuse. AI KB wraps its chat, embedding, rerank, VLM and ASR models and its
     # knowledge ingest and post-process paths in Langfuse tracers, so traces carry full prompts and
     # answers and the chunk text of every ingested document.
     tracing: bool = False
-    # Turns on the chart's Neo4j for GraphRAG; it is the password of its neo4j user.
-    neo4j_password: ApiKey = ""
-    # Turns on the internal SearXNG instance for web search; it is Flask's session key.
-    searxng_secret: ApiKey = ""
+    # Turns on the chart's Neo4j for GraphRAG.
+    neo4j: bool = False
+    # Turns on the internal SearXNG instance for web search.
+    searxng: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "ai_kb", ("jwt_secret", "aes_key", "admin_email"))
-        _all_or_none(self, "ai_kb", ("oidc_client_id", "oidc_client_secret"))
-        _all_or_none(self, "ai_kb", ("rustfs_access_key", "rustfs_secret_key"))
-        for field in (
-            "oidc_client_id",
-            "rustfs_access_key",
-            "tracing",
-            "neo4j_password",
-            "searxng_secret",
-        ):
-            if getattr(self, field) and not self.jwt_secret:
+        _all_or_none(self, "ai_kb", ("enabled", "admin_email"))
+        for field in ("oidc_client_id", "rustfs", "tracing", "neo4j", "searxng"):
+            if getattr(self, field) and not self.enabled:
                 raise ValueError(f"ai_kb.{field} requires the rest of [ai_kb]")
         return self
 
 
 class RustFs(Model):
-    # The root key pair. Consumers get their own scoped pair from their own section.
-    access_key: S3AccessKey = ""
-    secret_key: ApiKey = ""
+    enabled: bool = False
     # The worker whose local-path volume holds every object.
     node: WorkerName = ""
+    # Raise it after changing a consumer's key pair in the vault, so the
+    # provisioning Job is recreated and runs again.
+    keys_revision: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "rustfs", ("access_key", "secret_key", "node"))
+        _all_or_none(self, "rustfs", ("enabled", "node"))
         return self
 
 
 class Langfuse(Model):
-    # The AI KB project's API key pair, which Langfuse creates on its first start.
-    public_key: str = Field(default="", pattern=r"^(pk-lf-[A-Za-z0-9-]{32,})?$")
-    secret_key: str = Field(default="", pattern=r"^(sk-lf-[A-Za-z0-9-]{32,})?$")
-    # Hashes the API keys. Never change it once set: every key stops working.
-    salt: ApiKey = ""
-    # Encrypts stored LLM and integration keys; Langfuse requires 64 hex
-    # characters. Never change it once set: what it encrypted becomes unreadable.
-    encryption_key: str = Field(default="", pattern=r"^([0-9a-fA-F]{64})?$")
-    # Signs sessions. Changing it signs everyone out.
-    nextauth_secret: ApiKey = ""
+    enabled: bool = False
     # The OIDC client created for Langfuse in the Pocket ID admin UI.
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-    clickhouse_password: str = Field(default="", pattern=r"^([A-Za-z0-9]{24,})?$")
-    # The app's own RustFS key pair; the provisioning Job scopes it to the langfuse-events bucket.
-    rustfs_access_key: S3AccessKey = ""
-    rustfs_secret_key: ApiKey = ""
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "langfuse", tuple(type(self).model_fields))
+        _all_or_none(self, "langfuse", ("enabled", "oidc_client_id"))
         return self
 
 
 class Itsaplan(Model):
-    # Signs sessions. Changing it signs everyone out.
-    better_auth_secret: LongSecret = ""
-    # Encrypts the AI provider keys and integration credentials the app stores.
-    # Never change it once set: the rows it encrypted become unreadable.
-    app_encryption_key: LongSecret = ""
-    # The app's own RustFS key pair; the provisioning Job scopes it to the itsaplan-attachments bucket.
-    rustfs_access_key: S3AccessKey = ""
-    rustfs_secret_key: ApiKey = ""
-
-    @model_validator(mode="after")
-    def check(self) -> Self:
-        _all_or_none(self, "itsaplan", tuple(type(self).model_fields))
-        return self
+    enabled: bool = False
 
 
 class CliProxyApi(Model):
-    # CLIProxyAPI's remote-management key; the app replaces it with its bcrypt hash on the volume.
-    management_key: LongSecret = ""
-    # The one client key for the proxy, sent as a bearer token.
-    api_key: LongSecret = ""
-    # CPA-Manager-Plus's own login, the only way into the manager.
-    manager_admin_key: LongSecret = ""
-    # Oh-My-CPA's at-rest encryption key, 64 hex characters; set to deploy that
-    # second console. Never changed once it has data.
-    ohmycpa_master_key: str = Field(default="", pattern=r"^$|^[0-9a-f]{64}$")
-    # A GitHub token for the plugin store's release lookups (public repositories only).
-    github_token: str = ""
+    enabled: bool = False
+    # Deploys Oh-My-CPA, the second console, with its master key from the vault.
+    ohmycpa: bool = False
+    # The seed config carries the GitHub token in the vault, for the plugin store's
+    # release lookups.
+    github: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(self, "cliproxyapi", ("management_key", "api_key", "manager_admin_key"))
-        for name in ("ohmycpa_master_key", "github_token"):
-            if getattr(self, name) and not self.management_key:
-                raise ValueError(
-                    f"cliproxyapi.{name} needs management_key, api_key and manager_admin_key"
-                )
+        for name in ("ohmycpa", "github"):
+            if getattr(self, name) and not self.enabled:
+                raise ValueError(f"cliproxyapi.{name} needs enabled")
         return self
 
 
 class CareerOps(Model):
+    enabled: bool = False
     # The Pocket ID client the gateway signs dashboard users in with
     # (callback https://career.<domain>/oauth2/callback).
     oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    oidc_client_secret: Secret = ""
-    # From `claude setup-token` on the Mac; lasts one year. Set this or the proxy pair below.
-    claude_oauth_token: Secret = ""
+    # Which Claude credential the pod reads from the vault: the OAuth token from
+    # `claude setup-token`, or the client key it sends to anthropic_base_url.
+    claude_credential: Literal["oauth", "proxy"] = "oauth"
     # The in-cluster CLIProxyAPI Service the pod's Claude CLI calls instead of
     # Anthropic, with no /v1 (http://cliproxyapi.llms.svc.cluster.local:8317).
     anthropic_base_url: str = Field(default="", pattern=r"^(https?://\S*[^/\s])?$")
-    # A client api_key from [cliproxyapi], sent as the bearer to that URL.
-    anthropic_auth_token: Secret = ""
-    # Signs share-page cookies and feedback links; rotating it logs every visitor out.
-    publish_secret: LongSecret = ""
-    # Better Auth's secret for the publish account page; rotating it signs everyone out.
-    publish_auth_secret: LongSecret = ""
     # The second Pocket ID client, for the publish account page
     # (callback https://cv.<domain>/api/auth/callback/pocket-id).
     publish_oidc_client_id: str = Field(default="", pattern=r"^[A-Za-z0-9._~-]*$")
-    publish_oidc_client_secret: Secret = ""
-    # Who may sign in to the publish account page and mint API keys.
-    publish_allowed_emails: list[EmailAddress] = []
-    # A key minted on that page after the first deploy; the dashboard's share
-    # features read it from the pod env, so it cannot be set before the service runs.
-    publish_api_key: Secret = ""
+    # The dashboard's share features use the API key in the vault, minted on the
+    # publish account page after the first deploy.
+    publish: bool = False
     # Also attach the dashboard route to the external gateway.
     public: bool = False
 
     @model_validator(mode="after")
     def check(self) -> Self:
-        _all_or_none(
-            self,
-            "career_ops",
-            (
-                "oidc_client_id",
-                "oidc_client_secret",
-                "publish_secret",
-                "publish_auth_secret",
-                "publish_oidc_client_id",
-                "publish_oidc_client_secret",
-            ),
-        )
-        if self.oidc_client_secret and not self.publish_allowed_emails:
-            raise ValueError(
-                "career_ops.publish_allowed_emails is required: nobody could sign in to the "
-                "publish account page"
-            )
-        if not self.oidc_client_secret:
-            for name in (
-                "publish_allowed_emails",
-                "publish_api_key",
-                "claude_oauth_token",
-                "anthropic_base_url",
-                "anthropic_auth_token",
-            ):
+        _all_or_none(self, "career_ops", ("enabled", "oidc_client_id", "publish_oidc_client_id"))
+        if not self.enabled:
+            for name in ("publish", "anthropic_base_url"):
                 if getattr(self, name):
                     raise ValueError(
-                        f"career_ops.{name} requires oidc_client_secret: career-ops only "
-                        "runs when the client is set"
+                        f"career_ops.{name} requires enabled: career-ops only runs when "
+                        "it is enabled"
                     )
-            return self
-        # Exactly one Claude credential: the OAuth token, or the proxy URL and its key.
-        _all_or_none(self, "career_ops", ("anthropic_base_url", "anthropic_auth_token"))
-        if self.claude_oauth_token and self.anthropic_base_url:
-            raise ValueError(
-                "career_ops: set claude_oauth_token or the anthropic_base_url pair, not both"
-            )
-        if not self.claude_oauth_token and not self.anthropic_base_url:
-            raise ValueError(
-                "career_ops needs one Claude credential: claude_oauth_token or "
-                "anthropic_base_url with anthropic_auth_token"
-            )
+        if (self.claude_credential == "proxy") != bool(self.anthropic_base_url):
+            raise ValueError("claude_credential 'proxy' and anthropic_base_url are set together")
         return self
 
 
@@ -890,9 +604,8 @@ class Node(Model):
 
 
 class GithubRunner(Model):
-    # A fine-grained PAT on the repository with Administration read and write,
-    # which registers the in-cluster Actions runner scale set.
-    token: Secret = ""
+    # Registers the in-cluster Actions runner scale set with the token in the vault.
+    enabled: bool = False
 
 
 class Config(Model):
@@ -977,7 +690,6 @@ class Config(Model):
     def nvidia_enabled(self) -> bool:
         return any("nvidia" in node.kernel_modules for node in self.nodes)
 
-    # The backup fields are set all together or not at all.
     @computed_field
     @property
     def postgres_backup_enabled(self) -> bool:
@@ -986,24 +698,24 @@ class Config(Model):
     @computed_field
     @property
     def etcd_backup_enabled(self) -> bool:
-        return self.etcd_backup.bucket != ""
+        return self.etcd_backup.enabled
 
     @computed_field
     @property
     def volume_backup_enabled(self) -> bool:
-        return self.volume_backup.bucket != ""
+        return self.volume_backup.enabled
 
     # Gates components/redis, which gives an app that includes it a Redis of its own.
     @computed_field
     @property
     def redis_enabled(self) -> bool:
-        return self.redis.password != ""
+        return self.redis.enabled
 
-    # Gates the observability namespace, whose apps need all three secrets.
+    # Gates the observability namespace.
     @computed_field
     @property
     def observability_enabled(self) -> bool:
-        return self.observability.grafana_password != ""
+        return self.observability.enabled
 
     # Gates the ExternalDNS instance that writes internal names to the UniFi console.
     @computed_field
@@ -1027,7 +739,7 @@ class Config(Model):
     @computed_field
     @property
     def pocket_id_enabled(self) -> bool:
-        return self.pocket_id.encryption_key != ""
+        return self.pocket_id.enabled
 
     # Gates Radar. The client is created in Pocket ID first, so its ID being set
     # means the login Radar is served behind already exists.
@@ -1040,41 +752,31 @@ class Config(Model):
     @computed_field
     @property
     def matherlynet_enabled(self) -> bool:
-        return self.matherlynet.better_auth_secret != ""
+        return self.matherlynet.enabled
 
-    # Gates Reactive Resume and its database. The fields are set all together or not at all.
+    # Gates Reactive Resume and its database.
     @computed_field
     @property
     def reactive_resume_enabled(self) -> bool:
-        return self.reactive_resume.auth_secret != ""
+        return self.reactive_resume.enabled
 
     # Gates Kener and its database.
     @computed_field
     @property
     def kener_enabled(self) -> bool:
-        return self.kener.secret_key != ""
+        return self.kener.enabled
 
-    # kener.smtp_url as the separate settings Kener reads. Empty when it is unset.
+    # Adds the mail settings to Kener's Secret.
     @computed_field
     @property
-    def kener_smtp(self) -> dict[str, str]:
-        if not self.kener.smtp_url:
-            return {}
-        url = urlsplit(self.kener.smtp_url)
-        secure = url.scheme == "smtps"
-        return {
-            "host": url.hostname or "",
-            "port": str(url.port or (465 if secure else 587)),
-            "user": unquote(url.username or ""),
-            "password": unquote(url.password or ""),
-            "secure": "1" if secure else "0",
-        }
+    def kener_smtp(self) -> bool:
+        return self.kener.smtp
 
     # Gates Network Optimizer.
     @computed_field
     @property
     def network_optimizer_enabled(self) -> bool:
-        return self.network_optimizer.app_password != ""
+        return self.network_optimizer.enabled
 
     # Adds the Pocket ID sign-in to Network Optimizer.
     @computed_field
@@ -1086,13 +788,13 @@ class Config(Model):
     @computed_field
     @property
     def pegaprox_enabled(self) -> bool:
-        return self.pegaprox.db_key != ""
+        return self.pegaprox.enabled
 
     # Adds the Prometheus scrape and the Grafana dashboard for PegaProx.
     @computed_field
     @property
     def pegaprox_metrics(self) -> bool:
-        return self.pegaprox.metrics_token != ""
+        return self.pegaprox.metrics
 
     # Gates Actual Budget. The client is created in Pocket ID first, so its ID
     # being set means the login it is served behind already exists.
@@ -1119,11 +821,11 @@ class Config(Model):
     def ai_workspace_enabled(self) -> bool:
         return self.ai_workspace.oidc_client_id != ""
 
-    # Gates AI KB and its database. The fields are set together or not at all.
+    # Gates AI KB and its database.
     @computed_field
     @property
     def ai_kb_enabled(self) -> bool:
-        return self.ai_kb.jwt_secret != ""
+        return self.ai_kb.enabled
 
     @computed_field
     @property
@@ -1133,7 +835,7 @@ class Config(Model):
     @computed_field
     @property
     def ai_kb_rustfs(self) -> bool:
-        return self.ai_kb.rustfs_access_key != ""
+        return self.ai_kb.rustfs
 
     @computed_field
     @property
@@ -1143,105 +845,59 @@ class Config(Model):
     @computed_field
     @property
     def ai_kb_neo4j(self) -> bool:
-        return self.ai_kb.neo4j_password != ""
+        return self.ai_kb.neo4j
 
     @computed_field
     @property
     def ai_kb_searxng(self) -> bool:
-        return self.ai_kb.searxng_secret != ""
+        return self.ai_kb.searxng
 
     @computed_field
     @property
     def rustfs_enabled(self) -> bool:
-        return self.rustfs.access_key != ""
+        return self.rustfs.enabled
 
     @computed_field
     @property
     def langfuse_enabled(self) -> bool:
-        return self.langfuse.public_key != ""
+        return self.langfuse.enabled
 
     @computed_field
     @property
     def itsaplan_enabled(self) -> bool:
-        return self.itsaplan.better_auth_secret != ""
+        return self.itsaplan.enabled
 
     @computed_field
     @property
     def cliproxyapi_enabled(self) -> bool:
-        return self.cliproxyapi.management_key != ""
+        return self.cliproxyapi.enabled
 
     @computed_field
     @property
     def ohmycpa_enabled(self) -> bool:
-        return self.cliproxyapi.ohmycpa_master_key != ""
+        return self.cliproxyapi.ohmycpa
 
     # Gates the career-ops namespace: the dashboard and the publish service.
     @computed_field
     @property
     def career_ops_enabled(self) -> bool:
-        return self.career_ops.oidc_client_secret != ""
+        return self.career_ops.enabled
 
     @computed_field
     @property
     def github_runner_enabled(self) -> bool:
-        return self.github_runner.token != ""
+        return self.github_runner.enabled
 
     # One bucket and one key pair scoped to it per app; the provisioning Job creates them.
     @computed_field
     @property
     def rustfs_consumers(self) -> list[dict[str, str]]:
-        consumers = []
-        if self.ai_kb_rustfs:
-            consumers.append(
-                {
-                    "name": "ai-kb",
-                    "bucket": "ai-kb-files",
-                    "access_key": self.ai_kb.rustfs_access_key,
-                    "secret_key": self.ai_kb.rustfs_secret_key,
-                }
-            )
-        if self.langfuse_enabled:
-            consumers.append(
-                {
-                    "name": "langfuse",
-                    "bucket": "langfuse-events",
-                    "access_key": self.langfuse.rustfs_access_key,
-                    "secret_key": self.langfuse.rustfs_secret_key,
-                }
-            )
-        if self.itsaplan_enabled:
-            consumers.append(
-                {
-                    "name": "itsaplan",
-                    "bucket": "itsaplan-attachments",
-                    "access_key": self.itsaplan.rustfs_access_key,
-                    "secret_key": self.itsaplan.rustfs_secret_key,
-                }
-            )
-        return consumers
-
-    # Changes when a consumer changes, so the provisioning Job is recreated and runs again.
-    @computed_field
-    @property
-    def rustfs_consumers_checksum(self) -> str:
-        consumers = json.dumps(self.rustfs_consumers, sort_keys=True)
-        return hashlib.sha256(consumers.encode()).hexdigest()[:16]
-
-    # Changes when any media key changes, so a HelmRelease that carries it is
-    # upgraded and its configure hook pushes the new keys into the apps.
-    @computed_field
-    @property
-    def media_keys_checksum(self) -> str:
-        m = self.media
-        keys = (
-            m.sonarr_api_key,
-            m.radarr_api_key,
-            m.prowlarr_api_key,
-            m.sabnzbd_api_key,
-            m.sabnzbd_nzb_key,
-            m.plex_token,
-        )
-        return hashlib.sha256("\n".join(keys).encode()).hexdigest()[:16]
+        buckets = {
+            "ai-kb": (self.ai_kb_rustfs, "ai-kb-files"),
+            "langfuse": (self.langfuse_enabled, "langfuse-events"),
+            "itsaplan": (self.itsaplan_enabled, "itsaplan-attachments"),
+        }
+        return [{"name": name, "bucket": bucket} for name, (on, bucket) in buckets.items() if on]
 
     @computed_field
     @property
@@ -1304,31 +960,17 @@ class Config(Model):
             raise ValueError(
                 f"gateways.external is required when ingress.mode is {self.ingress.mode!r}"
             )
+        if self.ingress.mode == "cloudflare-tunnel" and not self.ingress.tunnel_id:
+            raise ValueError(
+                "ingress.tunnel_id is required when ingress.mode is 'cloudflare-tunnel'"
+            )
         if self.etcd_backup_enabled and not self.postgres_backup_enabled:
             raise ValueError(
                 "etcd_backup requires postgres.backup: its endpoint is where the snapshots go"
             )
-        # The database pair is mounted in every database namespace, and a snapshot holds every object.
-        if self.etcd_backup_enabled and (
-            self.etcd_backup.bucket == self.postgres.backup.bucket
-            or self.etcd_backup.access_key == self.postgres.backup.access_key_id
-        ):
-            raise ValueError(
-                "etcd_backup needs its own bucket and key pair, not those of postgres.backup"
-            )
         if self.volume_backup_enabled and not self.postgres_backup_enabled:
             raise ValueError(
                 "volume_backup requires postgres.backup: its endpoint is where the backups go"
-            )
-        # A tar can hold usable credentials, so neither wider pair may reach this bucket.
-        if self.volume_backup_enabled and (
-            self.volume_backup.bucket in (self.postgres.backup.bucket, self.etcd_backup.bucket)
-            or self.volume_backup.access_key
-            in (self.postgres.backup.access_key_id, self.etcd_backup.access_key)
-        ):
-            raise ValueError(
-                "volume_backup needs its own bucket and key pair, "
-                "not those of postgres.backup or etcd_backup"
             )
         if self.pocket_id_enabled and not self.postgres_backup_enabled:
             raise ValueError(
@@ -1337,8 +979,7 @@ class Config(Model):
             )
         if self.pocket_id.public and not self.pocket_id_enabled:
             raise ValueError(
-                "pocket_id.public requires pocket_id.encryption_key: Pocket ID only runs "
-                "when the key is set"
+                "pocket_id.public requires pocket_id.enabled: Pocket ID only runs when it is enabled"
             )
         if self.pocket_id.public and self.ingress.mode == "none":
             raise ValueError(
@@ -1381,7 +1022,7 @@ class Config(Model):
                 "and accounts, which cannot be recreated"
             )
         if self.kener_enabled and not self.redis_enabled:
-            raise ValueError("kener requires redis.password: Kener's job queue lives in Redis")
+            raise ValueError("kener requires redis: Kener's job queue lives in Redis")
         if self.kener_enabled and self.ingress.mode == "none":
             raise ValueError(
                 "kener requires ingress.mode other than 'none': the status page is served "
@@ -1408,7 +1049,7 @@ class Config(Model):
             )
         if self.ai_workspace_enabled and not self.pocket_id_enabled:
             raise ValueError("ai_workspace requires pocket_id: Pocket ID is its only login")
-        for name in ("allowed_emails", "admin_emails", "browsing_token", "public", "env"):
+        for name in ("allowlist", "admins", "browsing", "public", "env_keys"):
             if getattr(self.ai_workspace, name) and not self.ai_workspace_enabled:
                 raise ValueError(
                     f"ai_workspace.{name} requires oidc_client_id: AI Workspace only runs "
@@ -1426,9 +1067,7 @@ class Config(Model):
                 "which cannot be recreated"
             )
         if self.ai_kb_enabled and not self.redis_enabled:
-            raise ValueError(
-                "ai_kb requires redis.password: AI KB's task queue and streams live in Redis"
-            )
+            raise ValueError("ai_kb requires redis: AI KB's task queue and streams live in Redis")
         if self.ai_kb_oidc and not self.pocket_id_enabled:
             raise ValueError(
                 "ai_kb.oidc_client_id requires pocket_id: Pocket ID is the OIDC provider AI KB "
@@ -1451,31 +1090,20 @@ class Config(Model):
             )
         if self.rustfs_enabled:
             self._worker("rustfs.node", self.rustfs.node)
-        if self.rustfs_enabled:
-            owners = {self.rustfs.access_key: "rustfs.access_key"}
-            for c in self.rustfs_consumers:
-                field = f"{c['name'].replace('-', '_')}.rustfs_access_key"
-                if c["access_key"] in owners:
-                    raise ValueError(
-                        f"{field} and {owners[c['access_key']]} share an access key: "
-                        "each RustFS key pair is a separate account"
-                    )
-                owners[c["access_key"]] = field
         if self.ai_kb_tracing and not self.langfuse_enabled:
             raise ValueError("ai_kb.tracing requires langfuse: the traces are sent there")
         if self.ai_kb_rustfs and not self.rustfs_enabled:
-            raise ValueError("ai_kb.rustfs_access_key requires rustfs: the bucket lives there")
+            raise ValueError("ai_kb.rustfs requires rustfs: the bucket lives there")
         # pocket_id already requires postgres.backup, so no separate backup check.
         if self.langfuse_enabled and not self.redis_enabled:
-            raise ValueError("langfuse requires redis.password: Langfuse's queues live in Redis")
+            raise ValueError("langfuse requires redis: Langfuse's queues live in Redis")
         if self.langfuse_enabled and not self.pocket_id_enabled:
             raise ValueError(
                 "langfuse.oidc_client_id requires pocket_id: Pocket ID is Langfuse's only login"
             )
         if self.langfuse_enabled and not self.rustfs_enabled:
             raise ValueError(
-                "langfuse.rustfs_access_key requires rustfs: Langfuse writes every event "
-                "to its bucket there"
+                "langfuse requires rustfs: Langfuse writes every event to its bucket there"
             )
         if self.itsaplan_enabled and not self.postgres_backup_enabled:
             raise ValueError(
@@ -1483,10 +1111,7 @@ class Config(Model):
                 "backed up there"
             )
         if self.itsaplan_enabled and not self.rustfs_enabled:
-            raise ValueError(
-                "itsaplan.rustfs_access_key requires rustfs: attachments are stored in its "
-                "bucket there"
-            )
+            raise ValueError("itsaplan requires rustfs: attachments are stored in its bucket there")
         if self.career_ops_enabled and not self.pocket_id_enabled:
             raise ValueError(
                 "career_ops requires pocket_id: Pocket ID is the dashboard's only login"
@@ -1502,8 +1127,7 @@ class Config(Model):
             )
         if self.career_ops.public and not self.career_ops_enabled:
             raise ValueError(
-                "career_ops.public requires oidc_client_secret: career-ops only runs when "
-                "the client is set"
+                "career_ops.public requires enabled: career-ops only runs when it is enabled"
             )
         # pocket_id.public already requires an ingress, so no separate ingress check.
         if self.career_ops.public and not self.pocket_id.public:
@@ -1523,17 +1147,12 @@ class Config(Model):
             )
         if self.pegaprox_metrics and not self.observability_enabled:
             raise ValueError(
-                "pegaprox.metrics_token requires observability: it is scraped by its Prometheus"
+                "pegaprox.metrics requires observability: it is scraped by its Prometheus"
             )
         if self.matherlynet.playground and not self.nvidia_enabled:
             raise ValueError(
                 "matherlynet.playground requires an NVIDIA node: LocalAI only "
                 "runs when a node loads the nvidia kernel module"
-            )
-        if self.nvidia_enabled and not self.localai.api_key:
-            raise ValueError(
-                "localai.api_key is required when a node loads the nvidia kernel module: "
-                "LocalAI runs there and its clients need the key"
             )
         if self.localai_webui_enabled:
             if not self.pocket_id_enabled:
@@ -1601,16 +1220,13 @@ class Config(Model):
                         f"duplicate node {label} {value!r} on nodes[{values[value]}] and nodes[{i}]"
                     )
                 values[value] = i
-        # Clearing the vault would stop the external-secrets apps from rendering, and removing
-        # them deletes every Secret an ExternalSecret owns, so an enabled app pins it.
+        # Every cluster reads its domain and its tokens from the vault. Clearing it would also stop
+        # the external-secrets apps from rendering, which deletes every Secret an ExternalSecret
+        # owns. Last, so a config with another mistake reports that one first.
         if not self.onepassword_enabled:
-            for gate in type(self).model_computed_fields:
-                if (
-                    gate.endswith("_enabled")
-                    and gate != "cilium_bgp_enabled"
-                    and getattr(self, gate)
-                ):
-                    raise ValueError(f"{gate} needs [onepassword].vault")
+            raise ValueError(
+                "onepassword.vault is required: the domain and every secret are read from it"
+            )
         return self
 
 

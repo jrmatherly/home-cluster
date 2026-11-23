@@ -12,7 +12,7 @@ import sys
 from typing import Any
 
 from secret_map import EACH_KEY, ENTRIES, Entry, items, lookup, required
-from validate import ConfigError, _admitted, load
+from validate import ConfigError, load
 
 type Key = tuple[str, str]
 
@@ -34,10 +34,18 @@ _DISTINCT: list[tuple[Key, Key]] = [
 _BACKUP_BUCKETS: list[Key] = [("etcd-backup", "BUCKET"), ("volume-backup", "BUCKET")]
 
 
+def _admitted(address: str, rules: list[str]) -> bool:
+    """AI Workspace's allowlist match: case-insensitive, and an @domain rule
+    matches that domain only, not its subdomains. An empty list admits everyone."""
+    lowered = address.lower()
+    allowed = {rule.lower() for rule in rules}
+    return not allowed or lowered in allowed or "@" + lowered.partition("@")[2] in allowed
+
+
 def _labels(entry: Entry, config: dict[str, Any]) -> list[str]:
     if entry.field != EACH_KEY:
         return [entry.field]
-    return sorted(lookup(config, entry.source) or {})
+    return sorted(lookup(config, f"{entry.source}_keys") or [])
 
 
 def check(found: dict[str, list[dict[str, Any]]], config: dict[str, Any]) -> list[str]:
@@ -73,8 +81,15 @@ def check(found: dict[str, list[dict[str, Any]]], config: dict[str, Any]) -> lis
         if database_bucket and values.get((item, label)) == database_bucket:
             problems.append(f"{item}/{label}: same as postgres.backup.bucket")
 
-    admins = values.get(("ai-workspace", "ADMIN_EMAILS"), "")
-    rules = values.get(("ai-workspace", "ALLOWED_EMAILS"), "")
+    # The templates read each list only under its flag, so a stale field is ignored here too.
+    flagged = {
+        label: values.get(("ai-workspace", label), "") if lookup(config, flag) else ""
+        for label, flag in (
+            ("ADMIN_EMAILS", "ai_workspace.admins"),
+            ("ALLOWED_EMAILS", "ai_workspace.allowlist"),
+        )
+    }
+    admins, rules = flagged["ADMIN_EMAILS"], flagged["ALLOWED_EMAILS"]
     if admins and not all(
         _admitted(a, rules.split(",") if rules else []) for a in admins.split(",")
     ):

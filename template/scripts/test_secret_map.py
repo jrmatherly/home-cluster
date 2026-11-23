@@ -1,16 +1,16 @@
-"""Unit tests for the 1Password secret map, the seeding templates and secrets-check.
+"""Unit tests for the 1Password secret map and secrets-check.
 
 Run from the repo root:
     uv run --locked pytest template/scripts/test_secret_map.py -q
 """
 
 import sys
-import tomllib
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import op_seed
 from pydantic import BaseModel
 from secret_map import ENTRIES, GATES, MOVING_PATHS, items, lookup
 from secrets_check import check
@@ -19,17 +19,6 @@ from validate import Config, load
 REPO_ROOT = Path(__file__).parents[2]
 FULL = REPO_ROOT / ".github/template-tests/valid/public.toml"
 CFG = {"kener_enabled": True, "etcd_backup_enabled": True}
-# Stand-ins for the two secret files beside the config.
-FILES = {
-    f"{op_seed.TUNNEL_FILE}#AccountTag": "account",
-    f"{op_seed.TUNNEL_FILE}#TunnelSecret": "secret",
-    op_seed.WEBHOOK_FILE: "token",
-}
-
-
-def seeded(config: dict) -> dict[str, list[dict]]:
-    templates = op_seed.build_templates(config, FILES)
-    return {title: template["fields"] for title, template in templates.items()}
 
 
 def dotted_paths(model: type[BaseModel], prefix: str = "") -> set[str]:
@@ -43,8 +32,8 @@ def dotted_paths(model: type[BaseModel], prefix: str = "") -> set[str]:
     return paths
 
 
-def test_moving_paths_exist_in_the_model():
-    assert MOVING_PATHS <= dotted_paths(Config)
+def test_no_moving_path_remains():
+    assert not (MOVING_PATHS & dotted_paths(Config))
 
 
 def test_every_requirement_is_a_gate_or_a_config_path():
@@ -55,6 +44,15 @@ def test_every_requirement_is_a_gate_or_a_config_path():
         if e.requires not in GATES and lookup(config, e.requires) is None
     ]
     assert not unknown
+
+
+def test_full_fixture_requires_every_field():
+    """The fixture that turns everything on needs every mapped field but the proxy key."""
+    config = load(str(FULL))
+    missing = {p.removesuffix(": missing") for p in check({}, config)}
+    mapped = {f"{e.item}/{e.field}" for e in ENTRIES if e.field != "*"}
+    assert mapped - missing == {"career-ops/ANTHROPIC_AUTH_TOKEN"}
+    assert "ai-workspace-env/ANTHROPIC_API_KEY" in missing
 
 
 def test_labels_are_unique_and_have_no_spaces():
@@ -76,6 +74,52 @@ def test_disabled_feature_needs_nothing():
     assert not [p for p in check({}, {}) if p.startswith("kener/")]
 
 
+# The all-or-none and "X is required" rules validate.py held while the secret was in cluster.toml.
+@pytest.mark.parametrize(
+    ("config", "field"),
+    [
+        ({"dns": {"provider": "cloudflare"}}, "dns/TOKEN"),
+        ({"nvidia_enabled": True}, "localai/API_KEY"),
+        ({"hubble_enabled": True}, "cilium-hubble/OIDC_CLIENT_SECRET"),
+        ({"localai_webui_enabled": True}, "localai/OIDC_CLIENT_SECRET"),
+        ({"postgres_backup_enabled": True}, "postgres-backup/SECRET_ACCESS_KEY"),
+        ({"etcd_backup_enabled": True}, "etcd-backup/SECRET_KEY"),
+        ({"volume_backup_enabled": True}, "volume-backup/SECRET_KEY"),
+        ({"observability_enabled": True}, "observability/INFLUXDB_TOKEN"),
+        (
+            {"observability": {"grafana_oidc_client_id": "grafana"}},
+            "observability/GRAFANA_OIDC_CLIENT_SECRET",
+        ),
+        ({"observability": {"github_app_id": "1"}}, "observability/GITHUB_APP_PRIVATE_KEY"),
+        ({"observability": {"sentry_org": "home"}}, "observability/SENTRY_TOKEN"),
+        ({"unifi_dns_enabled": True}, "unifi/API_KEY"),
+        ({"radar_enabled": True}, "radar/OIDC_CLIENT_SECRET"),
+        ({"matherlynet_enabled": True}, "matherlynet/ADMIN_EMAIL"),
+        ({"matherlynet": {"github": True}}, "matherlynet/GITHUB_CLIENT_SECRET"),
+        ({"reactive_resume_enabled": True}, "reactive-resume/S3_SECRET_ACCESS_KEY"),
+        ({"kener_smtp": True}, "kener/MAIL_FROM"),
+        ({"kener_smtp": True}, "kener/SMTP_HOST"),
+        ({"kener_smtp": True}, "kener/SMTP_USER"),
+        ({"kener_smtp": True}, "kener/SMTP_PASS"),
+        ({"network_optimizer_oidc": True}, "network-optimizer/OIDC_CLIENT_SECRET"),
+        ({"actual_budget_enabled": True}, "actual-budget/OIDC_CLIENT_SECRET"),
+        ({"media_enabled": True}, "media/SABNZBD_NZB_KEY"),
+        ({"media_plex_enabled": True}, "media/PLEX_TOKEN"),
+        ({"ai_workspace_enabled": True}, "ai-workspace/AUTH_SECRET"),
+        ({"ai_kb_enabled": True}, "ai-kb/AES_KEY"),
+        ({"ai_kb_rustfs": True}, "ai-kb/RUSTFS_SECRET_KEY"),
+        ({"rustfs_enabled": True}, "rustfs/SECRET_KEY"),
+        ({"langfuse_enabled": True}, "langfuse/SALT"),
+        ({"itsaplan_enabled": True}, "itsaplan/APP_ENCRYPTION_KEY"),
+        ({"cliproxyapi_enabled": True}, "cliproxyapi/API_KEY"),
+        ({"career_ops_enabled": True}, "career-ops/PUBLISH_ALLOWED_EMAILS"),
+    ],
+)
+def test_enabled_feature_needs_its_fields(config, field):
+    assert f"{field}: missing" in check({}, config)
+    assert f"{field}: missing" not in check({}, {})
+
+
 def test_bad_label_is_reported():
     f = {"label": "SECRET_KEY", "value": "x" * 32}
     assert "kener/SECRET_KEY: duplicate label" in check({"kener": [f, f]}, CFG)
@@ -88,84 +132,75 @@ def test_pattern_rules_are_enforced():
     assert "etcd-backup/ACCESS_KEY: pattern" in check({"etcd-backup": [f]}, CFG)
 
 
+# One malformed value per format rule validate.py held on a field that moved.
+@pytest.mark.parametrize(
+    ("item", "label", "value"),
+    [
+        ("ai-kb", "AES_KEY", "a" * 31),
+        ("ai-workspace", "AUTH_SECRET", "x" * 31),
+        ("ai-workspace", "BROWSING_TOKEN", "a" * 31 + "-"),
+        ("ai-workspace", "ALLOWED_EMAILS", "family.example"),
+        ("ai-workspace", "ADMIN_EMAILS", "@example.com"),
+        ("etcd-backup", "SECRET_KEY", "a/b"),
+        ("volume-backup", "SECRET_KEY", "a@b"),
+        ("langfuse", "ENCRYPTION_KEY", "z" * 64),
+        ("pegaprox", "DB_KEY", "tooshort"),
+        ("reactive-resume", "AUTH_SECRET", "x" * 31),
+        ("rustfs", "SECRET_KEY", "s" * 31),
+        ("redis", "PASSWORD", "x" * 23 + "@"),
+        ("network-optimizer", "APP_PASSWORD", "fakefake"),
+        ("pocket-id", "ENCRYPTION_KEY", "fifteen-chars-x"),
+        ("kener", "SECRET_KEY", "x" * 31),
+        ("kener", "SMTP_PORT", "port"),
+        ("kener", "SMTP_PASS", "p$word"),
+        ("observability", "INFLUXDB_PASSWORD", "short"),
+        ("observability", "DISCORD_WEBHOOK", "https://example.com/hook/1/abc"),
+        ("observability", "GITHUB_APP_PRIVATE_KEY", "MIIEfake"),
+        ("matherlynet", "SMTP_URL", "smtp.example.com"),
+        ("matherlynet", "MAIL_FROM", "a$b@example.com"),
+        ("cliproxyapi", "OHMYCPA_MASTER_KEY", "x" * 64),
+    ],
+)
+def test_malformed_value_is_reported(item, label, value):
+    assert f"{item}/{label}: pattern" in check({item: [{"label": label, "value": value}]}, {})
+
+
 def test_report_never_contains_a_value():
     f = {"label": "ACCESS_KEY", "value": "bad key$"}
     assert "bad key$" not in "\n".join(check({"etcd-backup": [f]}, CFG))
 
 
-def test_seeded_full_fixture_passes_the_check():
-    """What op_seed writes for a config is what secrets-check accepts for it."""
-    config = load(str(FULL))
-    assert check(seeded(config), config) == []
-
-
-def test_seed_takes_each_value_from_its_path():
-    raw = tomllib.loads(FULL.read_text())
-    assert seeded(load(str(FULL)))["dns"] == [
-        {"id": "TOKEN", "type": "CONCEALED", "label": "TOKEN", "value": raw["dns"]["token"]}
-    ]
-
-
-def test_seed_skips_what_is_unset():
-    config = load(str(REPO_ROOT / ".github/template-tests/valid/single-node.toml"))
-    assert set(seeded(config)) == {"cluster", "cloudflare-tunnel", "flux"}
-
-
-def test_kener_smtp_url_is_split():
-    config = load(str(FULL))
-    config["kener_smtp"] = {
-        "host": "smtp.example.com",
-        "port": "465",
-        "user": "a",
-        "password": "b",
-        "secure": "1",
-    }
-    fields = {f["label"]: f["value"] for f in seeded(config)["kener"]}
-    assert (fields["SMTP_HOST"], fields["SMTP_PORT"], fields["SMTP_SECURE"]) == (
-        "smtp.example.com",
-        "465",
-        "1",
-    )
-    assert "SMTP_URL" not in fields
-
-
-def test_lists_are_stored_comma_joined():
-    config = load(str(FULL))
-    config["ai_workspace"]["allowed_emails"] = ["a@example.com", "@example.org"]
-    fields = {f["label"]: f["value"] for f in seeded(config)["ai-workspace"]}
-    assert fields["ALLOWED_EMAILS"] == "a@example.com,@example.org"
-
-
-def test_each_env_key_becomes_a_field():
-    config = load(str(FULL))
-    config["ai_workspace"]["env"] = {"VENDOR_KEY": "abc"}
-    assert seeded(config)["ai-workspace-env"] == [
-        {"id": "VENDOR_KEY", "type": "CONCEALED", "label": "VENDOR_KEY", "value": "abc"}
-    ]
-    config["ai_workspace_enabled"] = True
+def test_each_env_key_is_a_field():
+    config = {"ai_workspace_enabled": True, "ai_workspace": {"env_keys": ["VENDOR_KEY"]}}
     assert "ai-workspace-env/VENDOR_KEY: missing" in check({}, config)
+    found = {"ai-workspace-env": [{"label": "VENDOR_KEY", "value": "abc"}]}
+    assert not [p for p in check(found, config) if p.startswith("ai-workspace-env/")]
 
 
-def test_backup_pairs_must_differ():
+@pytest.mark.parametrize(
+    ("item", "label", "other_item", "other_label"),
+    [
+        ("etcd-backup", "ACCESS_KEY", "postgres-backup", "ACCESS_KEY_ID"),
+        ("volume-backup", "ACCESS_KEY", "postgres-backup", "ACCESS_KEY_ID"),
+        ("volume-backup", "ACCESS_KEY", "etcd-backup", "ACCESS_KEY"),
+        ("volume-backup", "BUCKET", "etcd-backup", "BUCKET"),
+        ("langfuse", "RUSTFS_ACCESS_KEY", "rustfs", "ACCESS_KEY"),
+        ("langfuse", "RUSTFS_ACCESS_KEY", "ai-kb", "RUSTFS_ACCESS_KEY"),
+        ("itsaplan", "RUSTFS_ACCESS_KEY", "langfuse", "RUSTFS_ACCESS_KEY"),
+    ],
+)
+def test_separate_accounts_must_not_share_a_value(item, label, other_item, other_label):
     found = {
-        "etcd-backup": [{"label": "ACCESS_KEY", "value": "samekey"}],
-        "postgres-backup": [{"label": "ACCESS_KEY_ID", "value": "samekey"}],
+        item: [{"label": label, "value": "samevalue1234567"}],
+        other_item: [{"label": other_label, "value": "samevalue1234567"}],
     }
-    assert "etcd-backup/ACCESS_KEY: same as postgres-backup/ACCESS_KEY_ID" in check(found, {})
+    assert f"{item}/{label}: same as {other_item}/{other_label}" in check(found, {})
 
 
 def test_backup_bucket_must_not_be_the_database_bucket():
     found = {"volume-backup": [{"label": "BUCKET", "value": "db"}]}
     config = {"postgres": {"backup": {"bucket": "db"}}}
     assert "volume-backup/BUCKET: same as postgres.backup.bucket" in check(found, config)
-
-
-def test_rustfs_access_keys_must_be_unique():
-    found = {
-        "rustfs": [{"label": "ACCESS_KEY", "value": "A" * 16}],
-        "langfuse": [{"label": "RUSTFS_ACCESS_KEY", "value": "A" * 16}],
-    }
-    assert "langfuse/RUSTFS_ACCESS_KEY: same as rustfs/ACCESS_KEY" in check(found, {})
 
 
 def test_ai_workspace_admin_must_be_admitted():
@@ -175,14 +210,19 @@ def test_ai_workspace_admin_must_be_admitted():
             {"label": "ADMIN_EMAILS", "value": "boss@other.org"},
         ]
     }
-    problems = check(found, {})
-    assert "ai-workspace/ADMIN_EMAILS: an admin is not admitted by ALLOWED_EMAILS" in problems
+    problem = "ai-workspace/ADMIN_EMAILS: an admin is not admitted by ALLOWED_EMAILS"
+    problems = check(found, {"ai_workspace": {"admins": True, "allowlist": True}})
+    assert problem in problems
     assert "boss@other.org" not in "\n".join(problems)
+    # A list whose flag is off is not rendered, so a stale field is no problem.
+    assert problem not in check(found, {"ai_workspace": {"admins": True, "allowlist": False}})
+    assert problem not in check(found, {"ai_workspace": {"admins": False, "allowlist": True}})
 
 
 def test_career_ops_needs_the_credential_its_mode_names():
-    proxy = {"career_ops_enabled": True, "career_ops": {"anthropic_base_url": "http://x"}}
-    oauth = {"career_ops_enabled": True, "career_ops": {"anthropic_base_url": ""}}
+    proxy = {"career_ops_enabled": True, "career_ops": {"claude_credential": "proxy"}}
+    oauth = {"career_ops_enabled": True, "career_ops": {"claude_credential": "oauth"}}
     assert "career-ops/ANTHROPIC_AUTH_TOKEN: missing" in check({}, proxy)
     assert "career-ops/CLAUDE_OAUTH_TOKEN: missing" not in check({}, proxy)
     assert "career-ops/CLAUDE_OAUTH_TOKEN: missing" in check({}, oauth)
+    assert "career-ops/ANTHROPIC_AUTH_TOKEN: missing" not in check({}, oauth)

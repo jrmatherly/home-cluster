@@ -13,11 +13,16 @@ external = "10.10.10.251"
 url = "https://github.com/onedr0p/cluster-template.git"
 webhook_provider = "none"
 
+[onepassword]
+vault = "homelab"
+
 [domain]
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [[nodes]]
 name = "k8s-0"

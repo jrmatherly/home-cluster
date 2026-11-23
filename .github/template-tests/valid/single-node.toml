@@ -11,6 +11,9 @@ dns = "10.10.10.253"
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
+[onepassword]
+vault = "homelab"
+
 [domain]
 name = "example.com"
 

@@ -20,6 +20,7 @@ provider = "none"
 
 [ingress]
 mode = "cloudflare-tunnel"
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"

@@ -1,8 +1,8 @@
 """Where each secret that leaves cluster.toml lives in 1Password.
 
 One vault item per cluster.toml section, titled with the section name in hyphens.
-A field's label is the cluster.toml field name in upper case. op_seed.py creates
-the items from this map and secrets_check.py checks them against it.
+A field's label is the name the field had in cluster.toml, in upper case.
+secrets_check.py checks the vault against this map.
 """
 
 from collections.abc import Callable
@@ -12,9 +12,9 @@ from typing import Any, NamedTuple
 class Entry(NamedTuple):
     item: str
     field: str
-    # A cluster.toml path, `<path>#<part>` for one part of a split value,
-    # `file:<name>#<key>` for a value read from a file, or `copy:<path>` for a
-    # value that also stays in cluster.toml.
+    # Where the value lived before it moved: a former cluster.toml path,
+    # `<path>#<part>` for one part of a split value, `file:<name>#<key>` for a
+    # value from a file, or `copy:<path>` for a value that also stays in cluster.toml.
     source: str
     # A key of GATES, or a config path that is truthy when the field is needed.
     requires: str
@@ -22,7 +22,7 @@ class Entry(NamedTuple):
     pattern: str | None
 
 
-# The label that stands for every key of a map-valued source.
+# The label that stands for every name in the list at `<source>_keys`.
 EACH_KEY = "*"
 
 _SAFE = r'[^\s"\\$,@]+'
@@ -59,10 +59,10 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("observability.grafana_password", "observability_enabled", SECRET),
     ("observability.influxdb_password", "observability_enabled", r'^([^"\\\s$]{8,})?$'),
     ("observability.influxdb_token", "observability_enabled", SECRET),
-    ("observability.discord_webhook", "observability.discord_webhook", r'^(https://discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$'),
-    ("observability.heartbeat_url", "observability.heartbeat_url", r'^(https://[^\s"\\]+)?$'),
+    ("observability.discord_webhook", "observability.discord", r'^(https://discord(app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$'),
+    ("observability.heartbeat_url", "observability.heartbeat", r'^(https://[^\s"\\]+)?$'),
     ("observability.grafana_oidc_client_secret", "observability.grafana_oidc_client_id", SECRET),
-    ("observability.grafana_secret_key", "observability.grafana_secret_key", LONG_SECRET),
+    ("observability.grafana_secret_key", "observability.secret_key", LONG_SECRET),
     ("observability.github_app_private_key", "observability.github_app_id", r'^(-----BEGIN [A-Z ]+-----\n[A-Za-z0-9+/=\n]+-----END [A-Z ]+-----\n?)?$'),
     ("observability.sentry_token", "observability.sentry_org", SECRET),
     ("unifi.api_key", "unifi_dns_enabled", SECRET),
@@ -70,10 +70,10 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("radar.oidc_client_secret", "radar_enabled", SECRET),
     ("matherlynet.better_auth_secret", "matherlynet_enabled", SECRET),
     ("matherlynet.admin_email", "matherlynet_enabled", EMAIL_ADDRESS),
-    ("matherlynet.smtp_url", "matherlynet.smtp_url", r'^(smtps?://[^"\\\s$]+)?$'),
-    ("matherlynet.mail_from", "matherlynet.mail_from", MAIL_FROM),
-    ("matherlynet.github_client_secret", "matherlynet.github_client_id", SECRET),
-    ("matherlynet.google_client_secret", "matherlynet.google_client_id", SECRET),
+    ("matherlynet.smtp_url", "matherlynet.smtp", r'^(smtps?://[^"\\\s$]+)?$'),
+    ("matherlynet.mail_from", "matherlynet.mail", MAIL_FROM),
+    ("matherlynet.github_client_secret", "matherlynet.github", SECRET),
+    ("matherlynet.google_client_secret", "matherlynet.google", SECRET),
     ("reactive_resume.auth_secret", "reactive_resume_enabled", LONG_SECRET),
     ("reactive_resume.encryption_secret", "reactive_resume_enabled", LONG_SECRET),
     ("reactive_resume.oidc_client_secret", "reactive_resume_enabled", SECRET),
@@ -96,9 +96,9 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("media.plex_token", "media_plex_enabled", SECRET),
     ("ai_workspace.oidc_client_secret", "ai_workspace_enabled", SECRET),
     ("ai_workspace.auth_secret", "ai_workspace_enabled", LONG_SECRET),
-    ("ai_workspace.allowed_emails", "ai_workspace.allowed_emails", EMAIL_RULE_LIST),
-    ("ai_workspace.admin_emails", "ai_workspace.admin_emails", EMAIL_LIST),
-    ("ai_workspace.browsing_token", "ai_workspace.browsing_token", API_KEY),
+    ("ai_workspace.allowed_emails", "ai_workspace.allowlist", EMAIL_RULE_LIST),
+    ("ai_workspace.admin_emails", "ai_workspace.admins", EMAIL_LIST),
+    ("ai_workspace.browsing_token", "ai_workspace.browsing", API_KEY),
     ("ai_kb.jwt_secret", "ai_kb_enabled", LONG_SECRET),
     ("ai_kb.aes_key", "ai_kb_enabled", r'^([A-Za-z0-9]{32})?$'),
     ("ai_kb.oidc_client_secret", "ai_kb_oidc", SECRET),
@@ -125,7 +125,7 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("cliproxyapi.api_key", "cliproxyapi_enabled", LONG_SECRET),
     ("cliproxyapi.manager_admin_key", "cliproxyapi_enabled", LONG_SECRET),
     ("cliproxyapi.ohmycpa_master_key", "ohmycpa_enabled", r'^$|^[0-9a-f]{64}$'),
-    ("cliproxyapi.github_token", "cliproxyapi.github_token", None),
+    ("cliproxyapi.github_token", "cliproxyapi.github", None),
     ("career_ops.oidc_client_secret", "career_ops_enabled", SECRET),
     ("career_ops.publish_secret", "career_ops_enabled", LONG_SECRET),
     ("career_ops.publish_auth_secret", "career_ops_enabled", LONG_SECRET),
@@ -133,7 +133,7 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("career_ops.publish_allowed_emails", "career_ops_enabled", EMAIL_LIST),
     ("career_ops.claude_oauth_token", "career_ops_oauth", SECRET),
     ("career_ops.anthropic_auth_token", "career_ops_proxy", SECRET),
-    ("career_ops.publish_api_key", "career_ops.publish_api_key", SECRET),
+    ("career_ops.publish_api_key", "career_ops.publish", SECRET),
     ("localai.api_key", "nvidia_enabled", API_KEY),
     ("localai.oidc_client_secret", "localai_webui_enabled", SECRET),
     ("github_runner.token", "github_runner_enabled", SECRET),
@@ -164,7 +164,7 @@ ENTRIES: list[Entry] = [
     Entry("cluster", "SECRET_DOMAIN", "copy:domain.name", "always", None),
 ]
 
-# Every cluster.toml field that leaves the model once the templates read 1Password.
+# Every former cluster.toml field that the model no longer has.
 MOVING_PATHS: frozenset[str] = frozenset(
     e.source.partition("#")[0] for e in ENTRIES if ":" not in e.source
 )
@@ -184,12 +184,12 @@ GATES: dict[str, Callable[[dict[str, Any]], bool]] = {
     "dns_cloudflare": lambda c: lookup(c, "dns.provider") == "cloudflare",
     "tunnel": lambda c: lookup(c, "ingress.mode") == "cloudflare-tunnel",
     "webhook": lambda c: lookup(c, "repository.webhook_provider") not in (None, "none"),
-    # Exactly one Claude credential: the proxy pair when the URL is set, else the OAuth token.
+    # Exactly one Claude credential, the one career_ops.claude_credential names.
     "career_ops_proxy": lambda c: bool(
-        c.get("career_ops_enabled") and lookup(c, "career_ops.anthropic_base_url")
+        c.get("career_ops_enabled") and lookup(c, "career_ops.claude_credential") == "proxy"
     ),
     "career_ops_oauth": lambda c: bool(
-        c.get("career_ops_enabled") and not lookup(c, "career_ops.anthropic_base_url")
+        c.get("career_ops_enabled") and lookup(c, "career_ops.claude_credential") != "proxy"
     ),
 }
 

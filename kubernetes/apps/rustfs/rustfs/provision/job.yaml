@@ -1,6 +1,6 @@
 ---
 # A Job's pod template is immutable, so force lets Flux replace the Job when the
-# consumer checksum or the script's ConfigMap name changes, and the new Job runs
+# keys revision or the script's ConfigMap name changes, and the new Job runs
 # the script again.
 apiVersion: batch/v1
 kind: Job
@@ -14,7 +14,7 @@ spec:
   template:
     metadata:
       annotations:
-        rustfs.consumers/checksum: "636c20b67a297a08"
+        rustfs.consumers/checksum: "0"
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false

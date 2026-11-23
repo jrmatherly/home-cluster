@@ -5,13 +5,13 @@ kind: Kustomization
 components:
   - ../../../../components/postgres
 resources:
-#% if ai_workspace.browsing_token %#
+#% if ai_workspace.browsing %#
   - ./browserless.yaml
   - ./browserless-networkpolicy.yaml
 #% endif %#
   - ./cluster.yaml
   - ./database.yaml
-#% if ai_workspace.env %#
+#% if ai_workspace.env_keys %#
   - ./env-externalsecret.yaml
 #% endif %#
   - ./externalsecret.yaml

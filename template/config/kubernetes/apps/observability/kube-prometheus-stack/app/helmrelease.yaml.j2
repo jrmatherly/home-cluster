@@ -86,7 +86,7 @@ spec:
                 requests:
                   storage: 20Gi
     alertmanager:
-      #% if observability.discord_webhook %#
+      #% if observability.discord %#
       # Helm merges this over the chart's config, so its grouping and inhibit rules stay.
       config:
         route:
@@ -94,7 +94,7 @@ spec:
           routes:
             # Watchdog always fires. With heartbeat_url set, it pings a service that pages when the
             # pings stop, so a dead Prometheus or Alertmanager is noticed.
-            #% if observability.heartbeat_url %#
+            #% if observability.heartbeat %#
             - receiver: heartbeat
               group_wait: 0s
               # Measured with v0.34.2: 1m gives a ping every 6 minutes, and the chart's 5m gives 10,
@@ -117,7 +117,7 @@ spec:
           - name: discord
             discord_configs:
               - webhook_url_file: /etc/alertmanager/secrets/alertmanager-secret/discord-webhook
-          #% if observability.heartbeat_url %#
+          #% if observability.heartbeat %#
           - name: heartbeat
             webhook_configs:
               - url_file: /etc/alertmanager/secrets/alertmanager-secret/heartbeat-url
@@ -125,7 +125,7 @@ spec:
           #% endif %#
       #% endif %#
       alertmanagerSpec:
-        #% if observability.discord_webhook %#
+        #% if observability.discord %#
         # Mounted at /etc/alertmanager/secrets/alertmanager-secret.
         secrets:
           - alertmanager-secret
@@ -198,7 +198,7 @@ spec:
             name: grafana-secret
             key: OIDC_CLIENT_SECRET
         #% endif %#
-        #% if observability.grafana_secret_key %#
+        #% if observability.secret_key %#
         # From envValueFrom, so it stays out of the grafana.ini ConfigMap like the OAuth secret.
         GF_SECURITY_SECRET_KEY:
           secretKeyRef:

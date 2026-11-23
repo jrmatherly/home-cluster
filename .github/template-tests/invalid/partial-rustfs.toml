@@ -1,6 +1,6 @@
-# Negative fixture: the RustFS secret key set without the access key and node.
+# Negative fixture: RustFS enabled without its node.
 # Expected to be rejected by the rustfs all-or-nothing check.
-# expect: rustfs: rustfs is partially configured: set access_key, secret_key and node together (missing: access_key, node)
+# expect: rustfs: rustfs is partially configured: set enabled and node together (missing: node)
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,13 +16,15 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [rustfs]
-secret_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 
 [[nodes]]

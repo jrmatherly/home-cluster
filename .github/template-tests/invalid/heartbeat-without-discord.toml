@@ -1,6 +1,6 @@
-# Negative fixture: the heartbeat URL set without the Discord webhook.
-# Expected to be rejected by the heartbeat_url requires check.
-# expect: observability: heartbeat_url requires discord_webhook: the heartbeat is a second receiver beside Discord
+# Negative fixture: the heartbeat turned on without the Discord receiver.
+# Expected to be rejected by the heartbeat requires discord check.
+# expect: observability: heartbeat requires discord: the heartbeat is a second receiver beside Discord
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,16 +16,16 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [observability]
-grafana_password = "fake"
-influxdb_password = "fakefake"
-influxdb_token = "fake"
-heartbeat_url = "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
+enabled = true
+heartbeat = true
 
 [[nodes]]
 name = "k8s-0"

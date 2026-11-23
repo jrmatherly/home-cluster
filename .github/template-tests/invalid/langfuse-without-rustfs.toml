@@ -1,6 +1,6 @@
-# Negative fixture: [langfuse] set without [rustfs].
+# Negative fixture: [langfuse] enabled without [rustfs].
 # Expected to be rejected by the langfuse RustFS check.
-# expect: langfuse.rustfs_access_key requires rustfs: Langfuse writes every event to its bucket there
+# expect: langfuse requires rustfs: Langfuse writes every event to its bucket there
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,26 +26,16 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [redis]
-password = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [pocket_id]
-encryption_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [langfuse]
-public_key = "pk-lf-fakefakefakefakefakefakefakefake"
-secret_key = "sk-lf-fakefakefakefakefakefakefakefake"
-salt = "fakefakefakefakefakefakefakefake"
-encryption_key = "0000000000000000000000000000000000000000000000000000000000000000"
-nextauth_secret = "fakefakefakefakefakefakefakefake"
+enabled = true
 oidc_client_id = "langfuse"
-oidc_client_secret = "fakefakefakefakefakefakefakefake"
-clickhouse_password = "fakefakefakefakefakefakefake"
-rustfs_access_key = "langfusefakefake"
-rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

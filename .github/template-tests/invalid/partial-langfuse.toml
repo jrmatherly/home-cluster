@@ -1,6 +1,6 @@
-# Negative fixture: [langfuse] with only some of its fields set.
+# Negative fixture: [langfuse] enabled without its OIDC client ID.
 # Expected to be rejected by the langfuse all-or-none check.
-# expect: langfuse: langfuse is partially configured: set public_key, secret_key, salt, encryption_key, nextauth_secret, oidc_client_id, oidc_client_secret, clickhouse_password, rustfs_access_key and rustfs_secret_key together (missing: salt, encryption_key, nextauth_secret, oidc_client_id, oidc_client_secret, clickhouse_password, rustfs_access_key, rustfs_secret_key)
+# expect: langfuse: langfuse is partially configured: set enabled and oidc_client_id together (missing: oidc_client_id)
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,23 +26,19 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [redis]
-password = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [pocket_id]
-encryption_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [rustfs]
-access_key = "fakefakefakefake"
-secret_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 node = "k8s-1"
 
 [langfuse]
-public_key = "pk-lf-fakefakefakefakefakefakefakefake"
-secret_key = "sk-lf-fakefakefakefakefakefakefakefake"
+enabled = true
 
 [[nodes]]
 name = "k8s-0"

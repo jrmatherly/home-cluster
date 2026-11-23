@@ -161,15 +161,20 @@ url = ""
 
 # =============================================================================
 #    The 1Password vault that External Secrets Operator reads deployment
-#    secrets from, through a 1Password Connect server in the cluster. Leave
-#    the vault empty to keep both out of the cluster.
+#    secrets from, through a 1Password Connect server in the cluster. This file
+#    holds no secret: each section below that needs one names its vault item,
+#    titled after the section with hyphens, and the item's fields are the
+#    upper-case labels listed in template/scripts/secret_map.py.
+#    `just template secrets-check` reports a field that is missing or
+#    malformed. REQUIRED: the domain and the DNS, tunnel and webhook tokens are
+#    read from it too.
 # =============================================================================
 [onepassword]
 
 # Name of the vault the Connect server can read. The name is rendered into
 # this repo, so pick one you are content to publish. Letters, digits, `_`
 # and `-` only.
-# OPTIONAL. Default: "" (off). Example: "homelab"
+# REQUIRED. Example: "homelab"
 
 # vault = ""
 
@@ -198,18 +203,16 @@ name = ""
 
 # provider = "cloudflare"
 
-# Cloudflare API token (NOT the global API key) with `Zone - DNS - Edit` and
-# `Account - Cloudflare Tunnel - Read` permissions, scoped to the zone
-# above. See the README for token creation steps.
-# REQUIRED when provider is "cloudflare"; must be empty otherwise.
-token = ""
+# With "cloudflare", the vault item `dns` holds TOKEN: a Cloudflare API token
+# (NOT the global API key) with `Zone - DNS - Edit` and
+# `Account - Cloudflare Tunnel - Read` permissions, scoped to the zone above.
 
 
 # =============================================================================
 #    How the public internet reaches the cluster's external gateway. With
 #    "cloudflare-tunnel", cloudflared connects outbound so no ports are
-#    forwarded (requires dns.provider = "cloudflare" and
-#    cloudflare-tunnel.json). With "direct", you forward TCP 443 (and
+#    forwarded (requires dns.provider = "cloudflare", tunnel_id below and the
+#    vault item `cloudflare-tunnel`). With "direct", you forward TCP 443 (and
 #    optionally 80) on your router to gateways.external and point an
 #    `external.<domain>` DNS record at your WAN address (A record or DDNS
 #    CNAME) yourself; per-app records are still published automatically.
@@ -222,6 +225,14 @@ token = ""
 # otherwise "none". Allowed: "cloudflare-tunnel" | "direct" | "none"
 
 # mode = "cloudflare-tunnel"
+
+# ID of the Cloudflare tunnel: the TunnelID in the credentials file that
+# `cloudflared tunnel create` writes. It is public, external.<domain.name> is
+# a CNAME to it. The file's AccountTag and TunnelSecret go in the vault item
+# `cloudflare-tunnel` as ACCOUNT_TAG and TUNNEL_SECRET.
+# REQUIRED when mode is "cloudflare-tunnel".
+# Example: "c1b2a3d4-0000-4000-8000-000000000000"
+tunnel_id = ""
 
 
 # =============================================================================
@@ -268,9 +279,10 @@ token = ""
 # so the gateway signs users in with Pocket ID and admits only members of the
 # Pocket ID group `cluster_admins`. Needs [pocket_id]. Create the OIDC client
 # in the Pocket ID admin UI first, with the callback URL
-# https://hubble.<domain.name>/oauth2/callback, then set BOTH fields below to
-# enable; leaving them blank skips it. Enabling it restarts the Cilium agent
-# on every node once.
+# https://hubble.<domain.name>/oauth2/callback, then set the client ID below to
+# enable; leaving it blank skips it. The client secret is OIDC_CLIENT_SECRET in
+# the vault item `cilium-hubble`. Enabling it restarts the Cilium agent on
+# every node once.
 # REF: https://docs.cilium.io/en/stable/observability/hubble/
 [cilium.hubble]
 
@@ -278,12 +290,6 @@ token = ""
 # OPTIONAL.
 
 # oidc_client_id = ""
-
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# oidc_client_secret = ""
 
 
 # =============================================================================
@@ -312,8 +318,10 @@ schematic_id = ""
 # =============================================================================
 #    Postgres backups. Each database in the cluster backs up to this
 #    S3-compatible object store (Cloudflare R2, Backblaze B2, MinIO, ...).
-#    Set ALL FOUR fields below to enable; leaving them all blank disables
-#    backups. The two keys are written to a SOPS-encrypted Secret.
+#    Set BOTH fields below to enable; leaving them blank disables backups.
+#    The vault item `postgres-backup` holds ACCESS_KEY_ID and
+#    SECRET_ACCESS_KEY: a key pair with read and write access to the bucket's
+#    objects (for R2, an API token with "Object Read & Write" scoped to it).
 # =============================================================================
 [postgres.backup]
 
@@ -327,35 +335,23 @@ schematic_id = ""
 
 # bucket = ""
 
-# Access key pair with read and write access to the bucket's objects. For
-# R2, create an API token with "Object Read & Write" scoped to the bucket.
-# OPTIONAL.
-
-# access_key_id = ""
-# secret_access_key = ""
-
 
 # =============================================================================
 #    etcd snapshots. A daily snapshot goes to its own bucket at the endpoint
 #    of [postgres.backup], which must be set. A snapshot holds every object in
 #    the cluster, so this bucket and key pair are separate from the database
-#    pair, which every database namespace can read. Set ALL THREE fields below
-#    to enable. The control planes must carry the Talos API access patch first:
-#    run `just talos apply` before setting them.
+#    pair, which every database namespace can read. The vault item
+#    `etcd-backup` holds BUCKET, ACCESS_KEY and SECRET_KEY; the keys are letters,
+#    digits, - and _ only, because the job builds them into a URL. The control
+#    planes must carry the Talos API access patch first: run `just talos apply`
+#    before enabling it.
 # =============================================================================
 [etcd_backup]
 
-# Bucket that holds the snapshots, under etcd/.
-# OPTIONAL. Example: "home-cluster-etcd"
+# Takes the daily snapshot.
+# OPTIONAL. Default: false
 
-# bucket = ""
-
-# Access key pair with read and write access to that bucket's objects only.
-# Letters, digits, - and _ only, because the job builds them into a URL.
-# OPTIONAL.
-
-# access_key = ""
-# secret_key = ""
+# enabled = false
 
 
 # =============================================================================
@@ -363,88 +359,70 @@ schematic_id = ""
 #    Optimizer and of AI KB's RustFS files go to one bucket at the endpoint of
 #    [postgres.backup], which must be set, and are kept 7 days. A copy can hold
 #    usable credentials, so this bucket and key pair are separate from the
-#    database and etcd pairs. Set ALL THREE fields below to enable.
+#    database and etcd pairs. The vault item `volume-backup` holds BUCKET,
+#    ACCESS_KEY and SECRET_KEY; the keys are letters, digits, - and _ only,
+#    because the jobs build them into a URL.
 # =============================================================================
 [volume_backup]
 
-# Bucket that holds the copies, under volumes/.
-# OPTIONAL. Example: "home-cluster-volumes"
+# Runs the nightly copies.
+# OPTIONAL. Default: false
 
-# bucket = ""
-
-# Access key pair with read and write access to that bucket's objects only.
-# Letters, digits, - and _ only, because the jobs build them into a URL.
-# OPTIONAL.
-
-# access_key = ""
-# secret_key = ""
+# enabled = false
 
 
 # =============================================================================
 #    Observability stack: Prometheus, Alertmanager and Grafana
 #    (kube-prometheus-stack), plus InfluxDB 2 for metrics pushed from outside
-#    the cluster. Set ALL THREE fields below to enable; leaving them all blank
-#    skips the stack. The values are written to SOPS-encrypted Secrets.
-#    InfluxDB reads its password and token only on first start, so choose
-#    them before the first deploy. Alertmanager sends alerts nowhere until
-#    discord_webhook is set.
+#    the cluster. The vault item `observability` holds GRAFANA_PASSWORD (the
+#    Grafana "admin" user), INFLUXDB_PASSWORD (the InfluxDB "admin" user, at
+#    least 8 characters) and INFLUXDB_TOKEN (the admin API token Grafana reads
+#    InfluxDB with). InfluxDB reads its password and token only on first start,
+#    so choose them before the first deploy. Alertmanager sends alerts nowhere
+#    until discord is on.
 # =============================================================================
 [observability]
 
-# Password of the Grafana "admin" user.
-# OPTIONAL.
+# Deploys the stack.
+# OPTIONAL. Default: false
 
-# grafana_password = ""
+# enabled = false
 
-# Password of the InfluxDB "admin" user, at least 8 characters.
-# OPTIONAL.
+# Alertmanager sends alerts to the Discord webhook in the vault field
+# DISCORD_WEBHOOK ("https://discord.com/api/webhooks/<id>/<token>"). Needs
+# enabled.
+# OPTIONAL. Default: false
 
-# influxdb_password = ""
+# discord = false
 
-# InfluxDB admin API token. Grafana reads InfluxDB with it.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
+# Alertmanager pings the heartbeat check URL in the vault field HEARTBEAT_URL
+# ("https://hc-ping.com/<uuid>") with the always-firing Watchdog alert, so a
+# dead Prometheus, Alertmanager or node is noticed: the service pages when the
+# pings stop. Pings arrive every 6 minutes, so set the check's period to 10
+# minutes and its grace to 5: one missed ping does not page. A mistyped URL
+# fails silently, so confirm the first ping on the service. It does not detect
+# a broken Discord webhook. Needs discord.
+# OPTIONAL. Default: false
 
-# influxdb_token = ""
-
-# Discord webhook that Alertmanager sends alerts to. Needs the three fields
-# above. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: "https://discord.com/api/webhooks/<id>/<token>"
-
-# discord_webhook = ""
-
-# Heartbeat check URL that Alertmanager pings with the always-firing Watchdog
-# alert, so a dead Prometheus, Alertmanager or node is noticed: the service pages
-# when the pings stop. Pings arrive every 6 minutes, so set the check's period to
-# 10 minutes and its grace to 5: one missed ping does not page. A mistyped URL
-# fails silently, so confirm the first ping on the service. It does not detect a
-# broken Discord webhook. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Needs discord_webhook. Example: "https://hc-ping.com/<uuid>"
-
-# heartbeat_url = ""
+# heartbeat = false
 
 # Client ID of the OIDC client created for Grafana in the Pocket ID admin UI,
 # with callback URL "https://grafana.<domain>/login/generic_oauth". Adds a
 # Pocket ID button to the Grafana login page, next to the password form. Only
 # members of the Pocket ID group "cluster_admins" can sign in with it, as
-# Grafana server admins. Needs the three fields above and [pocket_id]; set it
-# together with grafana_oidc_client_secret.
+# Grafana server admins. Needs enabled and [pocket_id]. The client secret is
+# the vault field GRAFANA_OIDC_CLIENT_SECRET.
 # OPTIONAL.
 
 # grafana_oidc_client_id = ""
 
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
+# Grafana encrypts its stored data source secrets with the key in the vault
+# field GRAFANA_SECRET_KEY, at least 32 characters, instead of its built-in
+# default, which Grafana's advisor flags. Needs enabled. Never turn it off or
+# change the key once set: Grafana can no longer read what it encrypted.
+# OPTIONAL. Default: false
 
-# grafana_oidc_client_secret = ""
-
-# Key Grafana encrypts its stored data source secrets with, at least 32
-# characters. Grafana's advisor flags the built-in default. Needs the three
-# fields above. It is written to a SOPS-encrypted Secret. Never change it once
-# set: Grafana can no longer read what it encrypted with the old key.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# grafana_secret_key = ""
+# secret_key = false
 
 # Grafana plugins. Infinity (JSON, CSV and XML from any URL) is always
 # installed, and so is the LLM app, which uses LocalAI, when the cluster
@@ -452,8 +430,9 @@ schematic_id = ""
 # their fields are set. Setup steps: private/grafana-plugins-setup.md.
 
 # App ID of the GitHub App Grafana's GitHub data source signs in as, shown on
-# the App's settings page. Needs the three fields above; set it together with
-# github_app_installation_id and github_app_private_key.
+# the App's settings page. Needs enabled; set it together with
+# github_app_installation_id. The App's private key, the whole PEM file GitHub
+# downloads, is the vault field GITHUB_APP_PRIVATE_KEY.
 # OPTIONAL. Example: "123456"
 
 # github_app_id = ""
@@ -464,28 +443,12 @@ schematic_id = ""
 
 # github_app_installation_id = ""
 
-# Private key of that App, the whole PEM file GitHub downloads. It is written
-# to a SOPS-encrypted Secret.
-# OPTIONAL. Example:
-# github_app_private_key = '''
-# -----BEGIN RSA PRIVATE KEY-----
-# ...
-# -----END RSA PRIVATE KEY-----
-# '''
-
-# github_app_private_key = ""
-
 # Slug of the Sentry organization Grafana's Sentry data source reads. Needs
-# the three fields above; set it together with sentry_token.
+# enabled. The vault field SENTRY_TOKEN holds the token of a Sentry internal
+# integration with Read on Project, Issue & Event and Organization.
 # OPTIONAL. Example: "my-org"
 
 # sentry_org = ""
-
-# Token of a Sentry internal integration with Read on Project, Issue & Event
-# and Organization. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# sentry_token = ""
 
 # Address of Sentry: https and a hostname, no path. Regional organizations use
 # their region's host.
@@ -495,10 +458,9 @@ schematic_id = ""
 
 # Addresses of the Proxmox hosts. Prometheus scrapes node-exporter on port 9100
 # of each, and Alertmanager alerts when a ZFS pool on one is not online (a
-# page needs discord_webhook). Each host needs Debian's prometheus-node-exporter
+# page needs discord). Each host needs Debian's prometheus-node-exporter
 # package installed, and port 9100 reachable from every node address, because
-# Cilium masquerades pod traffic that leaves the cluster. Needs the three
-# fields above.
+# Cilium masquerades pod traffic that leaves the cluster. Needs enabled.
 # OPTIONAL. Example: ["10.10.10.2", "10.10.10.3"]
 
 # proxmox_hosts = []
@@ -508,7 +470,9 @@ schematic_id = ""
 #    UniFi console. When set, the cluster writes a local DNS record to the
 #    console for every app on the internal gateway, so internal names resolve
 #    on your network without manual records. Needs UniFi Network 10.3.58 or
-#    newer. Set BOTH fields below to enable; leaving them blank skips it.
+#    newer. Set host below to enable; leaving it blank skips it. The vault
+#    item `unifi` holds API_KEY, an API key from the console: Settings >
+#    Control Plane > Integrations.
 # =============================================================================
 [unifi]
 
@@ -519,35 +483,30 @@ schematic_id = ""
 
 # host = ""
 
-# API key from the console: Settings > Control Plane > Integrations.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# api_key = ""
-
 
 # =============================================================================
 #    Pocket ID, a passkey login (OpenID Connect provider) for apps in the
-#    cluster. Setting the key below deploys it at https://auth.<domain.name> on
-#    the internal gateway, with its own Postgres database. Needs
-#    [postgres.backup], because its passkeys and signing keys cannot be
-#    recreated. Open https://auth.<domain.name>/setup right after the first
-#    deploy: until an admin exists, anyone on your network can claim it.
+#    cluster, at https://auth.<domain.name> on the internal gateway, with its
+#    own Postgres database. Needs [postgres.backup], because its passkeys and
+#    signing keys cannot be recreated. The vault item `pocket-id` holds
+#    ENCRYPTION_KEY, at least 16 characters, which encrypts the token signing
+#    keys in the database. To change it later, run
+#    `pocket-id encryption-key-rotate` in the pod first; changing it alone makes
+#    the stored keys unreadable. Open https://auth.<domain.name>/setup right
+#    after the first deploy: until an admin exists, anyone on your network can
+#    claim it.
 # =============================================================================
 [pocket_id]
 
-# Encrypts the token signing keys in the database, at least 16 characters.
-# It is written to a SOPS-encrypted Secret. To change it later, run
-# `pocket-id encryption-key-rotate` in the pod first; editing it here alone
-# makes the stored keys unreadable.
-# OPTIONAL. Example: the output of `openssl rand -base64 32`
+# Deploys Pocket ID.
+# OPTIONAL. Default: false
 
-# encryption_key = ""
+# enabled = false
 
 # Also serves Pocket ID on the external gateway, which exposes its sign-in
 # page and its API to the internet. LAN clients and pods keep using the
 # internal gateway. The hostname stays https://auth.<domain.name>, so passkeys
-# keep working. Needs encryption_key and an ingress.mode other than "none".
+# keep working. Needs enabled and an ingress.mode other than "none".
 # OPTIONAL. Default: false
 
 # public = false
@@ -556,7 +515,8 @@ schematic_id = ""
 # =============================================================================
 #    Radar, a Kubernetes UI with a timeline, behind the Pocket ID login. Needs
 #    [pocket_id]. Create the OIDC client for Radar in the Pocket ID admin UI
-#    first, then set BOTH fields below to enable; leaving them blank skips it.
+#    first, then set its ID below to enable; leaving it blank skips it. The
+#    client secret is OIDC_CLIENT_SECRET in the vault item `radar`.
 # =============================================================================
 [radar]
 
@@ -565,61 +525,51 @@ schematic_id = ""
 
 # oidc_client_id = ""
 
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# oidc_client_secret = ""
-
 
 # =============================================================================
 #    matherlynet, the public website, at https://<domain.name> (www redirects
 #    there) through the Cloudflare tunnel, with its own Postgres database.
 #    Needs [postgres.backup], because its database holds accounts, and
 #    ingress.mode "cloudflare-tunnel", because the site trusts the client
-#    address Cloudflare reports. Set better_auth_secret and admin_email to
-#    enable; leaving them blank skips it.
+#    address Cloudflare reports. The vault item `matherlynet` holds
+#    BETTER_AUTH_SECRET, which signs the site's sessions (changing it signs
+#    everyone out), and ADMIN_EMAIL, the address of the site's admin account.
 # =============================================================================
 [matherlynet]
 
-# Signs the site's sessions. Changing it signs everyone out.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 32`
+# Deploys the site.
+# OPTIONAL. Default: false
 
-# better_auth_secret = ""
+# enabled = false
 
-# Email address of the site's admin account.
-# OPTIONAL. Example: "you@example.com"
+# The site sends mail through the SMTP server in the vault field SMTP_URL, a
+# URL: smtps:// for implicit TLS (port 465), smtp:// for STARTTLS (port 587),
+# as in "smtp://user%40example.com:password@smtp.example.com:587". A bare host
+# name is rejected. Percent-encode any character in the username or password
+# that is a quote, a backslash, a space, a dollar sign or an at sign (%40).
+# OPTIONAL. Default: false
 
-# admin_email = ""
+# smtp = false
 
-# SMTP server the site sends mail through, as a URL: smtps:// for implicit TLS
-# (port 465), smtp:// for STARTTLS (port 587). A bare host name is rejected.
-# Percent-encode any character in the username or password that is a quote, a
-# backslash, a space, a dollar sign or an at sign (%40).
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: "smtp://user%40example.com:password@smtp.example.com:587"
+# The site's mail carries the sender in the vault field MAIL_FROM, as in
+# "matherlynet <noreply@example.com>".
+# OPTIONAL. Default: false
 
-# smtp_url = ""
+# mail = false
 
-# Sender of the site's mail.
-# OPTIONAL. Example: "matherlynet <noreply@example.com>"
-
-# mail_from = ""
-
-# OAuth app for signing in with GitHub. Set both fields or neither. The
-# secret is written to a SOPS-encrypted Secret.
+# OAuth app for signing in with GitHub: its client ID here, its secret in the
+# vault field GITHUB_CLIENT_SECRET, and github = true. Set both or neither.
 # OPTIONAL.
 
 # github_client_id = ""
-# github_client_secret = ""
+# github = false
 
-# OAuth client for signing in with Google. Set both fields or neither. The
-# secret is written to a SOPS-encrypted Secret.
+# OAuth client for signing in with Google: its client ID here, its secret in
+# the vault field GOOGLE_CLIENT_SECRET, and google = true. Set both or neither.
 # OPTIONAL.
 
 # google_client_id = ""
-# google_client_secret = ""
+# google = false
 
 # Lets the site call LocalAI for its playground. Needs a node that loads
 # the nvidia kernel module.
@@ -635,68 +585,47 @@ schematic_id = ""
 #    [postgres.backup], [pocket_id] and an ingress.mode other than "none".
 #    Create the OIDC client in the Pocket ID admin UI first, with the callback
 #    URL https://resume.<domain.name>/api/auth/callback/custom, and create the
-#    bucket before the first deploy. Set ALL EIGHT fields below to enable;
-#    leaving them all blank skips it. Every field except oidc_client_id and
-#    s3_bucket is written to a SOPS-encrypted Secret.
+#    bucket before the first deploy. Set ALL THREE fields below to enable;
+#    leaving them unset skips it. The vault item `reactive-resume` holds
+#    AUTH_SECRET (signs sessions and encrypts two-factor secrets, at least 32
+#    characters; never change it once people use the app), ENCRYPTION_SECRET
+#    (encrypts the AI keys users save, at least 32 characters, different from
+#    AUTH_SECRET; never change it), OIDC_CLIENT_SECRET, S3_ENDPOINT (https and
+#    a hostname, no path), S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY (a key
+#    pair with read and write access to the bucket's objects).
 # =============================================================================
 [reactive_resume]
 
-# Signs sessions and encrypts two-factor secrets, at least 32 characters. Never
-# change it once people use the app: that signs everyone out and breaks their
-# two-factor secrets.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
+# Deploys Reactive Resume.
+# OPTIONAL. Default: false
 
-# auth_secret = ""
-
-# Encrypts the AI keys users save, at least 32 characters, different from
-# auth_secret. Never change it: that makes every saved key unreadable.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# encryption_secret = ""
+# enabled = false
 
 # Client ID of the OIDC client created for Reactive Resume in Pocket ID.
 # OPTIONAL.
 
 # oidc_client_id = ""
 
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created.
-# OPTIONAL.
-
-# oidc_client_secret = ""
-
-# S3 API endpoint of the bucket for uploads: https and a hostname, no path.
-# OPTIONAL. Example (R2): "https://<account-id>.r2.cloudflarestorage.com"
-
-# s3_endpoint = ""
-
 # Bucket that holds uploads. It must exist before the app starts.
 # OPTIONAL. Example: "reactive-resume"
 
 # s3_bucket = ""
-
-# Access key pair with read and write access to the bucket's objects. For
-# R2, create an API token with "Object Read & Write" scoped to the bucket.
-# OPTIONAL.
-
-# s3_access_key_id = ""
-# s3_secret_access_key = ""
 
 
 # =============================================================================
 #    Redis. An app that needs Redis gets an instance of its own, in its own
 #    namespace, from one shared definition (kubernetes/components/redis): Redis 8
 #    with an append-only file on a volume, reachable only from that namespace.
-#    Every instance takes this password. Leaving it blank disables the
-#    component, and the apps that need it then refuse to enable.
+#    Every instance takes the password in the vault item `redis`, field
+#    PASSWORD: at least 24 letters and digits, because clients put it in a
+#    connection URL as it is. Left off, the apps that need it refuse to enable.
 # =============================================================================
 [redis]
 
-# At least 24 letters and digits. Clients put it in a connection URL as it is,
-# so no other characters. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
+# Turns the component on.
+# OPTIONAL. Default: false
 
-# password = ""
+# enabled = false
 
 
 # =============================================================================
@@ -704,8 +633,9 @@ schematic_id = ""
 #    https://status.<domain.name>. The internet reaches the status page through
 #    the external gateway; the admin pages (/manage, /account) and the API
 #    (/api) are served on the internal gateway only. Needs [postgres.backup],
-#    [redis] and an ingress.mode other than "none". Set secret_key to enable;
-#    leaving it blank skips it.
+#    [redis] and an ingress.mode other than "none". The vault item `kener`
+#    holds SECRET_KEY, which signs sessions and API keys, at least 32
+#    characters; changing it signs everyone out and invalidates every API key.
 #
 #    The first person to open /account/signin creates the admin account, so do
 #    that right after the first deploy. Single sign-on is set up in Kener
@@ -717,33 +647,27 @@ schematic_id = ""
 # =============================================================================
 [kener]
 
-# Signs sessions and API keys, at least 32 characters. Changing it signs
-# everyone out and invalidates every API key.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
+# Deploys Kener.
+# OPTIONAL. Default: false
 
-# secret_key = ""
+# enabled = false
 
-# Where Kener sends mail: alerts, invitations and subscriber updates. Kener
-# needs a user and a password. smtps:// uses TLS from the first byte (port
-# 465 unless given); smtp:// upgrades with STARTTLS (port 587 unless given).
-# Percent-encode an at sign in the user or password (%40). Set mail_from too.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: "smtp://user%40example.com:password@smtp.example.com:587"
+# Kener sends mail (alerts, invitations and subscriber updates) with the
+# settings in the vault fields SMTP_HOST, SMTP_PORT, SMTP_SECURE ("1" for TLS
+# from the first byte, "0" for STARTTLS), SMTP_USER, SMTP_PASS and MAIL_FROM,
+# the sender address. Kener ignores them unless it has a host, a user and a
+# password. Needs enabled.
+# OPTIONAL. Default: false
 
-# smtp_url = ""
-
-# Sender address of that mail. Set smtp_url too.
-# OPTIONAL. Example: "status@example.com"
-
-# mail_from = ""
+# smtp = false
 
 
 # =============================================================================
 #    Network Optimizer, which audits and monitors the UniFi network, served at
 #    https://optimizer.<domain.name> on the internal gateway. It writes time
-#    series to the InfluxDB in [observability], which it needs. Set
-#    app_password to enable; leaving it blank skips it.
+#    series to the InfluxDB in [observability], which it needs. The vault
+#    item `network-optimizer` holds APP_PASSWORD, the password of the app's
+#    admin account: at least 8 characters with at least one digit.
 #
 #    The UniFi connection (an API key from the console), the InfluxDB settings
 #    and the Pocket ID role mapping are entered in the app's own Settings, not
@@ -756,24 +680,26 @@ schematic_id = ""
 # =============================================================================
 [network_optimizer]
 
-# Password of the app's admin account, at least 8 characters with at least
-# one digit. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 16`
+# Deploys Network Optimizer.
+# OPTIONAL. Default: false
 
-# app_password = ""
+# enabled = false
 
-# The OIDC client created for Network Optimizer in the Pocket ID admin UI.
-# Needs [pocket_id]. Set both or neither.
+# Client ID of the OIDC client created for Network Optimizer in the Pocket ID
+# admin UI. Its secret is the vault field OIDC_CLIENT_SECRET. Needs enabled
+# and [pocket_id].
 # OPTIONAL.
 
 # oidc_client_id = ""
-# oidc_client_secret = ""
 
 
 # =============================================================================
 #    PegaProx, a web UI for managing Proxmox, served at
-#    https://pegaprox.<domain.name> on the internal gateway. Set db_key to
-#    enable; leaving it blank skips it.
+#    https://pegaprox.<domain.name> on the internal gateway. The vault item
+#    `pegaprox` holds DB_KEY, the master key that encrypts PegaProx's database
+#    and the Proxmox credentials stored in it: 32 bytes as urlsafe base64 or as
+#    64 hex characters. Never change it once set: the database becomes
+#    unreadable.
 #
 #    The first visitor creates the admin account, so sign in right after the
 #    first deploy. Proxmox hosts, users and the Pocket ID sign-in are set up in
@@ -781,22 +707,18 @@ schematic_id = ""
 # =============================================================================
 [pegaprox]
 
-# Master key that encrypts PegaProx's database and the Proxmox credentials
-# stored in it: 32 bytes as urlsafe base64 or as 64 hex characters. It is
-# written to a SOPS-encrypted Secret. Never change it once set: the database
-# becomes unreadable.
-# OPTIONAL. Example: the output of
-# `python3 -c 'import secrets,base64;print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())'`
+# Deploys PegaProx.
+# OPTIONAL. Default: false
 
-# db_key = ""
+# enabled = false
 
-# API token that Prometheus scrapes PegaProx's /api/metrics with. Create it in
-# PegaProx under Settings, API Tokens, signed in as an admin account and with
-# the admin role: the endpoint rejects a token of any other role. It is written
-# to a SOPS-encrypted Secret. Needs [observability].
-# OPTIONAL.
+# Prometheus scrapes PegaProx's /api/metrics with the API token in the vault
+# field METRICS_TOKEN. Create it in PegaProx under Settings, API Tokens, signed
+# in as an admin account and with the admin role: the endpoint rejects a token
+# of any other role. Needs enabled and [observability].
+# OPTIONAL. Default: false
 
-# metrics_token = ""
+# metrics = false
 
 
 # =============================================================================
@@ -805,8 +727,9 @@ schematic_id = ""
 #    Its budget files and account database are SQLite on a local-path volume.
 #    Pocket ID is its only login. Needs [pocket_id]. Create the OIDC client in
 #    the Pocket ID admin UI first, with the callback URL
-#    https://budget.<domain.name>/openid/callback, then set BOTH client fields
-#    below to enable; leaving them blank skips it.
+#    https://budget.<domain.name>/openid/callback, then set its ID below to
+#    enable; leaving it blank skips it. The client secret is OIDC_CLIENT_SECRET
+#    in the vault item `actual-budget`.
 #
 #    The first Pocket ID sign-in becomes the owner and admin, so restrict the
 #    client to a group in Pocket ID. Every later user is added by an admin in
@@ -819,14 +742,8 @@ schematic_id = ""
 
 # oidc_client_id = ""
 
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# oidc_client_secret = ""
-
 # Also serves Actual Budget on the external gateway, so the internet reaches
-# it. Needs the client fields above and pocket_id.public = true, because a
+# it. Needs the client ID above and pocket_id.public = true, because a
 # visitor from the internet must reach the Pocket ID login.
 # OPTIONAL. Default: false
 
@@ -840,8 +757,13 @@ schematic_id = ""
 #    gateway, and on the external one too with public = true. Seerr keeps its
 #    own Plex login; the other apps sit behind a Pocket ID sign-in on the
 #    gateway, which is their only login. Needs [pocket_id]. Set nfs_server to
-#    enable; leaving it blank skips it, and then node, the API keys, the OIDC
-#    client and recyclarr stay unset.
+#    enable; leaving it blank skips it, and then node, the OIDC client and
+#    recyclarr stay unset.
+#
+#    The vault item `media` holds SONARR_API_KEY, RADARR_API_KEY,
+#    PROWLARR_API_KEY, SABNZBD_API_KEY and SABNZBD_NZB_KEY, each a new random
+#    key of at least 32 letters and digits, OIDC_CLIENT_SECRET, and PLEX_TOKEN
+#    (an X-Plex-Token) when plex_host is set.
 #
 #    Create the OIDC client in the Pocket ID admin UI first, with one callback
 #    URL per app, https://<app>.<domain.name>/oauth2/callback, for sonarr,
@@ -873,40 +795,24 @@ schematic_id = ""
 
 # timezone = "Etc/UTC"
 
-# API keys, at least 32 letters and digits each. Each is a new random key;
-# nothing is carried over from an earlier install. Every app reads its own key
-# and the keys of the apps it talks to from one SOPS-encrypted Secret. Set all
-# five or none.
-# REQUIRED when nfs_server is set. Example: the output of `openssl rand -hex 16`
-
-# sonarr_api_key = ""
-# radarr_api_key = ""
-# prowlarr_api_key = ""
-# sabnzbd_api_key = ""
-# sabnzbd_nzb_key = ""
-
-# The OIDC client created for the media apps in the Pocket ID admin UI. The
-# secret is written to a SOPS-encrypted Secret. Set both or neither.
+# Client ID of the OIDC client created for the media apps in the Pocket ID
+# admin UI.
 # REQUIRED when nfs_server is set.
 
 # oidc_client_id = ""
-# oidc_client_secret = ""
 
 # Runs Recyclarr, which syncs quality profiles into Sonarr and Radarr.
 # OPTIONAL. Default: false
 
 # recyclarr = false
 
-# The Plex Media Server on the LAN and an X-Plex-Token for it. When set,
-# Sonarr and Radarr get a Plex connection that refreshes the library on import,
-# and Tautulli, Seerr and Maintainerr are deployed. Set both or neither. The
-# token is written to a SOPS-encrypted Secret. Clearing the pair later removes
-# those three apps and their config volumes (watch history, requests, rules), so
-# to rotate the token change it in place rather than blanking it first.
-# OPTIONAL. Example: plex_host = "192.168.1.60"
+# The Plex Media Server on the LAN. When set, Sonarr and Radarr get a Plex
+# connection that refreshes the library on import, and Tautulli, Seerr and
+# Maintainerr are deployed. Clearing it later removes those three apps and
+# their config volumes (watch history, requests, rules).
+# OPTIONAL. Example: "192.168.1.60"
 
 # plex_host = ""
-# plex_token = ""
 
 # Also attaches every app's route to the external gateway, so the internet
 # reaches them through the tunnel behind the Pocket ID sign-in, except Seerr,
@@ -917,36 +823,33 @@ schematic_id = ""
 
 # public = false
 
+# Raise it after changing a media key or the Plex token in the vault. The
+# apps' HelmReleases carry it, so they are upgraded and their configure hooks
+# push the new keys into the apps.
+# OPTIONAL. Default: 0
+
+# keys_revision = 0
+
 
 # =============================================================================
 #    LocalAI, the LLM server on the GPU node, serving Qwen3.5-4B to AI
 #    Workspace, Grafana's LLM app and matherlynet's playground. It runs when a
-#    node loads the nvidia kernel module, and then needs this key: every route
-#    but the health checks refuses a request without it, and each client
-#    sends it as a bearer token. The key is written to SOPS-encrypted Secrets.
+#    node loads the nvidia kernel module, and then needs API_KEY in the vault
+#    item `localai`, at least 32 letters and digits: every route but the health
+#    checks refuses a request without it, and each client sends it as a bearer
+#    token.
 # =============================================================================
 [localai]
-# At least 32 letters and digits.
-# REQUIRED when a node loads the nvidia kernel module. Example: the output of
-# `openssl rand -hex 32`
-
-# api_key = ""
 
 # Client ID of the OIDC client created for the LocalAI WebUI in Pocket ID.
-# Setting BOTH fields turns on the WebUI at https://localai.<domain.name> on
-# the internal gateway, where the gateway signs users in with Pocket ID and
-# admits only members of the Pocket ID group `cluster_admins`. Needs
-# [pocket_id]. The client's callback URL is
-# https://localai.<domain.name>/oauth2/callback.
+# Setting it turns on the WebUI at https://localai.<domain.name> on the
+# internal gateway, where the gateway signs users in with Pocket ID and admits
+# only members of the Pocket ID group `cluster_admins`. Needs [pocket_id]. The
+# client's callback URL is https://localai.<domain.name>/oauth2/callback, and
+# its secret is the vault field OIDC_CLIENT_SECRET.
 # OPTIONAL.
 
 # oidc_client_id = ""
-
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# oidc_client_secret = ""
 
 
 # =============================================================================
@@ -958,14 +861,16 @@ schematic_id = ""
 #    client in the Pocket ID admin UI first: a confidential client with the
 #    callback URL https://ai.<domain.name>/api/auth/callback/oidc, the logout
 #    callback URL https://ai.<domain.name>/signin and the scopes openid, email
-#    and profile. Then set the two client fields and auth_secret below to
-#    enable; leaving them blank skips it. Turn off Pocket ID's "allow users to
+#    and profile. Then set the client ID below to enable; leaving it blank
+#    skips it. The vault item `ai-workspace` holds OIDC_CLIENT_SECRET and
+#    AUTH_SECRET, which signs the app's sessions, at least 32 characters
+#    (changing it signs everyone out). Turn off Pocket ID's "allow users to
 #    edit their own account details" before admitting anyone: the app links a
 #    Pocket ID sign-in to the account with the same email.
 #
 #    Chats stay in each browser. LocalAI is wired in when a node loads
 #    the nvidia kernel module. Vendor API keys are brought by each user in the
-#    browser, unless the server holds them through [ai_workspace.env] below.
+#    browser, unless the server holds them through env_keys below.
 #    Browsing (Attach > Web) runs a Chromium pod in the namespace that any
 #    signed-in member can point at any public URL.
 # =============================================================================
@@ -977,78 +882,68 @@ schematic_id = ""
 
 # oidc_client_id = ""
 
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
+# Only the addresses and @domain rules in the vault field ALLOWED_EMAILS,
+# joined by commas, may sign in. A domain rule matches that domain only, not
+# its subdomains. Off, every Pocket ID user who can use the client may. The
+# addresses are in the vault so they stay out of the public repo. Needs the
+# client ID above.
+# OPTIONAL. Default: false
 
-# oidc_client_secret = ""
+# allowlist = false
 
-# Signs the app's sessions, at least 32 characters. Changing it signs
-# everyone out. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 32`
+# The exact addresses in the vault field ADMIN_EMAILS, joined by commas, are
+# admins; each must be admitted by ALLOWED_EMAILS when allowlist is on. An
+# admin can pull and delete Ollama models; the app reads roles from this list
+# on every request. Needs the client ID above.
+# OPTIONAL. Default: false
 
-# auth_secret = ""
+# admins = false
 
-# Who may sign in: exact addresses and @domain rules. A domain rule matches
-# that domain only, not its subdomains. Empty lets in every Pocket ID user
-# who can use the client. Both lists are written to a SOPS-encrypted Secret,
-# so the addresses stay out of the public repo. Needs the client fields above.
-# OPTIONAL. Default: []. Example: ["me@example.com", "@family.example.com"]
+# Runs browserless, the Chromium pod behind Browsing, with the websocket token
+# in the vault field BROWSING_TOKEN: letters and digits only, at least 32
+# characters, because it goes in a URL query string. Needs the client ID
+# above.
+# OPTIONAL. Default: false
 
-# allowed_emails = []
-
-# Who is an admin: exact addresses, each admitted by allowed_emails when that
-# is set. An admin can pull and delete Ollama models; the app reads roles
-# from this list on every request. Needs the client fields above.
-# OPTIONAL. Default: []. Example: ["me@example.com"]
-
-# admin_emails = []
-
-# Token that browserless, the Chromium pod behind Browsing, requires on its
-# websocket. Letters and digits only, at least 32 characters, because it goes
-# in a URL query string. Setting it runs the pod; blank skips it. It is
-# written to the app's SOPS-encrypted Secret. Needs the client fields above.
-# OPTIONAL. Example: the output of `openssl rand -hex 16`
-
-# browsing_token = ""
+# browsing = false
 
 # Also serves AI Workspace on the external gateway, so the internet reaches
-# it. Needs the client fields above and pocket_id.public = true, because a
+# it. Needs the client ID above and pocket_id.public = true, because a
 # visitor from the internet must reach the Pocket ID login.
 # OPTIONAL. Default: false
 
 # public = false
 
-# Extra server-side environment variables, one key per variable, such as
-# vendor API keys. They are written to a SOPS-encrypted Secret, and the
-# browser then sees those vendors as held by the server. Names are upper case;
-# LOCALAI_API_HOST, LOCALAI_API_KEY, POSTGRES_PRISMA_URL,
+# Names of extra server-side environment variables, such as vendor API keys.
+# Each value is the field of that name in the vault item `ai-workspace-env`,
+# and the browser then sees those vendors as held by the server. Names are
+# upper case; LOCALAI_API_HOST, LOCALAI_API_KEY, POSTGRES_PRISMA_URL,
 # POSTGRES_URL_NON_POOLING, PORT, NODE_ENV, BROWSERLESS_TOKEN,
 # PUPPETEER_WSS_ENDPOINT and every AUTH_* variable the templates set (AUTH_URL
-# and AUTH_OIDC_ISSUER included) belong to the templates and are refused; AUTH_OIDC_NAME, the sign-in button label, is
-# allowed. Needs the client fields above, and stays the last table in the
-# section, because TOML closes [ai_workspace] at this header.
-# OPTIONAL.
-[ai_workspace.env]
+# and AUTH_OIDC_ISSUER included) belong to the templates and are refused;
+# AUTH_OIDC_NAME, the sign-in button label, is allowed. Needs the client ID
+# above.
+# OPTIONAL. Default: []. Example: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
 
-# ANTHROPIC_API_KEY = ""
-# OPENAI_API_KEY = ""
-# GEMINI_API_KEY = ""
+# env_keys = []
 
 
 # =============================================================================
 #    AI KB, a knowledge base with retrieval-augmented chat, served at
 #    https://ai-kb.<domain.name> on both gateways. It has its own login.
 #    Needs [postgres.backup], [redis] and an ingress.mode other than "none".
-#    Set all three fields to enable; leaving them blank skips it.
+#    Set enabled and admin_email to enable. The vault item `ai-kb` holds
+#    JWT_SECRET, which signs sessions, at least 32 characters (changing it
+#    signs everyone out), and AES_KEY, exactly 32 letters and digits, which
+#    encrypts the API keys and credentials AI KB stores.
 #
-#    Password sign-up stays open until the Pocket ID client fields below are
+#    Password sign-up stays open until the Pocket ID client ID below is
 #    set; the external gateway answers 404 for the sign-up form, so accounts
 #    are created from the LAN. With the client set, password sign-up is off
 #    (invite_only) and a first Pocket ID sign-in creates an account. Create
 #    the admin_email account first, then restart the app pod once
 #    (`kubectl -n ai-kb rollout restart deployment ai-kb-app`), which promotes
-#    that account to system administrator. Never change aes_key once set.
+#    that account to system administrator. Never change AES_KEY once set.
 #
 #    To sign in with Pocket ID, create the client in the Pocket ID admin UI
 #    with the callback URL https://ai-kb.<domain.name>/api/v1/auth/oidc/callback.
@@ -1057,18 +952,10 @@ schematic_id = ""
 # =============================================================================
 [ai_kb]
 
-# Signs sessions, at least 32 characters. Changing it signs everyone out.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
+# Deploys AI KB.
+# OPTIONAL. Default: false
 
-# jwt_secret = ""
-
-# Encrypts the API keys and credentials AI KB stores, exactly 32 letters and
-# digits. Never change it once set: what it encrypted becomes unreadable.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 16`
-
-# aes_key = ""
+# enabled = false
 
 # The account the app promotes to system administrator at startup, as long as
 # no system administrator exists yet. Create that account first.
@@ -1076,23 +963,21 @@ schematic_id = ""
 
 # admin_email = ""
 
-# The OIDC client created for AI KB in the Pocket ID admin UI.
-# Needs [pocket_id]. Set both or neither.
+# Client ID of the OIDC client created for AI KB in the Pocket ID admin UI.
+# Its secret is the vault field OIDC_CLIENT_SECRET. Needs [pocket_id].
 # OPTIONAL.
 
 # oidc_client_id = ""
-# oidc_client_secret = ""
 
-# The app's own RustFS key pair, letters and digits, at least 16 and 32. The
-# provisioning Job creates the ai-kb-files bucket and scopes the pair to it,
-# and a new workspace stores its files there instead of on the data-files
-# volume; a workspace that exists keeps its backend until it is switched in
-# the workspace settings. They are written to a SOPS-encrypted Secret.
-# Needs [rustfs]. Set both or neither.
-# OPTIONAL. Example: the output of `openssl rand -hex 16` and `-hex 32`
+# Stores files in RustFS, with the app's own key pair in the vault fields
+# RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY: letters and digits, at least 16 and
+# 32. The provisioning Job creates the ai-kb-files bucket and scopes the pair
+# to it, and a new workspace stores its files there instead of on the
+# data-files volume; a workspace that exists keeps its backend until it is
+# switched in the workspace settings. Needs [rustfs].
+# OPTIONAL. Default: false
 
-# rustfs_access_key = ""
-# rustfs_secret_key = ""
+# rustfs = false
 
 # Sends traces to Langfuse, using the AI KB project key pair from [langfuse].
 # AI KB wraps its chat, embedding, rerank, VLM and ASR models and its
@@ -1100,7 +985,7 @@ schematic_id = ""
 # full prompts and answers and the chunk text of every ingested document. It
 # stays off until AI KB's tracer has a metadata-only mode. Langfuse creates
 # the project keys on its first start only, so a later change to the pair in
-# cluster.toml must also be made in Langfuse's project settings, or every
+# the vault must also be made in Langfuse's project settings, or every
 # export gets 401 silently.
 # Needs [langfuse].
 # OPTIONAL. Default: false
@@ -1109,55 +994,48 @@ schematic_id = ""
 
 # Turns on GraphRAG: the chart's Neo4j runs in the ai-kb namespace on a 10Gi
 # local-path volume, and a knowledge base with graph extraction on makes extra
-# LocalAI calls for every document it imports. This is the password of Neo4j's
-# neo4j user, letters and digits, at least 32. Neo4j stores it on its first
-# start, so a later change must also be made inside Neo4j, or the app cannot
-# sign in. The app tries Neo4j 30 times, two seconds apart, then exits, so on
-# a fresh enable it restarts until Neo4j answers.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 16`
+# LocalAI calls for every document it imports. The vault field NEO4J_PASSWORD
+# is the password of Neo4j's neo4j user, letters and digits, at least 32. Neo4j
+# stores it on its first start, so a later change must also be made inside
+# Neo4j, or the app cannot sign in. The app tries Neo4j 30 times, two seconds
+# apart, then exits, so on a fresh enable it restarts until Neo4j answers.
+# OPTIONAL. Default: false
 
-# neo4j_password = ""
+# neo4j = false
 
 # Turns on SearXNG, a metasearch engine in the ai-kb namespace that AI KB uses
 # for web search. It is internal only and answers JSON only, with no route and
 # the rate limiter off, and only the AI KB app pod can reach it. It queries
 # SearXNG's default general engines (DuckDuckGo, Brave, Wikipedia and others);
 # from one home address some answer with a CAPTCHA at times, and the answer
-# lists them as unresponsive. This is its secret key, letters and digits, at
-# least 32. After the next reconcile, add the provider in AI KB under
-# Settings > Web Search, type SearXNG, with the Instance URL
+# lists them as unresponsive. The vault field SEARXNG_SECRET is its secret key,
+# letters and digits, at least 32. After the next reconcile, add the provider
+# in AI KB under Settings > Web Search, type SearXNG, with the Instance URL
 # http://searxng.ai-kb.svc.cluster.local:8080.
-# It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
+# OPTIONAL. Default: false
 
-# searxng_secret = ""
+# searxng = false
 
 
 # =============================================================================
 #    RustFS, an S3-compatible object store for the cluster's own apps, at
 #    http://rustfs-svc.rustfs.svc.cluster.local:9000 (path-style requests,
 #    region us-east-1). It is not exposed on a gateway and its console is
-#    off. Set all three fields to enable; leaving them blank skips it.
+#    off. Set enabled and node to enable. The vault item `rustfs` holds the
+#    root key pair, ACCESS_KEY and SECRET_KEY: letters and digits, at least 16
+#    and 32.
 #
 #    It runs standalone: one pod and one local-path volume on the worker in
 #    node, so every object lives on that node's disk and nowhere else. An app
-#    that stores files here sets its own key pair in its own section; a Job
+#    that stores files here keeps its own key pair in its own vault item; a Job
 #    then creates the app's bucket and a service account scoped to it.
 # =============================================================================
 [rustfs]
 
-# Root access key, letters and digits, at least 16. It is written to a
-# SOPS-encrypted Secret. Set all three fields together, or none.
-# OPTIONAL. Example: the output of `openssl rand -hex 16`
+# Deploys RustFS.
+# OPTIONAL. Default: false
 
-# access_key = ""
-
-# Root secret key, letters and digits, at least 32. It is written to a
-# SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# secret_key = ""
+# enabled = false
 
 # The worker that holds the volume: one of the [[nodes]] names, not a
 # controller. The pod is pinned to it, because the volume cannot move.
@@ -1165,81 +1043,56 @@ schematic_id = ""
 
 # node = ""
 
+# Raise it after changing a consumer's key pair in the vault, so the
+# provisioning Job is recreated and runs again.
+# OPTIONAL. Default: 0
+
+# keys_revision = 0
+
 
 # =============================================================================
 #    Langfuse, LLM tracing for AI KB, served at https://langfuse.<domain.name>
 #    on the internal gateway. It signs users in with Pocket ID itself.
 #    Needs [postgres.backup], [redis], [pocket_id] and [rustfs].
-#    Set all ten fields to enable; leaving them blank skips it.
+#    Set enabled and oidc_client_id to enable.
 #
 #    Create the client in the Pocket ID admin UI with the callback URL
 #    https://langfuse.<domain.name>/api/auth/callback/custom and restrict it
 #    to the cluster_admins group: every Pocket ID user the client admits
-#    joins the Home organization as an admin on first sign-in.
+#    joins the Home organization as an admin on first sign-in. Sign-up stays
+#    on, so the client's group is what decides who gets in.
+#
+#    The vault item `langfuse` holds PUBLIC_KEY and SECRET_KEY (the AI KB
+#    project's key pair: "pk-lf-" or "sk-lf-" and then at least 32 letters,
+#    digits or hyphens), SALT (hashes the API keys, letters and digits, at
+#    least 32), ENCRYPTION_KEY (encrypts stored LLM and integration keys,
+#    exactly 64 hex characters), NEXTAUTH_SECRET (signs sessions, letters and
+#    digits, at least 32), OIDC_CLIENT_SECRET, CLICKHOUSE_PASSWORD (the
+#    langfuse user in the namespace's own ClickHouse, letters and digits, at
+#    least 24), and RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY (the app's own
+#    RustFS pair, letters and digits, at least 16 and 32). Never change SALT
+#    or ENCRYPTION_KEY once set: every API key stops working, and what was
+#    encrypted becomes unreadable.
 #
 #    On its first start Langfuse creates the Home organization, the AI KB
-#    project and that project's key pair from public_key and secret_key.
+#    project and that project's key pair from PUBLIC_KEY and SECRET_KEY.
 #    It only creates them when they are absent, so a later change to the pair
-#    must also be made in the project settings.
+#    must also be made in the project settings. The provisioning Job creates
+#    the langfuse-events bucket; Langfuse writes every raw event there before
+#    it processes it, so the bucket has no expiry and grows with tracing.
 # =============================================================================
 [langfuse]
 
-# The AI KB project's public key: "pk-lf-" and then at least 32 letters,
-# digits or hyphens. Set all ten fields together, or none.
-# OPTIONAL. Example: the output of `echo "pk-lf-$(uuidgen | tr A-Z a-z)"`
+# Deploys Langfuse.
+# OPTIONAL. Default: false
 
-# public_key = ""
+# enabled = false
 
-# The AI KB project's secret key: "sk-lf-" and then at least 32 letters,
-# digits or hyphens. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `echo "sk-lf-$(uuidgen | tr A-Z a-z)"`
-
-# secret_key = ""
-
-# Hashes the API keys, letters and digits, at least 32. Never change it once
-# set: every API key stops working. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
-
-# salt = ""
-
-# Encrypts the LLM and integration keys Langfuse stores, exactly 64 hex
-# characters. Never change it once set: what it encrypted becomes
-# unreadable. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# encryption_key = ""
-
-# Signs sessions, letters and digits, at least 32. Changing it signs
-# everyone out. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
-
-# nextauth_secret = ""
-
-# The OIDC client created by hand in the Pocket ID admin UI, with the callback
-# URL https://langfuse.<domain.name>/api/auth/callback/custom and restricted
-# to the cluster_admins group. Sign-up stays on, so the client's group is
-# what decides who gets in. The secret is written to a SOPS-encrypted Secret.
+# Client ID of the OIDC client created for Langfuse in Pocket ID.
 # OPTIONAL.
 
 # oidc_client_id = ""
-# oidc_client_secret = ""
 
-# The password of the langfuse user in the namespace's own ClickHouse,
-# letters and digits, at least 24. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo`
-
-# clickhouse_password = ""
-
-# The app's own RustFS key pair, letters and digits, at least 16 and 32. The
-# provisioning Job creates the langfuse-events bucket and scopes the pair to
-# it; Langfuse writes every raw event there before it processes it and reads
-# them back for trace detail, so the bucket has no expiry and grows with
-# tracing; measure it after a month. They are written to a SOPS-encrypted
-# Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 16` and `-hex 32`
-
-# rustfs_access_key = ""
-# rustfs_secret_key = ""
 
 # =============================================================================
 #    It's a Plan, an issue tracker and project board, served at
@@ -1247,31 +1100,20 @@ schematic_id = ""
 #    the first account registered becomes the instance admin, and a Pocket ID
 #    sign-in is added later in its god mode.
 #    Needs [postgres.backup] and [rustfs].
-#    Set all four fields to enable; leaving them blank skips it.
+#    The vault item `itsaplan` holds BETTER_AUTH_SECRET (signs sessions, at
+#    least 32 characters), APP_ENCRYPTION_KEY (encrypts the AI provider keys
+#    and integration credentials the app stores, at least 32 characters; never
+#    change it once set), and RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY (the
+#    app's own RustFS pair, letters and digits, at least 16 and 32, which the
+#    provisioning Job scopes to the itsaplan-attachments bucket).
 # =============================================================================
 [itsaplan]
 
-# Signs sessions, at least 32 characters. Changing it signs everyone out.
-# Set all four fields together, or none. It is written to a SOPS-encrypted
-# Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+# Deploys It's a Plan.
+# OPTIONAL. Default: false
 
-# better_auth_secret = ""
+# enabled = false
 
-# Encrypts the AI provider keys and integration credentials the app stores,
-# at least 32 characters. Never change it once set: the rows it encrypted
-# become unreadable. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
-
-# app_encryption_key = ""
-
-# The app's own RustFS key pair, letters and digits, at least 16 and 32. The
-# provisioning Job creates the itsaplan-attachments bucket and scopes the pair
-# to it. They are written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 16` and `-hex 32`
-
-# rustfs_access_key = ""
-# rustfs_secret_key = ""
 
 # =============================================================================
 #    CLIProxyAPI, an OpenAI-, Anthropic- and Gemini-compatible proxy that pools
@@ -1280,50 +1122,41 @@ schematic_id = ""
 #    https://llms-admin.<domain.name>. Both are on the internal gateway only.
 #    The manager's admin key is its only login, and the provider logins are
 #    added in the manager UI.
-#    Set all three fields to enable; leaving them blank skips it.
+#
+#    The vault item `cliproxyapi` holds MANAGEMENT_KEY (the proxy's
+#    remote-management key), API_KEY (the one client key for
+#    https://llms.<domain.name>, sent as a bearer token) and MANAGER_ADMIN_KEY
+#    (the manager's own login key), each at least 32 characters. The first two
+#    are seeded into the app's config once: the app replaces the management key
+#    with its bcrypt hash on the volume, and a later change reaches a running
+#    proxy only by re-seeding, which resets every setting made in the manager
+#    UI except the provider logins.
 # =============================================================================
 [cliproxyapi]
 
-# CLIProxyAPI's remote-management key, at least 32 characters. Git seeds it
-# into the app's config once; the app then replaces it with its bcrypt hash
-# on the volume, and the manager keeps the plaintext. Set all three fields
-# together, or none. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+# Deploys the proxy and its manager.
+# OPTIONAL. Default: false
 
-# management_key = ""
+# enabled = false
 
-# The one client key for https://llms.<domain.name>, at least 32 characters.
-# Claude Code, Codex and the other clients send it as a bearer token. Like
-# management_key it is seeded once: a change here reaches a running proxy only
-# by re-seeding, which resets every setting made in the manager UI except the
-# provider logins. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 48; echo`
+# Deploys Oh-My-CPA, a second console for the same proxy at
+# https://llms-mgmt.<domain.name>, signed in with MANAGEMENT_KEY. The vault
+# field OHMYCPA_MASTER_KEY is its at-rest encryption key for the stored
+# credentials and usage payloads, exactly 64 hex characters. Never change it
+# once the console has data, because nothing stored can be read without it.
+# Needs enabled.
+# OPTIONAL. Default: false
 
-# api_key = ""
+# ohmycpa = false
 
-# The manager's own login key, at least 32 characters. It is written to a
-# SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `echo "cpamp_$(openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 40)"`
-
-# manager_admin_key = ""
-
-# Oh-My-CPA, a second console for the same proxy at https://llms-mgmt.<domain.name>,
-# signed in with management_key. This is its at-rest encryption key for the
-# stored credentials and usage payloads, exactly 64 hex characters. Set it to
-# deploy the console; leave it blank to skip. Never change it once the console
-# has data, because nothing stored can be read without it. It is written to a
-# SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# ohmycpa_master_key = ""
-
-# A GitHub fine-grained token with no permissions, for the proxy's plugin store:
+# Writes the GitHub token in the vault field GITHUB_TOKEN, a fine-grained
+# token with no permissions, to the seed config for the proxy's plugin store:
 # release lookups on the public plugin repositories run unauthenticated at 60
-# requests an hour without it. It is written to the seed config, so a change
-# reaches a running proxy only by re-seeding.
-# OPTIONAL. Example: "github_pat_..."
+# requests an hour without it. A change reaches a running proxy only by
+# re-seeding. Needs enabled.
+# OPTIONAL. Default: false
 
-# github_token = ""
+# github = false
 
 
 # =============================================================================
@@ -1341,81 +1174,62 @@ schematic_id = ""
 #    callback URL https://career.<domain.name>/oauth2/callback, restricted to
 #    the cluster_admins group, and one with the callback URL
 #    https://cv.<domain.name>/api/auth/callback/pocket-id. To enable, set
-#    every field below except public and publish_api_key, with one Claude
-#    credential: claude_oauth_token, or the anthropic_base_url pair.
-#    Leaving them blank skips it.
+#    enabled and the two client IDs below.
+#
+#    The vault item `career-ops` holds OIDC_CLIENT_SECRET and
+#    PUBLISH_OIDC_CLIENT_SECRET, PUBLISH_SECRET (signs the share pages' access
+#    cookies and feedback links) and PUBLISH_AUTH_SECRET (Better Auth's secret
+#    for the publish account page), each at least 32 characters,
+#    PUBLISH_ALLOWED_EMAILS (the addresses, joined by commas, allowed to sign
+#    in to https://cv.<domain.name>/account and mint API keys; Pocket ID must
+#    report email_verified for them), and one Claude credential, named by
+#    claude_credential below.
 # =============================================================================
 [career_ops]
+
+# Deploys the dashboard and the publish service.
+# OPTIONAL. Default: false
+
+# enabled = false
 
 # Client ID of the dashboard's OIDC client in Pocket ID.
 # OPTIONAL.
 
 # oidc_client_id = ""
 
-# Client secret of that client. Pocket ID shows it once, when the client is
-# created. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
+# Which Claude credential the dashboard's scans run with. "oauth" reads the
+# vault field CLAUDE_OAUTH_TOKEN, from `claude setup-token` on the Mac, which
+# lasts one year. "proxy" reads ANTHROPIC_AUTH_TOKEN, the client key the
+# dashboard sends to anthropic_base_url as a bearer token: the API_KEY of
+# [cliproxyapi], or a key of its own, which the proxy's seed config then lists
+# as a second client key so the usage pages show the dashboard's traffic
+# apart.
+# OPTIONAL. Default: "oauth". Allowed: "oauth" | "proxy"
 
-# oidc_client_secret = ""
-
-# The Claude login the dashboard's scans run with, from `claude setup-token`
-# on the Mac. It lasts one year. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# claude_oauth_token = ""
+# claude_credential = "oauth"
 
 # The in-cluster CLIProxyAPI Service the dashboard's Claude CLI calls in place
-# of Anthropic, so scans draw on the pooled [cliproxyapi] seats. This pair
-# replaces claude_oauth_token: set the token or the pair, never both. The URL
+# of Anthropic, so scans draw on the pooled [cliproxyapi] seats. The URL
 # carries no /v1 and no trailing slash, and the proxy's NetworkPolicy admits
 # the dashboard pod.
-# OPTIONAL. Example: "http://cliproxyapi.llms.svc.cluster.local:8317"
+# REQUIRED when claude_credential is "proxy", unset otherwise.
+# Example: "http://cliproxyapi.llms.svc.cluster.local:8317"
 
 # anthropic_base_url = ""
 
-# The client key the dashboard sends to that URL as a bearer token: the
-# api_key in [cliproxyapi], or a key of its own, which the proxy's seed config
-# then lists as a second client key so the usage pages show the dashboard's
-# traffic apart. A proxy that already runs takes a new key from the manager
-# console, not from the seed. It is written to a SOPS-encrypted Secret.
-# OPTIONAL.
-
-# anthropic_auth_token = ""
-
-# Signs the share pages' access cookies and feedback links, at least 32
-# characters. Changing it logs every visitor out and breaks every feedback
-# link. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# publish_secret = ""
-
-# Better Auth's secret for the publish account page, at least 32 characters.
-# Changing it signs everyone out. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: the output of `openssl rand -hex 32`
-
-# publish_auth_secret = ""
-
-# Client ID and secret of the publish account page's OIDC client in Pocket
-# ID. Pocket ID must report email_verified for the accounts below. The secret
-# is written to a SOPS-encrypted Secret.
+# Client ID of the publish account page's OIDC client in Pocket ID.
 # OPTIONAL.
 
 # publish_oidc_client_id = ""
-# publish_oidc_client_secret = ""
 
-# The email addresses allowed to sign in to https://cv.<domain.name>/account
-# and mint API keys. Anyone else is refused at sign-in.
-# REQUIRED when the section is set. Example: ["me@example.com"]
+# Gives the dashboard's share features the API key in the vault field
+# PUBLISH_API_KEY, minted after the first deploy: sign in at
+# https://cv.<domain.name>/account with Pocket ID (type the URL, the share
+# pages do not link it) and create a key; it is shown once. Turning it on
+# restarts the dashboard pod. Needs enabled.
+# OPTIONAL. Default: false
 
-# publish_allowed_emails = []
-
-# An API key for the dashboard's share features, minted after the first deploy:
-# sign in at https://cv.<domain.name>/account with Pocket ID (type the URL,
-# the share pages do not link it) and create a key; it is shown once. Setting
-# it restarts the dashboard pod. It is written to a SOPS-encrypted Secret.
-# OPTIONAL. Example: "cops_..."
-
-# publish_api_key = ""
+# publish = false
 
 # Also serves the dashboard on the external gateway, so the internet reaches
 # it. Needs pocket_id.public = true, because a visitor from the internet must
@@ -1429,18 +1243,18 @@ schematic_id = ""
 #    A self-hosted GitHub Actions runner scale set in the cluster, which the
 #    weekly update-apps workflow uses for its apply job (`runs-on: home-cluster`).
 #    The runner registers at repository scope, scales from zero and runs one
-#    job at a time. Set the token to enable; leaving it blank skips it.
+#    job at a time. The vault item `github-runner` holds TOKEN: a
+#    fine-grained personal access token for the repository with the
+#    Administration permission at Read and write, the only permission a
+#    repository-level runner scale set needs. Give it an expiry and note the
+#    date; the runner stops picking up jobs when it lapses.
 # =============================================================================
 [github_runner]
 
-# A fine-grained personal access token for the repository with the
-# Administration permission at Read and write, the only permission a
-# repository-level runner scale set needs. Give it an expiry and note the
-# date; the runner stops picking up jobs when it lapses. It is written to a
-# SOPS-encrypted Secret.
-# OPTIONAL. Example: "github_pat_..." from https://github.com/settings/personal-access-tokens/new
+# Deploys the runner scale set.
+# OPTIONAL. Default: false
 
-# token = ""
+# enabled = false
 
 
 # =============================================================================

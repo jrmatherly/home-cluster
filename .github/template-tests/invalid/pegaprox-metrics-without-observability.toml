@@ -1,6 +1,6 @@
 # Negative fixture: PegaProx metrics enabled without [observability].
 # Expected to be rejected: its Prometheus scrapes the metrics endpoint.
-# expect: pegaprox.metrics_token requires observability: it is scraped by its Prometheus
+# expect: pegaprox.metrics requires observability: it is scraped by its Prometheus
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,14 +16,16 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
 
 [pegaprox]
-db_key = "fakefakefakefakefakefakefakefakefakefakeabc="
-metrics_token = "fake"
+enabled = true
+metrics = true
 
 [[nodes]]
 name = "k8s-0"

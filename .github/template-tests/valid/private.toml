@@ -19,10 +19,11 @@ vault = "homelab"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [localai]
-api_key = "fakefakefakefakefakefakefakefake"
 
 [[nodes]]
 name = "k8s-0"

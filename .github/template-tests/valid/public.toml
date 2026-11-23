@@ -29,7 +29,9 @@ vault = "homelab"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [cilium]
 loadbalancer_mode = "dsr"
@@ -41,7 +43,6 @@ node_asn = "64514"
 
 [cilium.hubble]
 oidc_client_id = "fake-hubble-client"
-oidc_client_secret = "fake-hubble-client-secret"
 
 [talos]
 schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
@@ -49,94 +50,67 @@ schematic_id = "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [etcd_backup]
-bucket = "fake-etcd"
-access_key = "fake-etcd"
-secret_key = "fake"
+enabled = true
 
 [volume_backup]
-bucket = "fake-volumes"
-access_key = "fake-volumes"
-secret_key = "fake"
+enabled = true
 
 [observability]
-grafana_password = "fake"
-influxdb_password = "fakefake"
-influxdb_token = "fake"
-discord_webhook = "https://discord.com/api/webhooks/123456789012345678/example-token"
-heartbeat_url = "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
+enabled = true
+discord = true
+heartbeat = true
+secret_key = true
 grafana_oidc_client_id = "fake-grafana-client"
-grafana_oidc_client_secret = "fake-grafana-client-secret"
-grafana_secret_key = "fake-grafana-secret-key-32-chars"
 github_app_id = "123456"
 github_app_installation_id = "12345678"
-github_app_private_key = '''
------BEGIN RSA PRIVATE KEY-----
-MIIEfakefakefakefakefakefakefakefakefakefakefakefakefakefakefake
-ZmFrZQ==
------END RSA PRIVATE KEY-----
-'''
 sentry_org = "fake-org"
-sentry_token = "fake-sentry-token"
 sentry_url = "https://us.sentry.io"
 proxmox_hosts = ["10.10.10.2", "10.10.10.3"]
 
 [unifi]
 host = "https://192.0.2.1"
-api_key = "fake"
 
 [pocket_id]
-encryption_key = "fakefakefakefake"
+enabled = true
 public = true
 
 [radar]
 oidc_client_id = "fake"
-oidc_client_secret = "fake"
 
 [matherlynet]
 google_client_id = "google-client-id"
-google_client_secret = "google-client-secret"
-better_auth_secret = "fake"
-admin_email = "admin@example.com"
-smtp_url = "smtps://fake:fake@smtp.example.com:465"
-mail_from = "matherlynet <noreply@example.com>"
+enabled = true
+smtp = true
+mail = true
+github = true
+google = true
 github_client_id = "fake-github-client"
-github_client_secret = "fake"
 playground = true
 
 [reactive_resume]
-auth_secret = "fakefakefakefakefakefakefakefake"
-encryption_secret = "fakefakefakefakefakefakefakefake"
+enabled = true
 oidc_client_id = "fake-resume-client"
-oidc_client_secret = "fake"
-s3_endpoint = "https://fake.r2.cloudflarestorage.com"
 s3_bucket = "fake-resume"
-s3_access_key_id = "fake"
-s3_secret_access_key = "fake"
 
 [redis]
-password = "fakefakefakefakefakefakefakefake"
+enabled = true
 
 [kener]
-secret_key = "fakefakefakefakefakefakefakefake"
-smtp_url = "smtp://fake:fake@smtp.example.com:587"
-mail_from = "status@example.com"
+enabled = true
+smtp = true
 
 [network_optimizer]
-app_password = "fakefake1"
+enabled = true
 oidc_client_id = "fake-network-optimizer"
-oidc_client_secret = "fake-network-optimizer-secret"
 
 [pegaprox]
-db_key = "fakefakefakefakefakefakefakefakefakefakeabc="
-metrics_token = "fake"
+enabled = true
+metrics = true
 
 [actual_budget]
 oidc_client_id = "fake-actual-budget"
-oidc_client_secret = "fake-actual-budget-secret"
 public = true
 
 [media]
@@ -144,91 +118,56 @@ nfs_server = "10.10.10.50"
 nfs_share = "/srv/media"
 node = "k8s-1"
 timezone = "America/Chicago"
-sonarr_api_key = "fakefakefakefakefakefakefakefak1"
-radarr_api_key = "fakefakefakefakefakefakefakefak2"
-prowlarr_api_key = "fakefakefakefakefakefakefakefak3"
-sabnzbd_api_key = "fakefakefakefakefakefakefakefak4"
-sabnzbd_nzb_key = "fakefakefakefakefakefakefakefak5"
 oidc_client_id = "fake-media"
-oidc_client_secret = "fake-media-secret"
 recyclarr = true
 plex_host = "10.10.10.60"
-plex_token = "fake-plex-token"
 public = true
 
 [localai]
-api_key = "fakefakefakefakefakefakefakefake"
 oidc_client_id = "fake-localai"
-oidc_client_secret = "fake-localai-secret"
 
 [ai_workspace]
 oidc_client_id = "fake-ai-workspace"
-oidc_client_secret = "fake-ai-workspace-secret"
-auth_secret = "fakefakefakefakefakefakefakefake"
-allowed_emails = ["owner@example.com", "@family.example.com"]
-admin_emails = ["admin@family.example.com"]
-browsing_token = "fakefakefakefakefakefakefakefake"
+allowlist = true
+admins = true
+browsing = true
+env_keys = ["ANTHROPIC_API_KEY"]
 public = true
 
-[ai_workspace.env]
-ANTHROPIC_API_KEY = "fake-anthropic-key"
-
 [ai_kb]
-jwt_secret = "fakefakefakefakefakefakefakefake"
-aes_key = "fakefakefakefakefakefakefakefake"
+enabled = true
+rustfs = true
+neo4j = true
+searxng = true
 admin_email = "admin@example.com"
 oidc_client_id = "ai-kb"
-oidc_client_secret = "fakefakefakefakefakefakefakefake"
-rustfs_access_key = "aikbfakefakefake"
-rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 tracing = true
-neo4j_password = "fakefakefakefakefakefakefakefake"
-searxng_secret = "fakefakefakefakefakefakefakefake"
 
 [rustfs]
-access_key = "fakefakefakefake"
-secret_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 node = "k8s-1"
 
 [langfuse]
-public_key = "pk-lf-fakefakefakefakefakefakefakefake"
-secret_key = "sk-lf-fakefakefakefakefakefakefakefake"
-salt = "fakefakefakefakefakefakefakefake"
-encryption_key = "0000000000000000000000000000000000000000000000000000000000000000"
-nextauth_secret = "fakefakefakefakefakefakefakefake"
+enabled = true
 oidc_client_id = "langfuse"
-oidc_client_secret = "fakefakefakefakefakefakefakefake"
-clickhouse_password = "fakefakefakefakefakefakefake"
-rustfs_access_key = "langfusefakefake"
-rustfs_secret_key = "fakefakefakefakefakefakefakefake"
 
 [itsaplan]
-better_auth_secret = "fakefakefakefakefakefakefakefakefake"
-app_encryption_key = "fakefakefakefakefakefakefakefakefake"
-rustfs_access_key = "itsaplanfakefake"
-rustfs_secret_key = "fakefakefakefakefakefakefakefakefake"
+enabled = true
 
 [cliproxyapi]
-management_key = "fakefakefakefakefakefakefakefakefake"
-api_key = "fakefakefakefakefakefakefakefakefake"
-manager_admin_key = "cpamp_fakefakefakefakefakefakefakefake"
-ohmycpa_master_key = "0000000000000000000000000000000000000000000000000000000000000000"
-github_token = "github_pat_fakefakefakefakefakefake"
+enabled = true
+ohmycpa = true
+github = true
 
 [career_ops]
 oidc_client_id = "fake-career-ops"
-oidc_client_secret = "fake-career-ops-secret"
-claude_oauth_token = "fake-claude-oauth-token"
-publish_secret = "fakefakefakefakefakefakefakefakefake"
-publish_auth_secret = "fakefakefakefakefakefakefakefakefake"
+enabled = true
+publish = true
 publish_oidc_client_id = "fake-publish"
-publish_oidc_client_secret = "fake-publish-secret"
-publish_allowed_emails = ["me@example.com"]
-publish_api_key = "cops_fakefakefakefakefakefake"
 public = true
 
 [github_runner]
-token = "github_pat_fakefakefakefakefakefake"
+enabled = true
 
 [[nodes]]
 name = "k8s-0"

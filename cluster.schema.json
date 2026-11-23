@@ -10,10 +10,6 @@
           "title": "Oidc Client Id",
           "type": "string"
         },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
         "public": {
           "default": false,
           "title": "Public",
@@ -26,15 +22,10 @@
     "AiKb": {
       "additionalProperties": false,
       "properties": {
-        "jwt_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
-        "aes_key": {
-          "default": "",
-          "pattern": "^([A-Za-z0-9]{32})?$",
-          "title": "Aes Key",
-          "type": "string"
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
         "admin_email": {
           "$ref": "#/$defs/EmailAddress",
@@ -46,30 +37,25 @@
           "title": "Oidc Client Id",
           "type": "string"
         },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "rustfs_access_key": {
-          "$ref": "#/$defs/S3AccessKey",
-          "default": ""
-        },
-        "rustfs_secret_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "rustfs": {
+          "default": false,
+          "title": "Rustfs",
+          "type": "boolean"
         },
         "tracing": {
           "default": false,
           "title": "Tracing",
           "type": "boolean"
         },
-        "neo4j_password": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "neo4j": {
+          "default": false,
+          "title": "Neo4J",
+          "type": "boolean"
         },
-        "searxng_secret": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "searxng": {
+          "default": false,
+          "title": "Searxng",
+          "type": "boolean"
         }
       },
       "title": "AiKb",
@@ -84,48 +70,34 @@
           "title": "Oidc Client Id",
           "type": "string"
         },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "allowlist": {
+          "default": false,
+          "title": "Allowlist",
+          "type": "boolean"
         },
-        "auth_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
+        "admins": {
+          "default": false,
+          "title": "Admins",
+          "type": "boolean"
         },
-        "allowed_emails": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/EmailRule"
-          },
-          "title": "Allowed Emails",
-          "type": "array"
-        },
-        "admin_emails": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/EmailAddress"
-          },
-          "title": "Admin Emails",
-          "type": "array"
-        },
-        "browsing_token": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "browsing": {
+          "default": false,
+          "title": "Browsing",
+          "type": "boolean"
         },
         "public": {
           "default": false,
           "title": "Public",
           "type": "boolean"
         },
-        "env": {
-          "default": {},
-          "patternProperties": {
-            "^[A-Z][A-Z0-9_]*$": {
-              "$ref": "#/$defs/Secret"
-            }
+        "env_keys": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "type": "string"
           },
-          "title": "Env",
-          "type": "object"
+          "title": "Env Keys",
+          "type": "array"
         }
       },
       "title": "AiWorkspace",
@@ -158,10 +130,6 @@
       "required": ["addr"],
       "title": "Api",
       "type": "object"
-    },
-    "ApiKey": {
-      "pattern": "^([A-Za-z0-9]{32,})?$",
-      "type": "string"
     },
     "Asn": {
       "type": "string"
@@ -198,19 +166,22 @@
     "CareerOps": {
       "additionalProperties": false,
       "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
         "oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
         },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "claude_oauth_token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "claude_credential": {
+          "default": "oauth",
+          "enum": ["oauth", "proxy"],
+          "title": "Claude Credential",
+          "type": "string"
         },
         "anthropic_base_url": {
           "default": "",
@@ -218,39 +189,16 @@
           "title": "Anthropic Base Url",
           "type": "string"
         },
-        "anthropic_auth_token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "publish_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
-        "publish_auth_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
         "publish_oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Publish Oidc Client Id",
           "type": "string"
         },
-        "publish_oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "publish_allowed_emails": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/EmailAddress"
-          },
-          "title": "Publish Allowed Emails",
-          "type": "array"
-        },
-        "publish_api_key": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "publish": {
+          "default": false,
+          "title": "Publish",
+          "type": "boolean"
         },
         "public": {
           "default": false,
@@ -285,8 +233,7 @@
         "hubble": {
           "$ref": "#/$defs/Hubble",
           "default": {
-            "oidc_client_id": "",
-            "oidc_client_secret": ""
+            "oidc_client_id": ""
           }
         }
       },
@@ -296,28 +243,20 @@
     "CliProxyApi": {
       "additionalProperties": false,
       "properties": {
-        "management_key": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
-        "api_key": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
+        "ohmycpa": {
+          "default": false,
+          "title": "Ohmycpa",
+          "type": "boolean"
         },
-        "manager_admin_key": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
-        "ohmycpa_master_key": {
-          "default": "",
-          "pattern": "^$|^[0-9a-f]{64}$",
-          "title": "Ohmycpa Master Key",
-          "type": "string"
-        },
-        "github_token": {
-          "default": "",
-          "title": "Github Token",
-          "type": "string"
+        "github": {
+          "default": false,
+          "title": "Github",
+          "type": "boolean"
         }
       },
       "title": "CliProxyApi",
@@ -330,11 +269,6 @@
           "default": "cloudflare",
           "enum": ["cloudflare", "none"],
           "title": "Provider",
-          "type": "string"
-        },
-        "token": {
-          "default": "",
-          "title": "Token",
           "type": "string"
         }
       },
@@ -356,26 +290,13 @@
       "pattern": "^[^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+$",
       "type": "string"
     },
-    "EmailRule": {
-      "pattern": "^([^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+|@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+)$",
-      "type": "string"
-    },
     "EtcdBackup": {
       "additionalProperties": false,
       "properties": {
-        "bucket": {
-          "default": "",
-          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
-          "title": "Bucket",
-          "type": "string"
-        },
-        "access_key": {
-          "$ref": "#/$defs/UrlCredential",
-          "default": ""
-        },
-        "secret_key": {
-          "$ref": "#/$defs/UrlCredential",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         }
       },
       "title": "EtcdBackup",
@@ -419,9 +340,10 @@
     "GithubRunner": {
       "additionalProperties": false,
       "properties": {
-        "token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         }
       },
       "title": "GithubRunner",
@@ -435,10 +357,6 @@
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
-        },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "Hubble",
@@ -452,6 +370,12 @@
           "enum": ["cloudflare-tunnel", "direct", "none"],
           "title": "Mode",
           "type": "string"
+        },
+        "tunnel_id": {
+          "default": "",
+          "pattern": "^[A-Za-z0-9-]*$",
+          "title": "Tunnel Id",
+          "type": "string"
         }
       },
       "title": "Ingress",
@@ -460,21 +384,10 @@
     "Itsaplan": {
       "additionalProperties": false,
       "properties": {
-        "better_auth_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
-        "app_encryption_key": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
-        "rustfs_access_key": {
-          "$ref": "#/$defs/S3AccessKey",
-          "default": ""
-        },
-        "rustfs_secret_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         }
       },
       "title": "Itsaplan",
@@ -483,23 +396,15 @@
     "Kener": {
       "additionalProperties": false,
       "properties": {
-        "secret_key": {
-          "default": "",
-          "pattern": "^([^\"\\\\\\s$]{32,})?$",
-          "title": "Secret Key",
-          "type": "string"
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
-        "smtp_url": {
-          "default": "",
-          "pattern": "^(smtps?://[^\"\\\\\\s$]+)?$",
-          "title": "Smtp Url",
-          "type": "string"
-        },
-        "mail_from": {
-          "default": "",
-          "pattern": "^[^\"\\\\$\\r\\n]*$",
-          "title": "Mail From",
-          "type": "string"
+        "smtp": {
+          "default": false,
+          "title": "Smtp",
+          "type": "boolean"
         }
       },
       "title": "Kener",
@@ -532,55 +437,16 @@
     "Langfuse": {
       "additionalProperties": false,
       "properties": {
-        "public_key": {
-          "default": "",
-          "pattern": "^(pk-lf-[A-Za-z0-9-]{32,})?$",
-          "title": "Public Key",
-          "type": "string"
-        },
-        "secret_key": {
-          "default": "",
-          "pattern": "^(sk-lf-[A-Za-z0-9-]{32,})?$",
-          "title": "Secret Key",
-          "type": "string"
-        },
-        "salt": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
-        "encryption_key": {
-          "default": "",
-          "pattern": "^([0-9a-fA-F]{64})?$",
-          "title": "Encryption Key",
-          "type": "string"
-        },
-        "nextauth_secret": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
         "oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
-        },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "clickhouse_password": {
-          "default": "",
-          "pattern": "^([A-Za-z0-9]{24,})?$",
-          "title": "Clickhouse Password",
-          "type": "string"
-        },
-        "rustfs_access_key": {
-          "$ref": "#/$defs/S3AccessKey",
-          "default": ""
-        },
-        "rustfs_secret_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
         }
       },
       "title": "Langfuse",
@@ -589,52 +455,33 @@
     "LocalAi": {
       "additionalProperties": false,
       "properties": {
-        "api_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
         "oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
-        },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "LocalAi",
       "type": "object"
     },
-    "LongSecret": {
-      "pattern": "^([^\"\\\\\\s$]{32,})?$",
-      "type": "string"
-    },
     "Matherlynet": {
       "additionalProperties": false,
       "properties": {
-        "better_auth_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
-        "admin_email": {
-          "default": "",
-          "pattern": "^([^\\s\"\\\\$,@]+@[^\\s\"\\\\$,@]+\\.[^\\s\"\\\\$,@]+)?$",
-          "title": "Admin Email",
-          "type": "string"
+        "smtp": {
+          "default": false,
+          "title": "Smtp",
+          "type": "boolean"
         },
-        "smtp_url": {
-          "default": "",
-          "pattern": "^(smtps?://[^\"\\\\\\s$]+)?$",
-          "title": "Smtp Url",
-          "type": "string"
-        },
-        "mail_from": {
-          "default": "",
-          "pattern": "^[^\"\\\\$\\r\\n]*$",
-          "title": "Mail From",
-          "type": "string"
+        "mail": {
+          "default": false,
+          "title": "Mail",
+          "type": "boolean"
         },
         "github_client_id": {
           "default": "",
@@ -642,9 +489,10 @@
           "title": "Github Client Id",
           "type": "string"
         },
-        "github_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "github": {
+          "default": false,
+          "title": "Github",
+          "type": "boolean"
         },
         "google_client_id": {
           "default": "",
@@ -652,9 +500,10 @@
           "title": "Google Client Id",
           "type": "string"
         },
-        "google_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "google": {
+          "default": false,
+          "title": "Google",
+          "type": "boolean"
         },
         "playground": {
           "default": false,
@@ -698,35 +547,11 @@
           "title": "Timezone",
           "type": "string"
         },
-        "sonarr_api_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
-        "radarr_api_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
-        "prowlarr_api_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
-        "sabnzbd_api_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
-        "sabnzbd_nzb_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
-        },
         "oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
-        },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         },
         "recyclarr": {
           "default": false,
@@ -747,14 +572,16 @@
           "default": "",
           "title": "Plex Host"
         },
-        "plex_token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
         "public": {
           "default": false,
           "title": "Public",
           "type": "boolean"
+        },
+        "keys_revision": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Keys Revision",
+          "type": "integer"
         }
       },
       "title": "Media",
@@ -810,21 +637,16 @@
     "NetworkOptimizer": {
       "additionalProperties": false,
       "properties": {
-        "app_password": {
-          "default": "",
-          "pattern": "^([^\"\\\\\\s$]{8,})?$",
-          "title": "App Password",
-          "type": "string"
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
         "oidc_client_id": {
           "default": "",
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
-        },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "NetworkOptimizer",
@@ -902,29 +724,20 @@
     "Observability": {
       "additionalProperties": false,
       "properties": {
-        "grafana_password": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
-        "influxdb_password": {
-          "$ref": "#/$defs/Secret_________s___8_______",
-          "default": ""
+        "discord": {
+          "default": false,
+          "title": "Discord",
+          "type": "boolean"
         },
-        "influxdb_token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "discord_webhook": {
-          "default": "",
-          "pattern": "^(https://discord(app)?\\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+)?$",
-          "title": "Discord Webhook",
-          "type": "string"
-        },
-        "heartbeat_url": {
-          "default": "",
-          "pattern": "^(https://[^\\s\"\\\\]+)?$",
-          "title": "Heartbeat Url",
-          "type": "string"
+        "heartbeat": {
+          "default": false,
+          "title": "Heartbeat",
+          "type": "boolean"
         },
         "grafana_oidc_client_id": {
           "default": "",
@@ -932,13 +745,10 @@
           "title": "Grafana Oidc Client Id",
           "type": "string"
         },
-        "grafana_oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "grafana_secret_key": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
+        "secret_key": {
+          "default": false,
+          "title": "Secret Key",
+          "type": "boolean"
         },
         "github_app_id": {
           "default": "",
@@ -952,21 +762,11 @@
           "title": "Github App Installation Id",
           "type": "string"
         },
-        "github_app_private_key": {
-          "default": "",
-          "pattern": "^(-----BEGIN [A-Z ]+-----\\n[A-Za-z0-9+/=\\n]+-----END [A-Z ]+-----\\n?)?$",
-          "title": "Github App Private Key",
-          "type": "string"
-        },
         "sentry_org": {
           "default": "",
           "pattern": "^[a-z0-9-]*$",
           "title": "Sentry Org",
           "type": "string"
-        },
-        "sentry_token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         },
         "sentry_url": {
           "default": "https://sentry.io",
@@ -1003,15 +803,15 @@
     "PegaProx": {
       "additionalProperties": false,
       "properties": {
-        "db_key": {
-          "default": "",
-          "pattern": "^([A-Za-z0-9_-]{43}=|[0-9a-fA-F]{64})?$",
-          "title": "Db Key",
-          "type": "string"
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
-        "metrics_token": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
+        "metrics": {
+          "default": false,
+          "title": "Metrics",
+          "type": "boolean"
         }
       },
       "title": "PegaProx",
@@ -1020,11 +820,10 @@
     "PocketId": {
       "additionalProperties": false,
       "properties": {
-        "encryption_key": {
-          "default": "",
-          "pattern": "^([^\"\\\\\\s$]{16,})?$",
-          "title": "Encryption Key",
-          "type": "string"
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
         "public": {
           "default": false,
@@ -1042,9 +841,7 @@
           "$ref": "#/$defs/PostgresBackup",
           "default": {
             "endpoint": "",
-            "bucket": "",
-            "access_key_id": "",
-            "secret_access_key": ""
+            "bucket": ""
           }
         }
       },
@@ -1065,14 +862,6 @@
           "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
           "title": "Bucket",
           "type": "string"
-        },
-        "access_key_id": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "secret_access_key": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "PostgresBackup",
@@ -1086,10 +875,6 @@
           "pattern": "^[A-Za-z0-9._~-]*$",
           "title": "Oidc Client Id",
           "type": "string"
-        },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "Radar",
@@ -1098,13 +883,10 @@
     "ReactiveResume": {
       "additionalProperties": false,
       "properties": {
-        "auth_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
-        },
-        "encryption_secret": {
-          "$ref": "#/$defs/LongSecret",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
         "oidc_client_id": {
           "default": "",
@@ -1112,29 +894,11 @@
           "title": "Oidc Client Id",
           "type": "string"
         },
-        "oidc_client_secret": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "s3_endpoint": {
-          "default": "",
-          "pattern": "^(https://[^/\\s]+)?$",
-          "title": "S3 Endpoint",
-          "type": "string"
-        },
         "s3_bucket": {
           "default": "",
           "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
           "title": "S3 Bucket",
           "type": "string"
-        },
-        "s3_access_key_id": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
-        },
-        "s3_secret_access_key": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "ReactiveResume",
@@ -1143,11 +907,10 @@
     "Redis": {
       "additionalProperties": false,
       "properties": {
-        "password": {
-          "default": "",
-          "pattern": "^([A-Za-z0-9]{24,})?$",
-          "title": "Password",
-          "type": "string"
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         }
       },
       "title": "Redis",
@@ -1186,33 +949,24 @@
     "RustFs": {
       "additionalProperties": false,
       "properties": {
-        "access_key": {
-          "$ref": "#/$defs/S3AccessKey",
-          "default": ""
-        },
-        "secret_key": {
-          "$ref": "#/$defs/ApiKey",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         },
         "node": {
           "$ref": "#/$defs/WorkerName",
           "default": ""
+        },
+        "keys_revision": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Keys Revision",
+          "type": "integer"
         }
       },
       "title": "RustFs",
       "type": "object"
-    },
-    "S3AccessKey": {
-      "pattern": "^([A-Za-z0-9]{16,})?$",
-      "type": "string"
-    },
-    "Secret": {
-      "pattern": "^[^\"\\\\\\s$]*$",
-      "type": "string"
-    },
-    "Secret_________s___8_______": {
-      "pattern": "^([^\"\\\\\\s$]{8,})?$",
-      "type": "string"
     },
     "Spegel": {
       "additionalProperties": false,
@@ -1261,35 +1015,18 @@
           "pattern": "^(https://[^/\\s]+)?$",
           "title": "Host",
           "type": "string"
-        },
-        "api_key": {
-          "$ref": "#/$defs/Secret",
-          "default": ""
         }
       },
       "title": "Unifi",
       "type": "object"
     },
-    "UrlCredential": {
-      "pattern": "^[A-Za-z0-9_-]*$",
-      "type": "string"
-    },
     "VolumeBackup": {
       "additionalProperties": false,
       "properties": {
-        "bucket": {
-          "default": "",
-          "pattern": "^([a-z0-9][a-z0-9.-]*[a-z0-9])?$",
-          "title": "Bucket",
-          "type": "string"
-        },
-        "access_key": {
-          "$ref": "#/$defs/UrlCredential",
-          "default": ""
-        },
-        "secret_key": {
-          "$ref": "#/$defs/UrlCredential",
-          "default": ""
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
         }
       },
       "title": "VolumeBackup",
@@ -1339,8 +1076,7 @@
           "router_asn": ""
         },
         "hubble": {
-          "oidc_client_id": "",
-          "oidc_client_secret": ""
+          "oidc_client_id": ""
         }
       }
     },
@@ -1360,51 +1096,40 @@
       "$ref": "#/$defs/Postgres",
       "default": {
         "backup": {
-          "access_key_id": "",
           "bucket": "",
-          "endpoint": "",
-          "secret_access_key": ""
+          "endpoint": ""
         }
       }
     },
     "etcd_backup": {
       "$ref": "#/$defs/EtcdBackup",
       "default": {
-        "bucket": "",
-        "access_key": "",
-        "secret_key": ""
+        "enabled": false
       }
     },
     "volume_backup": {
       "$ref": "#/$defs/VolumeBackup",
       "default": {
-        "bucket": "",
-        "access_key": "",
-        "secret_key": ""
+        "enabled": false
       }
     },
     "redis": {
       "$ref": "#/$defs/Redis",
       "default": {
-        "password": ""
+        "enabled": false
       }
     },
     "observability": {
       "$ref": "#/$defs/Observability",
       "default": {
-        "grafana_password": "",
-        "influxdb_password": "",
-        "influxdb_token": "",
-        "discord_webhook": "",
-        "heartbeat_url": "",
+        "enabled": false,
+        "discord": false,
+        "heartbeat": false,
         "grafana_oidc_client_id": "",
-        "grafana_oidc_client_secret": "",
-        "grafana_secret_key": "",
+        "secret_key": false,
         "github_app_id": "",
         "github_app_installation_id": "",
-        "github_app_private_key": "",
         "sentry_org": "",
-        "sentry_token": "",
         "sentry_url": "https://sentry.io",
         "proxmox_hosts": []
       }
@@ -1412,79 +1137,68 @@
     "unifi": {
       "$ref": "#/$defs/Unifi",
       "default": {
-        "host": "",
-        "api_key": ""
+        "host": ""
       }
     },
     "pocket_id": {
       "$ref": "#/$defs/PocketId",
       "default": {
-        "encryption_key": "",
+        "enabled": false,
         "public": false
       }
     },
     "radar": {
       "$ref": "#/$defs/Radar",
       "default": {
-        "oidc_client_id": "",
-        "oidc_client_secret": ""
+        "oidc_client_id": ""
       }
     },
     "matherlynet": {
       "$ref": "#/$defs/Matherlynet",
       "default": {
-        "better_auth_secret": "",
-        "admin_email": "",
-        "smtp_url": "",
-        "mail_from": "",
+        "enabled": false,
+        "smtp": false,
+        "mail": false,
         "github_client_id": "",
-        "github_client_secret": "",
+        "github": false,
         "google_client_id": "",
-        "google_client_secret": "",
+        "google": false,
         "playground": false
       }
     },
     "reactive_resume": {
       "$ref": "#/$defs/ReactiveResume",
       "default": {
-        "auth_secret": "",
-        "encryption_secret": "",
+        "enabled": false,
         "oidc_client_id": "",
-        "oidc_client_secret": "",
-        "s3_endpoint": "",
-        "s3_bucket": "",
-        "s3_access_key_id": "",
-        "s3_secret_access_key": ""
+        "s3_bucket": ""
       }
     },
     "kener": {
       "$ref": "#/$defs/Kener",
       "default": {
-        "secret_key": "",
-        "smtp_url": "",
-        "mail_from": ""
+        "enabled": false,
+        "smtp": false
       }
     },
     "network_optimizer": {
       "$ref": "#/$defs/NetworkOptimizer",
       "default": {
-        "app_password": "",
-        "oidc_client_id": "",
-        "oidc_client_secret": ""
+        "enabled": false,
+        "oidc_client_id": ""
       }
     },
     "pegaprox": {
       "$ref": "#/$defs/PegaProx",
       "default": {
-        "db_key": "",
-        "metrics_token": ""
+        "enabled": false,
+        "metrics": false
       }
     },
     "actual_budget": {
       "$ref": "#/$defs/ActualBudget",
       "default": {
         "oidc_client_id": "",
-        "oidc_client_secret": "",
         "public": false
       }
     },
@@ -1495,118 +1209,87 @@
         "nfs_share": "/srv/media",
         "node": "",
         "timezone": "Etc/UTC",
-        "sonarr_api_key": "",
-        "radarr_api_key": "",
-        "prowlarr_api_key": "",
-        "sabnzbd_api_key": "",
-        "sabnzbd_nzb_key": "",
         "oidc_client_id": "",
-        "oidc_client_secret": "",
         "recyclarr": false,
         "plex_host": "",
-        "plex_token": "",
-        "public": false
+        "public": false,
+        "keys_revision": 0
       }
     },
     "ai_workspace": {
       "$ref": "#/$defs/AiWorkspace",
       "default": {
         "oidc_client_id": "",
-        "oidc_client_secret": "",
-        "auth_secret": "",
-        "allowed_emails": [],
-        "admin_emails": [],
-        "browsing_token": "",
+        "allowlist": false,
+        "admins": false,
+        "browsing": false,
         "public": false,
-        "env": {}
+        "env_keys": []
       }
     },
     "ai_kb": {
       "$ref": "#/$defs/AiKb",
       "default": {
-        "jwt_secret": "",
-        "aes_key": "",
+        "enabled": false,
         "admin_email": "",
         "oidc_client_id": "",
-        "oidc_client_secret": "",
-        "rustfs_access_key": "",
-        "rustfs_secret_key": "",
+        "rustfs": false,
         "tracing": false,
-        "neo4j_password": "",
-        "searxng_secret": ""
+        "neo4j": false,
+        "searxng": false
       }
     },
     "rustfs": {
       "$ref": "#/$defs/RustFs",
       "default": {
-        "access_key": "",
-        "secret_key": "",
-        "node": ""
+        "enabled": false,
+        "node": "",
+        "keys_revision": 0
       }
     },
     "langfuse": {
       "$ref": "#/$defs/Langfuse",
       "default": {
-        "public_key": "",
-        "secret_key": "",
-        "salt": "",
-        "encryption_key": "",
-        "nextauth_secret": "",
-        "oidc_client_id": "",
-        "oidc_client_secret": "",
-        "clickhouse_password": "",
-        "rustfs_access_key": "",
-        "rustfs_secret_key": ""
+        "enabled": false,
+        "oidc_client_id": ""
       }
     },
     "itsaplan": {
       "$ref": "#/$defs/Itsaplan",
       "default": {
-        "better_auth_secret": "",
-        "app_encryption_key": "",
-        "rustfs_access_key": "",
-        "rustfs_secret_key": ""
+        "enabled": false
       }
     },
     "cliproxyapi": {
       "$ref": "#/$defs/CliProxyApi",
       "default": {
-        "management_key": "",
-        "api_key": "",
-        "manager_admin_key": "",
-        "ohmycpa_master_key": "",
-        "github_token": ""
+        "enabled": false,
+        "ohmycpa": false,
+        "github": false
       }
     },
     "career_ops": {
       "$ref": "#/$defs/CareerOps",
       "default": {
+        "enabled": false,
         "oidc_client_id": "",
-        "oidc_client_secret": "",
-        "claude_oauth_token": "",
+        "claude_credential": "oauth",
         "anthropic_base_url": "",
-        "anthropic_auth_token": "",
-        "publish_secret": "",
-        "publish_auth_secret": "",
         "publish_oidc_client_id": "",
-        "publish_oidc_client_secret": "",
-        "publish_allowed_emails": [],
-        "publish_api_key": "",
+        "publish": false,
         "public": false
       }
     },
     "localai": {
       "$ref": "#/$defs/LocalAi",
       "default": {
-        "api_key": "",
-        "oidc_client_id": "",
-        "oidc_client_secret": ""
+        "oidc_client_id": ""
       }
     },
     "github_runner": {
       "$ref": "#/$defs/GithubRunner",
       "default": {
-        "token": ""
+        "enabled": false
       }
     },
     "nodes": {

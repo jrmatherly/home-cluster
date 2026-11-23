@@ -1,6 +1,6 @@
-# Negative fixture: [itsaplan] set without [rustfs].
+# Negative fixture: [itsaplan] enabled without [rustfs].
 # Expected to be rejected by the itsaplan RustFS check.
-# expect: itsaplan.rustfs_access_key requires rustfs: attachments are stored in its bucket there
+# expect: itsaplan requires rustfs: attachments are stored in its bucket there
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,14 +26,9 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [itsaplan]
-better_auth_secret = "fakefakefakefakefakefakefakefakefake"
-app_encryption_key = "fakefakefakefakefakefakefakefakefake"
-rustfs_access_key = "itsaplanfakefake"
-rustfs_secret_key = "fakefakefakefakefakefakefakefakefake"
+enabled = true
 
 [[nodes]]
 name = "k8s-0"

@@ -1,6 +1,6 @@
-# Negative fixture: ai_kb set without [redis].
-# Expected to be rejected by the ai_kb requires redis.password check.
-# expect: ai_kb requires redis.password: AI KB's task queue and streams live in Redis
+# Negative fixture: ai_kb enabled without [redis].
+# Expected to be rejected by the ai_kb requires redis check.
+# expect: ai_kb requires redis: AI KB's task queue and streams live in Redis
 [network]
 node_cidr = "10.10.10.0/24"
 
@@ -16,7 +16,9 @@ external = "10.10.10.251"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [repository]
 url = "https://github.com/onedr0p/cluster-template.git"
@@ -24,12 +26,9 @@ url = "https://github.com/onedr0p/cluster-template.git"
 [postgres.backup]
 endpoint = "https://fake.r2.cloudflarestorage.com"
 bucket = "fake"
-access_key_id = "fake"
-secret_access_key = "fake"
 
 [ai_kb]
-jwt_secret = "fakefakefakefakefakefakefakefake"
-aes_key = "fakefakefakefakefakefakefakefake"
+enabled = true
 admin_email = "admin@example.com"
 
 [[nodes]]

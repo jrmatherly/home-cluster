@@ -19,7 +19,9 @@ url = "https://github.com/onedr0p/cluster-template.git"
 name = "example.com"
 
 [dns]
-token = "fake"
+
+[ingress]
+tunnel_id = "fake"
 
 [cilium.bgp]
 router_addr = "10.10.1.1"
