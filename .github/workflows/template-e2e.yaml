@@ -39,6 +39,7 @@ jobs:
           - bad-repo-url
           - missing-known-hosts
           - onepassword-vault-with-space
+          - app-without-vault
           - node-addr-outside-cidr
           - node-uses-gateway-addr
           - gateway-node-collision

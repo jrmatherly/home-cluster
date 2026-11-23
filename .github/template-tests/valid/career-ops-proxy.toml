@@ -26,6 +26,9 @@ external = "10.10.10.251"
 url = "https://github.com/onedr0p/cluster-template.git"
 branch = "main"
 
+[onepassword]
+vault = "homelab"
+
 [domain]
 name = "example.com"
 

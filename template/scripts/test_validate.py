@@ -65,9 +65,15 @@ def _load_raw(raw: dict) -> Config:
 
 
 def test_onepassword_gate_follows_vault():
-    on = _load_raw(config_from("public.toml", **{"onepassword.vault": "homelab"}))
+    on = _load_raw(config_from("single-node.toml", **{"onepassword.vault": "homelab"}))
     assert on.onepassword_enabled is True
-    assert _load_raw(config_from("public.toml")).onepassword_enabled is False
+    assert _load_raw(config_from("single-node.toml")).onepassword_enabled is False
+
+
+def test_vault_required_while_apps_enabled():
+    raw = config_from("public.toml", **{"onepassword.vault": None})
+    with pytest.raises(ConfigError, match=r"needs \[onepassword\]\.vault"):
+        _load_raw(raw)
 
 
 def test_host_bits_error_suggests_network_address():

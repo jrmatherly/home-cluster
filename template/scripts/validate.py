@@ -1601,6 +1601,16 @@ class Config(Model):
                         f"duplicate node {label} {value!r} on nodes[{values[value]}] and nodes[{i}]"
                     )
                 values[value] = i
+        # Clearing the vault would stop the external-secrets apps from rendering, and removing
+        # them deletes every Secret an ExternalSecret owns, so an enabled app pins it.
+        if not self.onepassword_enabled:
+            for gate in type(self).model_computed_fields:
+                if (
+                    gate.endswith("_enabled")
+                    and gate != "cilium_bgp_enabled"
+                    and getattr(self, gate)
+                ):
+                    raise ValueError(f"{gate} needs [onepassword].vault")
         return self
 
 
