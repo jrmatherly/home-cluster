@@ -189,10 +189,27 @@ spec:
                 custom: true
                 spec:
                   exec:
-                    command: ["pg_isready", "-U", "postgres", "-d", "postgres"]
+                    # Over TCP: the entrypoint's init server listens on the socket only, so a
+                    # socket check would pass before nuq.sql has run.
+                    command: &pgIsReady
+                      - pg_isready
+                      - --host=127.0.0.1
+                      - --username=postgres
+                      - --dbname=postgres
                   periodSeconds: 10
                   timeoutSeconds: 5
               readiness: *postgresProbe
+              # A liveness restart during a slow initdb would leave a partial PGDATA on the
+              # emptyDir, which only a pod delete clears.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: *pgIsReady
+                  periodSeconds: 5
+                  timeoutSeconds: 5
+                  failureThreshold: 60
             securityContext: *securityContext
             resources:
               requests:

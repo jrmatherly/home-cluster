@@ -36,8 +36,19 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # Playwright, Postgres, RabbitMQ and Redis, on their client ports only: RabbitMQ's
+    # management port stays closed to a scrape that names the pod.
     - to:
         - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 5672
+        - protocol: TCP
+          port: 6379
     - to:
         - namespaceSelector:
             matchLabels:
