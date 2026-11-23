@@ -7,7 +7,7 @@ sidebar:
 
 This guide takes It's a Plan from the templates in Git to a working issue tracker, with Pocket ID as the way in. It's a Plan is an issue tracker and project board where AI agents can be members. The deployment itself is in Git: the `[itsaplan]` section of `cluster.toml` and `kubernetes/apps/itsaplan/`. It is a proof of concept, started 2026-11-06 on chart 1.10.0.
 
-It is served at `https://plan.${SECRET_DOMAIN}` on the internal gateway only, so the LAN reaches it and the internet does not. The api lives under `/api` on the same host. The HTTPRoute strips that prefix on the way to the api, so the public sign-in path is `/api/api/auth/...`. Keeping one hostname also keeps the session cookie on `plan.${SECRET_DOMAIN}` alone.
+It is served at `https://plan.${SECRET_DOMAIN}` on the internal gateway, so the LAN reaches it and the internet does not, except for the one webhook path below when `git_webhooks` is on. The api lives under `/api` on the same host. The HTTPRoute strips that prefix on the way to the api, so the public sign-in path is `/api/api/auth/...`. Keeping one hostname also keeps the session cookie on `plan.${SECRET_DOMAIN}` alone.
 
 ## Fill the section
 
@@ -55,9 +55,17 @@ God mode has no menu link in 1.10.0, so type `https://plan.${SECRET_DOMAIN}/god`
 
 The provider settings live in the app's database, so nothing in Git changes. The app refuses outbound requests to private addresses, but it did not block discovery against `auth.${SECRET_DOMAIN}` (measured 2026-11-06).
 
+## Browser push and Git webhooks
+
+Both are off until a flag in `[itsaplan]` turns them on.
+
+**Browser push** (`web_push = true`). Generate one VAPID key pair in a checkout of the app with `bun run web-push:keys`, and keep it: a new pair ends every browser subscription. Put three fields in the vault item `itsaplan`: `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`, a `mailto:` or `https:` contact for the push services. Then `just template secrets-check`, `just configure`, commit and push. Each member turns push on under Account, Preferences.
+
+**Git webhooks** (`git_webhooks = true`, needs an ingress). A second HTTPRoute puts one path on the external gateway: `POST https://plan.${SECRET_DOMAIN}/webhooks/git/`. Every other path stays on the internal gateway, so the internet still cannot open the app. The route has no login in front of it, because a Git host sends no session; the app checks each delivery against the project's webhook secret. A BackendTrafficPolicy on the route allows 10 requests a second per Envoy pod and bodies up to 5 MiB, because the app sets no limit of its own there. After the push, connect the provider under Team settings, Git, then each project's Settings, Git. The payload URL shown there starts with `https://plan.${SECRET_DOMAIN}/webhooks/git/`.
+
 ## Known limits
 
-- It is internal only, so GitHub webhooks cannot reach it, and pull request linking does not work.
+- Without `git_webhooks`, GitHub webhooks cannot reach it, and pull request linking does not work.
 - The Telegram bot is off.
 - The `itsaplan-attachments` bucket has no nightly copy to R2 yet. A `[volume_backup]` entry could add one. The database is covered by CloudNativePG's WAL archive and its daily backup at 06:00 UTC.
 - Egress has no NetworkPolicy. The app's own guard refuses private targets, with `SSRF_ALLOWED_HOSTS` for exceptions.

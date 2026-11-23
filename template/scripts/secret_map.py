@@ -33,6 +33,8 @@ LONG_SECRET = r'^([^"\\\s$]{32,})?$'
 API_KEY = r"^([A-Za-z0-9]{32,})?$"
 S3_ACCESS_KEY = r"^([A-Za-z0-9]{16,})?$"
 URL_CREDENTIAL = r"^[A-Za-z0-9_-]*$"
+# A VAPID key from `web-push generate-vapid-keys`, unpadded base64url.
+BASE64URL = r"^[A-Za-z0-9_-]{40,}$"
 BUCKET = r"^([a-z0-9][a-z0-9.-]*[a-z0-9])?$"
 ALNUM_24 = r"^([A-Za-z0-9]{24,})?$"
 MAIL_FROM = r'^[^"\\$\r\n]*$'
@@ -121,6 +123,9 @@ _FIELDS: list[tuple[str, str, str | None]] = [
     ("itsaplan.app_encryption_key", "itsaplan_enabled", LONG_SECRET),
     ("itsaplan.rustfs_access_key", "itsaplan_enabled", S3_ACCESS_KEY),
     ("itsaplan.rustfs_secret_key", "itsaplan_enabled", API_KEY),
+    ("itsaplan.web_push_vapid_public_key", "itsaplan.web_push", BASE64URL),
+    ("itsaplan.web_push_vapid_private_key", "itsaplan.web_push", BASE64URL),
+    ("itsaplan.web_push_subject", "itsaplan.web_push", r"^(mailto:[^\s@]+@[^\s@]+|https://\S+)$"),
     ("cliproxyapi.management_key", "cliproxyapi_enabled", LONG_SECRET),
     ("cliproxyapi.api_key", "cliproxyapi_enabled", LONG_SECRET),
     ("cliproxyapi.manager_admin_key", "cliproxyapi_enabled", LONG_SECRET),

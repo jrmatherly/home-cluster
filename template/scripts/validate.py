@@ -530,6 +530,11 @@ class Langfuse(Model):
 
 class Itsaplan(Model):
     enabled: bool = False
+    # Browser push notifications, with the VAPID key pair and the contact in the vault.
+    web_push: bool = False
+    # Also routes POST /webhooks/git/ on the external gateway, so a Git host reaches
+    # the app. Every other path stays on the internal gateway.
+    git_webhooks: bool = False
 
 
 class CliProxyApi(Model):
@@ -1104,6 +1109,14 @@ class Config(Model):
         if self.langfuse_enabled and not self.rustfs_enabled:
             raise ValueError(
                 "langfuse requires rustfs: Langfuse writes every event to its bucket there"
+            )
+        for flag in ("web_push", "git_webhooks"):
+            if getattr(self.itsaplan, flag) and not self.itsaplan_enabled:
+                raise ValueError(f"itsaplan.{flag} requires itsaplan.enabled")
+        if self.itsaplan.git_webhooks and self.ingress.mode == "none":
+            raise ValueError(
+                "itsaplan.git_webhooks requires ingress.mode other than 'none': there is no "
+                "external gateway to route the webhooks through"
             )
         if self.itsaplan_enabled and not self.postgres_backup_enabled:
             raise ValueError(

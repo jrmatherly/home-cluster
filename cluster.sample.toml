@@ -1106,6 +1106,10 @@ schematic_id = ""
 #    change it once set), and RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY (the
 #    app's own RustFS pair, letters and digits, at least 16 and 32, which the
 #    provisioning Job scopes to the itsaplan-attachments bucket).
+#    With web_push, the same item also holds WEB_PUSH_VAPID_PUBLIC_KEY and
+#    WEB_PUSH_VAPID_PRIVATE_KEY (one pair from `bun run web-push:keys` in the
+#    app's repository; a new pair ends every browser subscription) and
+#    WEB_PUSH_SUBJECT (a mailto: or https: contact for the push services).
 # =============================================================================
 [itsaplan]
 
@@ -1113,6 +1117,18 @@ schematic_id = ""
 # OPTIONAL. Default: false
 
 # enabled = false
+
+# Turns on browser push notifications, with the three WEB_PUSH fields above.
+# OPTIONAL. Default: false
+
+# web_push = false
+
+# Also routes POST https://plan.<domain.name>/webhooks/git/ on the external
+# gateway, so GitHub and other Git hosts can deliver repository webhooks.
+# Every other path stays on the internal gateway. Needs an ingress.
+# OPTIONAL. Default: false
+
+# git_webhooks = false
 
 
 # =============================================================================

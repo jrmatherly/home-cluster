@@ -153,6 +153,8 @@ oidc_client_id = "langfuse"
 
 [itsaplan]
 enabled = true
+web_push = true
+git_webhooks = true
 
 [cliproxyapi]
 enabled = true

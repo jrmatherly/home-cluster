@@ -1070,3 +1070,16 @@ def test_private_cidrs_cover_reserved_ranges():
     ):
         assert want in cidrs
     assert str(config.kubernetes.pod_cidr) in cidrs
+
+
+@pytest.mark.parametrize("flag", ["web_push", "git_webhooks"])
+def test_itsaplan_flags_need_the_app(flag):
+    raw = config_from("internal.toml", **{f"itsaplan.{flag}": True})
+    with pytest.raises(ConfigError, match=f"itsaplan.{flag} requires itsaplan.enabled"):
+        _load_raw(raw)
+
+
+def test_itsaplan_git_webhooks_need_an_ingress():
+    raw = config_from("internal.toml", **{"itsaplan.enabled": True, "itsaplan.git_webhooks": True})
+    with pytest.raises(ConfigError, match="itsaplan.git_webhooks requires ingress.mode other"):
+        _load_raw(raw)

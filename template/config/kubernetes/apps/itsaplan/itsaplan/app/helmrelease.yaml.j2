@@ -42,6 +42,11 @@ spec:
       env:
         API_URL: https://plan.${SECRET_DOMAIN}/api
         APP_URL: https://plan.${SECRET_DOMAIN}
+#% if itsaplan.git_webhooks %#
+        # The payload URL the app registers with a Git host. Without it the app
+        # would use API_URL, whose /api prefix the public route does not serve.
+        GIT_WEBHOOK_BASE_URL: https://plan.${SECRET_DOMAIN}
+#% endif %#
         S3_BUCKET: #{ (rustfs_consumers | selectattr("name", "equalto", "itsaplan") | first).bucket }#
         S3_REGION: us-east-1
         S3_FORCE_PATH_STYLE: "true"

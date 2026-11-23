@@ -388,6 +388,16 @@
           "default": false,
           "title": "Enabled",
           "type": "boolean"
+        },
+        "web_push": {
+          "default": false,
+          "title": "Web Push",
+          "type": "boolean"
+        },
+        "git_webhooks": {
+          "default": false,
+          "title": "Git Webhooks",
+          "type": "boolean"
         }
       },
       "title": "Itsaplan",
@@ -1257,7 +1267,9 @@
     "itsaplan": {
       "$ref": "#/$defs/Itsaplan",
       "default": {
-        "enabled": false
+        "enabled": false,
+        "web_push": false,
+        "git_webhooks": false
       }
     },
     "cliproxyapi": {
