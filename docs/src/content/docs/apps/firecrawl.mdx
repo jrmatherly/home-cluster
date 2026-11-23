@@ -1,0 +1,113 @@
+---
+title: Firecrawl
+description: Take a self-hosted Firecrawl from the templates in Git to a scraping API that agents and other apps in the cluster can call.
+sidebar:
+  order: 23
+---
+
+This guide takes Firecrawl from the templates in Git to a working scraping API. Firecrawl scrapes, crawls and maps websites, searches the web and extracts structured data from pages. The deployment itself is in Git: the `[firecrawl]` section of `cluster.toml` and `kubernetes/apps/firecrawl/`. "Measured" below was run in Docker against `ghcr.io/firecrawl/firecrawl:2.11.816` on 2026-11-23, under the pods' restrictions (read-only root, every capability dropped, a non-root user), or on the cluster where it says live.
+
+## Status on 2026-11-23
+
+| Step | State |
+| --- | --- |
+| Templates, schema and Renovate rules | Built, not pushed |
+| First rollout | Not run |
+| Live checks | Not run |
+| It's a Plan connected | Waits on a release of its fork |
+
+## What it is and is not
+
+It is served at `https://firecrawl.${SECRET_DOMAIN}` on the internal gateway, and at `http://firecrawl-api.firecrawl.svc.cluster.local:3002` inside the cluster.
+
+<Aside type="caution">
+The self-hosted API has no login and takes no API key. Every device on the LAN can call it, and each extract call spends the pooled CLIProxyAPI logins. Firecrawl's own authentication needs a Supabase database, which this deployment does not run.
+</Aside>
+
+| Feature | Self-hosted |
+| --- | --- |
+| Scrape, crawl, map | Works. Measured. |
+| Search | Works. It asks the AI KB SearXNG when `ai_kb.searxng` is on, and DuckDuckGo otherwise or when SearXNG returns nothing. |
+| Extract and JSON-format scrapes | Need a model. They call CLIProxyAPI's Responses API, so page content leaves the cluster. |
+| Screenshots and page actions | Do not work. They need Firecrawl's Fire-engine, which is not published. |
+| Agent, Browser, interact, and the product, menu, audio and video formats | Cloud only. |
+
+## What runs
+
+One release holds four workloads, and the namespace has its own Redis.
+
+- The API runs the HTTP server and every worker in one container, as Firecrawl's Compose file does.
+- The Playwright service renders pages that need a browser.
+- RabbitMQ and a queue Postgres carry the job queue. The Postgres is Firecrawl's own image, with `pg_cron` and its schema created at first start.
+- The queue Postgres and RabbitMQ keep their data in the pod. A restart drops crawls in flight and stored results, which expire after 24 hours anyway. Nothing here is backed up.
+
+## Fill the section
+
+The section needs `[cliproxyapi]` and `[redis]`. Generate the queue database password, put it in the vault item `firecrawl` under the label `POSTGRES_PASSWORD` ([External Secrets and 1Password](/apps/external-secrets/)), and set `enabled = true` in the `[firecrawl]` section of `cluster.toml`:
+
+```sh
+openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32; echo   # POSTGRES_PASSWORD
+```
+
+`model` names the model CLIProxyAPI runs for extract. It defaults to `claude-sonnet-5-5`, and any name the proxy lists at `/v1/models` works.
+
+Then run `just template secrets-check`, `just configure`, commit and push.
+
+## Watch the first rollout
+
+```sh
+kubectl get kustomization -n flux-system firecrawl
+kubectl get externalsecret,helmrelease,pods -n firecrawl
+kubectl logs -n firecrawl deploy/firecrawl-api | grep -i -E "ACCESS_REFUSED|ECONNREFUSED|EROFS|EACCES"
+```
+
+The Kustomization and the HelmRelease are Ready, both ExternalSecrets are synced, and five pods are Running: the four workloads and `redis-0`. The `grep` prints nothing.
+
+## Verify
+
+Check that the API answers, then run one scrape:
+
+```sh
+curl -s https://firecrawl.${SECRET_DOMAIN}/v0/health/readiness
+curl -s -m 75 -X POST https://firecrawl.${SECRET_DOMAIN}/v2/scrape \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","formats":["markdown"],"timeout":60000}'
+```
+
+The first answers `{"status":"ok"}`. That is a heartbeat only. The second answers `"success":true` with Markdown, and proves the queue, the workers and outbound access together.
+
+Extract goes through the model. Ask for a `json` format:
+
+```sh
+curl -s -m 75 -X POST https://firecrawl.${SECRET_DOMAIN}/v2/scrape \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com","formats":[{"type":"json","prompt":"Give the page title"}],"timeout":60000}'
+```
+
+A failure here while the plain scrape passes points at CLIProxyAPI: look in its log for a `/v1/responses` request.
+
+## Clients
+
+Point a client at the instance with its base URL and no key:
+
+- The Firecrawl CLI and the local MCP server read `FIRECRAWL_API_URL`.
+- The SDKs take an `api_url` or `base_url` option.
+- A pod in the cluster uses the Service address. Its namespace has to be admitted by the `firecrawl-api` NetworkPolicy, which admits the gateways and It's a Plan today.
+
+It's a Plan cannot use the instance until its fork accepts a Firecrawl base URL, because its client is fixed to the cloud address.
+
+## Updates
+
+Firecrawl tags its API image several times a day, and publishes the Playwright and queue Postgres images as `latest` only. Renovate pins the two by digest and groups all three into one pull request on Monday, which is never merged without review. Read the release's `docker-compose.yaml` for new required variables before merging.
+
+## Known limits
+
+- No login, as above.
+- No metrics and no dashboard.
+- Egress is limited to public addresses, the model proxy and the search engine. A scrape of a private address returns empty content. Measured for a private IP address, not for a hostname that resolves to one.
+- `/v2/extract` still answers but reports itself deprecated. Use `/v2/scrape` with a `json` format.
+
+## Sources
+
+- Firecrawl self-hosting guide, `https://docs.firecrawl.dev/contributing/self-host`.
+- `SELF_HOST.md` and `docker-compose.yaml` in `firecrawl/firecrawl` at `v2.11.816`.
