@@ -117,7 +117,7 @@ spec:
                 readOnly: true
       #% if network_optimizer_oidc %#
       identity:
-        type: secret
+        type: configMap
         name: network-optimizer-identity
         advancedMounts:
           network-optimizer:

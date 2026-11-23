@@ -8,12 +8,12 @@ resources:
   - ./backup-secret.sops.yaml
   #% endif %#
   - ./ciliumnetworkpolicy.yaml
+  #% if network_optimizer_oidc %#
+  - ./configmap.yaml
+  #% endif %#
   - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
-  #% if network_optimizer_oidc %#
-  - ./identity-secret.sops.yaml
-  #% endif %#
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
 #% endif %#

@@ -3,10 +3,10 @@
 # The client secret is not in this file: the app reads it from
 # NETOPT_FED_POCKET_ID_SECRET in network-optimizer-secret, which wins over the file.
 apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
   name: network-optimizer-identity
-stringData:
+data:
   identity.json: |
     {
       "providers": [

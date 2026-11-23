@@ -115,7 +115,7 @@ spec:
                 subPath: traceroute.db
                 readOnly: true
       identity:
-        type: secret
+        type: configMap
         name: network-optimizer-identity
         advancedMounts:
           network-optimizer:

@@ -5,9 +5,9 @@ resources:
   - ./backup-cronjob.yaml
   - ./backup-secret.sops.yaml
   - ./ciliumnetworkpolicy.yaml
+  - ./configmap.yaml
   - ./externalsecret.yaml
   - ./helmrelease.yaml
   - ./httproute.yaml
-  - ./identity-secret.sops.yaml
   - ./networkpolicy.yaml
   - ./ocirepository.yaml
