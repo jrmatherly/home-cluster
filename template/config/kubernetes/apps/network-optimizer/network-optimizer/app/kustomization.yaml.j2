@@ -5,7 +5,7 @@ kind: Kustomization
 resources:
   #% if volume_backup_enabled %#
   - ./backup-cronjob.yaml
-  - ./backup-secret.sops.yaml
+  - ./backup-externalsecret.yaml
   #% endif %#
   - ./ciliumnetworkpolicy.yaml
   #% if network_optimizer_oidc %#

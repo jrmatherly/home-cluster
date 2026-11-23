@@ -5,7 +5,7 @@ kind: Kustomization
 resources:
   #% if ai_kb_rustfs and volume_backup_enabled %#
   - ./backup-cronjob.yaml
-  - ./backup-secret.sops.yaml
+  - ./backup-externalsecret.yaml
   #% endif %#
   - ./helmrelease.yaml
   - ./helmrepository.yaml

@@ -3,7 +3,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ./backup-cronjob.yaml
-  - ./backup-secret.sops.yaml
+  - ./backup-externalsecret.yaml
   - ./helmrelease.yaml
   - ./helmrepository.yaml
   - ./networkpolicy.yaml
