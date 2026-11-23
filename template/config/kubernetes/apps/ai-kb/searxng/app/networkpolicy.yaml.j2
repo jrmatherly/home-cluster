@@ -1,7 +1,7 @@
 #% if ai_kb_searxng %#
 ---
-# Only the AI KB app pod and Firecrawl's API pod query it, and it reaches public
-# search engines only.
+# Only the AI KB app pod and, when Firecrawl is deployed, its API pod query it, and
+# it reaches public search engines only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

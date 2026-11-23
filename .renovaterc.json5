@@ -202,7 +202,18 @@
       ],
       groupName: "Firecrawl",
       schedule: ["before 6am on monday"],
+      minimumReleaseAge: "3 days",
       automerge: false,
+    },
+    {
+      description: "Firecrawl's Compose file pins rabbitmq:3-management for its queue broker; stay on 3.x until it moves",
+      matchFileNames: [
+        "kubernetes/apps/firecrawl/**",
+        "template/config/kubernetes/apps/firecrawl/**",
+      ],
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/library/rabbitmq"],
+      allowedVersions: "<4",
     },
     {
       description: "Tier 1 automerge, docs Dockerfile digests: the Docs Image workflow builds every PR that touches docs/**, so it is the check",

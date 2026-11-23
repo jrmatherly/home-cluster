@@ -1,8 +1,8 @@
 #% if cliproxyapi_enabled %#
 ---
-# The gateways, the two consoles, Firecrawl's API pod and, when it is routed
-# through the proxy, the career-ops web pod only. Egress stays open: the proxy dials the providers and its
-# version checks on the internet.
+# The gateways and the two consoles, plus Firecrawl's API pod when it is deployed and
+# the career-ops web pod when it is routed through the proxy. Egress stays open: the
+# proxy dials the providers and its version checks on the internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

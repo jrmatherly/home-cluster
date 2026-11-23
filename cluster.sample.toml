@@ -1261,10 +1261,11 @@ schematic_id = ""
 #    and at firecrawl-api.firecrawl.svc.cluster.local:3002 inside the cluster.
 #    The self-hosted API has no login and takes no API key, so everything on
 #    the LAN can call it; inside the cluster a NetworkPolicy admits only the
-#    network namespace, where the gateways run, and It's a Plan. Needs [cliproxyapi], which runs the model
-#    for extract, and [redis]. Search uses the AI KB SearXNG when
-#    ai_kb.searxng is on, and DuckDuckGo otherwise. Screenshots and page
-#    actions need Firecrawl's closed Fire-engine and do not work.
+#    network namespace, where the gateways run, and It's a Plan. Needs
+#    [cliproxyapi], which runs the model for extract, and [redis]. Search uses
+#    the AI KB SearXNG when ai_kb.searxng is on, and DuckDuckGo otherwise.
+#    Screenshots and page actions need Firecrawl's closed Fire-engine and do
+#    not work.
 #
 #    The vault item `firecrawl` holds POSTGRES_PASSWORD, at least 24 letters
 #    and digits, for the queue database that lives and dies with its pod.
