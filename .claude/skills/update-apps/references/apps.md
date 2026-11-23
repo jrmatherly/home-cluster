@@ -59,6 +59,8 @@ The chart column is what the template pins. The releases column is where the not
 | neo4j (image)             | ai-kb              | `neo4j` (the ai-kb chart's default tag, `2026.09.0`; not pinned here, moves with the chart)       | <https://github.com/neo4j/neo4j/releases>                         |
 | searxng                   | ai-kb              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | searxng (image)           | ai-kb              | `docker.io/searxng/searxng` (`<y>.<m>.<d>-<commit>` tags, a regex-versioning rule; by digest)     | <https://github.com/searxng/searxng/commits/master>               |
+| firecrawl                 | firecrawl          | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
+| firecrawl (images)        | firecrawl          | `ghcr.io/firecrawl/firecrawl` and two `latest`-only images, by digest                             | <https://github.com/firecrawl/firecrawl/tags>                     |
 | kener                     | kener              | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
 | kener (image)             | kener              | `ghcr.io/rajnandan1/kener`                                                                        | <https://github.com/rajnandan1/kener/releases>                    |
 | reactive-resume           | reactive-resume    | `ghcr.io/bjw-s-labs/helm/app-template`                                                            | <https://github.com/bjw-s-labs/helm-charts/releases>              |
@@ -338,6 +340,14 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   engines under `unresponsive_engines` is normal from one home address. Renovate picked the earlier of two
   same-day builds on 2026-10-24; `curl -s https://hub.docker.com/v2/repositories/searxng/searxng/tags/latest | jq -r .digest`
   names the right one, and the PR is closed in favour of a hand commit when they differ.
+- **firecrawl (images)** move in one grouped Monday PR that is never automerged. The API image
+  (`ghcr.io/firecrawl/firecrawl`) is tagged several times a day, so one PR spans about a hundred releases:
+  read the diff of `docker-compose.yaml` between the two tags for a new required variable or service, not
+  each release. The Playwright and queue Postgres images publish `latest` only, so their digest is a new
+  build. The Playwright command is overridden to `node dist/api.js`; check `package.json`'s `start` script
+  still names that file. The Postgres image runs `nuq.sql` at initdb only, and the pod's `emptyDir` is new on
+  every restart, so a schema change needs nothing by hand. Post-deploy: the scrape below returns
+  `"success":true`.
 - **reactive-resume (image)** v6.0.5 and later refuse to start in production when `AUTH_SECRET` is under 32
   characters or either secret still starts with `change-me-to-a-secure-` (`packages/env/src/server.ts`), so
   `auth_secret` is a `LongSecret` in the validator since 2026-10-24. Upstream asks for a database backup
@@ -466,3 +476,4 @@ uv run --locked --no-dev template/scripts/validate.py cluster.toml 2>/dev/null \
 | fluent-bit                   | `kubectl -n observability rollout status deploy/fluent-bit`                                                                                                                                                         | rollout complete                                                 |
 | csi-driver-nfs               | `kubectl -n storage get pods` and `kubectl -n media get pvc media`                                                                                                                                                  | controller and node pods Running, claim `Bound`                  |
 | searxng                      | the curl from the cautions above, run from the ai-kb app pod                                                                                                                                                        | `results` present                                                |
+| firecrawl                    | `curl -s -m 75 -X POST https://firecrawl.<domain>/v2/scrape -H 'Content-Type: application/json' -d '{"url":"https://example.com","formats":["markdown"]}'`                                                          | `"success":true` with Markdown                                   |
