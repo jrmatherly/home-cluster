@@ -19,3 +19,8 @@ data:
     outgoing:
       request_timeout: 6.0
       max_request_timeout: 10.0
+    # Brave web results return host-less /go/v1/ URLs (searxng/searxng#6967).
+    # Disabled, not removed: brave.images, .videos and .news use its network.
+    engines:
+      - name: brave
+        disabled: true
