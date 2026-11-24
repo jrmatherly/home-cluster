@@ -38,7 +38,7 @@ spec:
     api:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-api
-        tag: 1.16.0@sha256:8c1b432192c647c3904b589589d59a9988ddfd78343cb6ad887dece045ff7fce
+        tag: 1.16.1@sha256:aefa041ec32f9a9cbaa9cf5b6f2a293be6d5bf7c7cdb1145d240579c694668f9
       env:
         API_URL: https://plan.${SECRET_DOMAIN}/api
         APP_URL: https://plan.${SECRET_DOMAIN}
@@ -70,7 +70,7 @@ spec:
     web:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-web
-        tag: 1.16.0@sha256:74653ab7dc1f9d720a442cc851daf6039ac53e54d08080d176306e791a2b7a6d
+        tag: 1.16.1@sha256:9ae274867cb6367eced93c364a3f431c437f12df4511a385334168ed4f30730a
       resources:
         requests:
           cpu: 50m
@@ -80,7 +80,7 @@ spec:
     worker:
       image:
         repository: ghcr.io/jrmatherly/itsaplan-worker
-        tag: 1.16.0@sha256:02398a6196dd87015761ef9fe64a2431787cdfaebd6bb69139056979667b84dc
+        tag: 1.16.1@sha256:27687d4d090303b0fc80d888b5b974f0a93dbc07c1e4b63fe945f0d50143c6aa
       env:
         DO_NOT_TRACK: "1"
       resources:
