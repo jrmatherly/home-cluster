@@ -1,7 +1,8 @@
 [makejinja]
 inputs = ["./template/overrides", "./template/config"]
 output = "./"
-exclude_patterns = ["*.partial.yaml.j2"]
+# The sandbox leaves an empty .claude/.cc-writes in a shell's working directory.
+exclude_patterns = ["*.partial.yaml.j2", ".claude", ".cc-writes"]
 import_paths = ["./template/scripts"]
 loaders = ["plugin:Plugin"]
 jinja_suffix = ".j2"
