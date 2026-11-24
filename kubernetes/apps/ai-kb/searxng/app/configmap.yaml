@@ -21,6 +21,11 @@ data:
       max_request_timeout: 10.0
     # Brave web results return host-less /go/v1/ URLs (searxng/searxng#6967).
     # Disabled, not removed: brave.images, .videos and .news use its network.
+    # bing and yahoo are off upstream; both answered from the home address.
     engines:
       - name: brave
         disabled: true
+      - name: bing
+        disabled: false
+      - name: yahoo
+        disabled: false
