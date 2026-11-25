@@ -41,7 +41,7 @@ spec:
     extensions:
       - name: pg_search
         image:
-          reference: docker.io/paradedb/paradedb-extension:0.26.8-18-trixie@sha256:8910ae5bb787635adc25ae00283066a6642694be8e28bb5a6a7bd6fb596955ce
+          reference: docker.io/paradedb/paradedb-extension:0.27.1-18-trixie@sha256:ecd11da5bf259e333e069517e87de2be4cd4d458967367c81cbb85e5336ece6b
         extension_control_path: ["share"]
         dynamic_library_path: ["lib"]
         ld_library_path: ["system"]
