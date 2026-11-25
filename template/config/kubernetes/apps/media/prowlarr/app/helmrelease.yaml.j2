@@ -34,7 +34,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/prowlarr
-              tag: 3.0.2.5780@sha256:58fa5dbed20738ce0a72077315e818eeb731cb4b4a5173c4a837d343a9573750
+              tag: 3.1.0.5799@sha256:15b68a6e69f893a3ede6fed405594d3f5d9e9d13648246a0fefbafe4fd7f595b
             # These cover the host settings, so the job does not PUT /config/host.
             env:
               # The gateway's Pocket ID sign-in and the NetworkPolicy are the
@@ -98,7 +98,7 @@ spec:
           app:
             image:
               repository: docker.io/alpine/k8s
-              tag: 1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042
+              tag: 1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0
             envFrom:
               - secretRef:
                   name: media-keys
