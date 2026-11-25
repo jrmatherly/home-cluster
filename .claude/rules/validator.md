@@ -17,7 +17,7 @@ paths:
 
 The schema holds no secret. A section that needs one gets a flag or a non-secret field here, and the secret is a row in `template/scripts/secret_map.py`, whose format and must-differ rules `just template secrets-check` applies to the vault (`.claude/rules/apps/external-secrets.md`). `onepassword.vault` is required in every config, so every valid fixture sets it. That check runs last, so an invalid fixture without the vault still reports its own error first.
 
-Then run `uv run --locked pytest template/scripts/test_validate.py -q`. The Stop hook also runs it whenever anything under `template/`, the sample, the schema or the fixtures changed, and it renders every valid fixture.
+Then run `uv run --locked pytest template/scripts -q`. The Stop hook also runs it whenever anything under `template/`, the sample, the schema or the fixtures changed, and it renders every valid fixture.
 
 ## Keeping cluster.toml and cluster.sample.toml in step
 

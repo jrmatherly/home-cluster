@@ -119,7 +119,7 @@ def check(scratch: Path, env: dict[str, str]) -> tuple[list[str], bool]:
         env,
     )
     if r.returncode:
-        failures[("pytest template/scripts/test_validate.py", tail(r))] = []
+        failures[("pytest template/scripts", tail(r))] = []
     # The whole repo, not only the rendered trees: TOML fixtures and other tracked
     # files drifted for months while only rendered output was checked.
     r = run(["oxfmt", "--check", "."], ROOT, env)

@@ -39,7 +39,7 @@ Every deployment secret lives in one 1Password vault, and External Secrets Opera
 - A whole document can be one `target.template` key: three Helm values documents and the CLIProxyAPI config are built that way. The config adds career-ops' client key under a Go `if ne`, so it stays out when it equals the shared key.
 - The tunnel token is built with `printf` in the key order `a`, `t`, `s`, the order the old encoder wrote, because `toJson` sorts keys and would change the bytes. cloudflared did not restart at its cutover.
 - An ExternalSecret with no data is invalid, so one built from an optional list sits in a guard: `ai-workspace-env` and its `envFrom` entry render only when `ai_workspace.env_keys` names a variable.
-- The two shared components each hold one ExternalSecret: `postgres-backup` in `components/postgres` (nine namespaces) and `redis-auth` in `components/redis` (three).
+- The two shared components each hold one ExternalSecret: `postgres-backup` in `components/postgres` (nine namespaces) and `redis-auth` in `components/redis` (four).
 - `cluster-secrets`, which provides `${SECRET_DOMAIN}`, comes from one `ClusterExternalSecret` in `external-secrets/onepassword-connect` (`creationPolicy: Orphan`, so deleting it never deletes a copy). It writes a copy into every namespace except `cilium-secrets`, `external-secrets`, `kube-node-lease` and `kube-public`. `bootstrap/onepassword.yaml` seeds the `flux-system` copy for a cold start. `components/sops` is gone.
 - `media-shared` has `wait: true`, so it reports Ready only once both of its ExternalSecrets are, and the media apps' Kustomizations wait on it while the vault is unreachable.
 
@@ -51,7 +51,7 @@ Every deployment secret lives in one 1Password vault, and External Secrets Opera
 
 ## Cutover results (2026-11-22 and 2026-11-23)
 
-The method is kept for the last sops Secrets. A cutover is two pushes. Push 1 adds `kustomize.toolkit.fluxcd.io/prune: disabled` to the sops Secret. Push 2 removes the Secret from Git and adds the ExternalSecret, and the rendered `secret.sops.yaml` needs a `git rm`, because makejinja never deletes output. Record a Secret's UID and `jsonpath='{.data}' | shasum` before push 2 and compare after. A changed hash with the same UID means the vault value differs from the live one, and Reloader restarts the app.
+No sops Secret remains; the method is kept for reference. A cutover is two pushes. Push 1 adds `kustomize.toolkit.fluxcd.io/prune: disabled` to the sops Secret. Push 2 removes the Secret from Git and adds the ExternalSecret, and the rendered `secret.sops.yaml` needs a `git rm`, because makejinja never deletes output. Record a Secret's UID and `jsonpath='{.data}' | shasum` before push 2 and compare after. A changed hash with the same UID means the vault value differs from the live one, and Reloader restarts the app.
 
 - The runner's Secret (`f8b0ae50`): ESO adopted the live Secret with the same UID and the same data hash, became its controlling owner, kept Flux's labels, and no pod restarted.
 - The 15 leaf apps' 24 sops templates became 23 ExternalSecrets and one ConfigMap (`network-optimizer-identity`, which holds no credential). Every adopted Secret kept its UID and, compared key by key, its bytes. No pod restarted except Network Optimizer's, for the volume type change.
