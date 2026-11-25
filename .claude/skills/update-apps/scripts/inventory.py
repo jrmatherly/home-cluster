@@ -11,6 +11,7 @@ A tag pinned with a digest is also checked against the registry: when the tag's 
 bump reads `digest`, because Renovate opens a PR for that and the tag alone would show `none`.
 """
 
+import http.client
 import json
 import re
 import subprocess
@@ -56,6 +57,11 @@ MANIFEST_TYPES = (
 DIGEST = r'(?:@(sha256:[0-9a-f]+))?'
 
 
+def floating(tag: str) -> bool:
+    """A tag with no version parse() reads (`latest`, `stable`, `3-management`)."""
+    return parse(tag) is None
+
+
 def pins() -> list[tuple[str, str, str, str, str, Path]]:
     """Return (app, kind, repository, current tag, pinned digest or "", file) for every pin.
 
@@ -88,14 +94,13 @@ def pins() -> list[tuple[str, str, str, str, str, Path]]:
         if "helmfile" not in path.parts:
             # Single-line pins: image volumes under persistence, plain Deployments, CronJobs,
             # the Redis component, the Postgres ImageCatalog and a CNPG extension image
-            # (`reference:`). Skipped: a `latest` tag (the docs image; Renovate moves its
-            # digest) and the model images, whose tags are a quantization plus a revision and
-            # are bumped by hand (apps.md, localai).
+            # (`reference:`). Skipped: the model images, whose tags are a quantization plus a
+            # revision and are bumped by hand (apps.md, localai).
             app = path.parts[-3] if path.parts[-2] == "app" else path.parts[-2]
             for repo, tag, digest in re.findall(
                 rf'\n\s+(?:image|reference): "?([^\s"@:]+(?:/[^\s"@:]+)+):([^\s@"]+){DIGEST}', text
             ):
-                if tag != "latest" and not repo.startswith("ghcr.io/jrmatherly/models/"):
+                if not repo.startswith("ghcr.io/jrmatherly/models/"):
                     found.append((app, "image", repo, tag, digest, rel))
         if "helmfile" in path.parts:
             # A "# renovate:" comment may sit between the chart and its version.
@@ -280,16 +285,21 @@ def main() -> int:
     for app, kind, repository, current, pinned, path in pins():
         if wanted and app not in wanted:
             continue
+        if floating(current) and not pinned:
+            print(f"{app}: skipped floating tag {current} in {repository}", file=sys.stderr)
+            continue
         try:
-            latest = latest_stable(kind, repository, current)
+            # A floating tag pinned by digest has no version to compare; only its digest moves.
+            latest = current if floating(current) else latest_stable(kind, repository, current)
             if latest == "?":
                 print(f"{app}: no stable tag found in {repository}", file=sys.stderr)
                 failed = True
-            change = bump(current, latest)
+            change = "none" if latest == current else bump(current, latest)
             if change == "none" and pinned and digest(repository, current) != pinned:
                 change = "digest"
-        # OSError covers URLError, timeouts and a connection the proxy drops.
-        except (OSError, KeyError, json.JSONDecodeError) as error:
+        # OSError covers URLError, timeouts and a connection the proxy drops; HTTPException
+        # covers IncompleteRead, which the sandbox proxy causes mid-body.
+        except (OSError, http.client.HTTPException, KeyError, json.JSONDecodeError) as error:
             print(f"{app}: lookup failed for {repository}: {error}", file=sys.stderr)
             latest, change, failed = "?", "unknown", True
         rows.append((app, kind, current, latest, change, str(path)))

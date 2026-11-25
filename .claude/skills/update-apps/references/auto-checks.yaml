@@ -11,8 +11,8 @@
 # runner's RBAC allows: kubectl get, wait, rollout status, logs, flux get, and curl through the
 # internal gateway. No kubectl exec, no kubectl run.
 #
-# Left out on purpose (apps.md says why): the six bootstrap charts (cilium, coredns, spegel,
-# cert-manager, flux-operator, flux-instance), whose drift check reads Helm release Secrets;
+# Left out on purpose (apps.md says why): the eight bootstrap charts (cilium, coredns, spegel,
+# cert-manager, external-secrets, onepassword-connect, flux-operator, flux-instance), whose drift check reads Helm release Secrets;
 # cloudnative-pg, which restarts every database; pocket-id, radar, pegaprox, network-optimizer,
 # searxng, k8s-gateway, localai, the media apps and docs, whose check is a sign-in, an exec, a dig
 # or a UI step.

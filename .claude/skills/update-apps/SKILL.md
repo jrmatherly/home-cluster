@@ -43,7 +43,8 @@ order, and the next app starts only when the current one is healthy.
    pin with its newest stable tag and the size of the bump. A non-zero exit means a lookup failed or found no
    stable tag; read stderr and resolve it before trusting the table. Run `gh pr list` as well. When Renovate
    already has a pull request for a target, name it in the report so the user can close it once the update lands.
-   With `--auto`, run `git pull --ff-only` first, then
+   With `--auto`, run `git pull --ff-only` first on a local run (the action's checkout is fresh, and its
+   tool allowlist has no `git pull`), then
    `gh pr list --json number,title,headRefOid,files` instead of the inventory, and take the app, the two
    versions and the bump from each PR's title and files. A PR whose files are outside the scope above is `not
    ours`.
@@ -93,7 +94,7 @@ apply the merge commit and runs the app's checks. A failed check reverts that me
 cannot run stops with no revert, and every other verdict gets one comment opening with
 `<!-- update-apps verdict -->`. `cluster.toml` is absent there, so the domain comes from `CLUSTER_DOMAIN`.
 `scripts/bootstrap-drift.sh` never runs on the runner, because it reads the Helm release Secrets, which the
-runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-checks.yaml`.
+runner's RBAC refuses; that is why the eight bootstrap charts are not in `auto-checks.yaml`.
 `scripts/test-auto-merge.sh` is the script's test, with fake `gh`, `kubectl`, `flux`, `git` and `flate` on
 `PATH`; run it after any change to the script or the registry.
 
@@ -127,8 +128,10 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
   fetch both chart tarballs from the index and `helm template` them with the rendered HelmRelease values.
 - **Bump `digest` means the tag did not move but its digest did.** Renovate opens a PR for it (a rebuilt
   base image, usually). The tier 1 rules in `.renovaterc.json5` merge it on their own on the weekend once
-  Flate passes, unless it is a LocalAI, rustfs rc, pegaprox, Servarr or shared Postgres image (stated, the
-  digest rule; the Postgres digest rolls every CloudNativePG cluster, so it waits for a hand merge). They
+  Flate passes, unless the digest rule's `!` list in `.renovaterc.json5` excludes it (LocalAI, rustfs rc,
+  pegaprox, the Servarr builds, the shared Postgres image, CLIProxyAPI, CPA-Manager-Plus, career-ops and
+  Firecrawl, measured 2026-11-25; the Postgres digest rolls every CloudNativePG cluster, so it waits for a
+  hand merge). They
   merge patch PRs the same way for the apps in the "Tier 1 automerge, patch" allowlist, and the docs digest
   merges at once as a branch. A PR still open on Monday is one Flate failed, one no tier 1 rule covers, or
   one under three days old. A digest-only PR needs no research beyond reading what the rebuild changed; merge
@@ -141,8 +144,12 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
 - **A date tag with a commit suffix compares by date.** `2026.10.23-68647d080` reads as a build of that day,
   so SearXNG's row shows a newer day. Same-day builds tie, and the table cannot tell which one `latest`
   carried; `references/apps.md` says how to pick.
-- **Images it skips.** The docs image (`:latest`, Renovate moves its digest) and the model images under
-  `ghcr.io/jrmatherly/models/` (hand-bumped, see `references/apps.md`).
+- **Floating tags.** A tag with no version (`latest`, `stable`, `3-management`: the docs, career-ops
+  and Firecrawl images, RustFS's busybox, RabbitMQ) pinned by digest gets a row whose bump is only
+  `digest` or `none`; one with no digest is skipped with a stderr line. The model images under
+  `ghcr.io/jrmatherly/models/` are skipped too (hand-bumped, see `references/apps.md`).
+- **An `IncompleteRead` traceback is the sandbox proxy too.** The inventory reports it as a lookup failure;
+  rerun outside the sandbox.
 - **quay.io answers the tag list with 503 at times** (both LocalAI backend runs on 2026-10-24). The row reads
   `?` with a stderr line; check the one tag by hand with a HEAD on `/v2/<name>/manifests/<tag>`.
 
@@ -154,7 +161,7 @@ runner's RBAC refuses; that is why the six bootstrap charts are not in `auto-che
 - `scripts/upstream-diff.sh` — diffs two tags of an upstream GitHub repository through a shallow clone that
   can run nothing (no external diff, pager or user config). Run it, do not read it.
 - `scripts/bootstrap-drift.sh` — lists live fields the bootstrap's `helm` field manager still owns that the
-  current release manifest dropped, for the six charts `just bootstrap apps` installed; `--apply` releases
+  current release manifest dropped, for the eight charts `just bootstrap apps` installed; `--apply` releases
   them. Run it after any of those charts drops a key (step 7), because helm-controller cannot prune them.
   It exits 1 when a release is not readable, which is what happens on the runner.
 - `scripts/auto-merge.sh` — the apply step of the weekly run, described under "Runs in CI". Run it, do not

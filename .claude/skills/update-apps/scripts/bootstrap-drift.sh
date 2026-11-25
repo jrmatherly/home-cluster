@@ -12,6 +12,7 @@
 set -euo pipefail
 
 releases=(kube-system/cilium kube-system/coredns kube-system/spegel cert-manager/cert-manager
+    external-secrets/external-secrets external-secrets/onepassword-connect
     flux-system/flux-operator flux-system/flux-instance)
 mode=${1:-}
 tmp=$(mktemp -d)
