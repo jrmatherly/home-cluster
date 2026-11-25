@@ -7,9 +7,12 @@ const INPLACE_SHORT = /^-[a-zA-Z]*i/;
 const NODE_OPS =
   /\bjust\b[^|;&]*\btalos(?:\s+|::)(?:apply|drain|stop-node|reboot-node|upgrade-node|apply-node|reset-node|upgrade-k8s|upgrade|reset)\b|\btalosctl\b.*\b(?:upgrade|upgrade-k8s|reset|apply-config|reboot|shutdown)\b|\btopf\s+(?:apply|upgrade|reset)\b|\bkubectl\b.*\bdrain\b/;
 const SECRET_FILES =
-  /\b(?:cluster\.toml|age\.key|deploy\.key|cloudflare-tunnel\.json|flux-webhook-token\.txt|kubeconfig|talosconfig|secrets\.yaml)\b/;
+  /\b(?:cluster\.toml|age\.key|deploy\.key|cloudflare-tunnel\.json|flux-webhook-token\.txt|kubeconfig|talosconfig|secrets\.yaml)\b|\btalos\/rendered(?![\w.-])/;
+// just talos render writes full machine configs, keys and tokens included, here.
+const SECRET_DIR = "talos/rendered";
 // What a glob in the repo root or talos/ could expand to.
 const SECRET_PATHS = [
+  SECRET_DIR,
   "cluster.toml",
   "age.key",
   "deploy.key",
@@ -45,18 +48,24 @@ function inWindow(ms: number): boolean {
 
 const basename = (word: string) => word.replace(/^.*\//, "");
 
-// The command word and its arguments, past any VAR=value prefix.
+// The command word and its arguments, past any VAR=value prefix and an `rtk` or `rtk bypass`
+// wrapper, which runs the command after it.
 function command(ws: Word[]): { base: string; args: Word[] } {
-  const start = ws.findIndex((w) => !ASSIGNMENT.test(w.text));
-  return start < 0
+  let start = ws.findIndex((w) => !ASSIGNMENT.test(w.text));
+  if (start >= 0 && basename(ws[start].text) === "rtk") {
+    start++;
+    while (ws[start]?.text === "bypass" || ws[start]?.text.startsWith("-")) start++;
+  }
+  return start < 0 || !ws[start]
     ? { base: "", args: [] }
     : { base: basename(ws[start].text), args: ws.slice(start + 1) };
 }
 
-// A heredoc feeds these as text; fed to anything else, its lines may be commands.
-function readsHeredocAsText(ws: Word[]): boolean {
+// A quoted heredoc's body is data only when every command on its line just stores or sends text;
+// fed to anything else, an unknown interpreter included, its lines may run.
+function storesText(ws: Word[]): boolean {
   const { base, args } = command(ws);
-  return base === "gh" || (base === "git" && args[0]?.text === "commit");
+  return ["cat", "tee", "gh"].includes(base) || (base === "git" && args[0]?.text === "commit");
 }
 
 // The command as its simple commands, each a list of shell words with quotes resolved. Separators
@@ -65,7 +74,8 @@ function parse(cmd: string): Word[][] {
   const segs: Word[][] = [];
   let seg: Word[] = [];
   let cur: Word | undefined;
-  let heredocs: { delim: string; expands: boolean; seg: Word[] }[] = [];
+  let heredocs: { delim: string; expands: boolean }[] = [];
+  let lineStart = 0;
   const add = (text: string, bare: boolean, expands = false) => {
     cur ??= { text: "", pattern: "", expands: false, op: false };
     cur.text += text;
@@ -112,14 +122,16 @@ function parse(cmd: string): Word[][] {
     } else if (c === "\n") {
       endSeg();
       i++;
-      for (const { delim, expands, seg: owner } of heredocs) {
+      const runs = segs.slice(lineStart).some((ws) => !storesText(ws));
+      for (const { delim, expands } of heredocs) {
         const lines = cmd.slice(i).split("\n");
         const end = lines.findIndex((l) => l.trim() === delim);
         const body = (end < 0 ? lines : lines.slice(0, end)).join("\n");
         i = end < 0 ? cmd.length : i + body.length + (end > 0 ? 1 : 0) + lines[end].length + 1;
-        if (expands || !readsHeredocAsText(owner)) segs.push(...parse(body));
+        if (expands || runs) segs.push(...parse(body));
       }
       heredocs = [];
+      lineStart = segs.length;
     } else if (/\s/.test(c)) {
       endWord();
       i++;
@@ -131,7 +143,6 @@ function parse(cmd: string): Word[][] {
       heredocs.push({
         delim: heredoc[1].replace(/['"\\]/g, ""),
         expands: !/['"\\]/.test(heredoc[1]),
-        seg,
       });
       i += heredoc[0].length;
     } else if (operator) {
@@ -258,28 +269,43 @@ function braces(text: string): string[] {
 
 function globNamesSecret(text: string, cwd: string): boolean {
   if (!/[*?[]/.test(text)) return false;
-  const source = relative(text, cwd).replace(/\[!?[^\]]+\]|[*?]|[.+^${}()|\\\][]/g, (m) => {
-    if (m === "*") return "[^/]*";
-    if (m === "?") return "[^/]";
-    return m.length > 1 ? m.replace(/^\[!/, "[^") : `\\${m}`;
-  });
+  const glob = (g: string) =>
+    new RegExp(
+      `^${g.replace(/\[!?[^\]]+\]|[*?]|[.+^${}()|\\\][]/g, (m) => {
+        if (m === "*") return "[^/]*";
+        if (m === "?") return "[^/]";
+        return m.length > 1 ? m.replace(/^\[!/, "[^") : `\\${m}`;
+      })}$`,
+    );
+  const parts = relative(text, cwd).split("/");
   try {
-    const re = new RegExp(`^${source}$`);
-    return SECRET_PATHS.some((p) => re.test(p));
+    const re = glob(parts.join("/"));
+    // A directory part that matches talos/rendered expands to the files in it.
+    return (
+      SECRET_PATHS.some((p) => re.test(p)) ||
+      parts.slice(1).some((_, n) => glob(parts.slice(0, n + 1).join("/")).test(SECRET_DIR))
+    );
   } catch {
     // An invalid class such as [z-a] matches nothing in the shell either.
     return false;
   }
 }
 
+// A long flag's name such as --kubeconfig is not a file; only its value can name one.
+const flagValue = (s: string) => s.replace(/^--[\w-]+(?:=|$)/, "");
+
 function namesSecret(w: Word, cwd: string): boolean {
-  if (SECRET_FILES.test(w.text)) return true;
-  return braces(w.pattern).some((t) => SECRET_FILES.test(t) || globNamesSecret(t, cwd));
+  if (SECRET_FILES.test(flagValue(w.text))) return true;
+  return braces(flagValue(w.pattern)).some((t) => SECRET_FILES.test(t) || globNamesSecret(t, cwd));
 }
 
 // The command forms allowed to open a secrets file, after an optional `uv run [flags]`.
 function isReader(ws: Word[]): boolean {
   let t = ws.map((w) => w.text).filter((w) => !ASSIGNMENT.test(w));
+  if (basename(t[0] ?? "") === "rtk") {
+    t = t.slice(1);
+    while (t[0] === "bypass" || t[0]?.startsWith("-")) t = t.slice(1);
+  }
   if (t[0] === "uv" && t[1] === "run") {
     t = t.slice(2);
     while (t[0]?.startsWith("-")) t = t.slice(1);

@@ -9,11 +9,16 @@ A Claude Code hooks module for this repo. It refuses three things before the too
   form, quoted or not. Reading a rendered file
   and sending the result elsewhere is allowed.
 - **Secrets files.** A Bash command segment that names `cluster.toml`, `age.key`, `deploy.key`,
-  `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig`, `talosconfig` or `secrets.yaml` (the Talos bundle) is refused
+  `cloudflare-tunnel.json`, `flux-webhook-token.txt`, `kubeconfig`, `talosconfig`, `secrets.yaml` (the Talos bundle)
+  or `talos/rendered` (the machine configs `just talos render` writes, keys included) is refused
   unless that segment runs `template/scripts/validate.py`, `template/scripts/check_layout.py`, a
   `just template` recipe or `taplo check`. One shell tokenizer resolves quotes and reads nested
   shells, `eval` and command substitutions as commands, so a quoted, globbed or spliced name is
-  still refused. Only a `git commit` message and a `grep` or `rg` pattern count as text. The Read tool is denied `cluster.toml` and the key files by `.claude/settings.json`.
+  still refused. Only a `git commit` message, a `grep` or `rg` pattern, a long flag's name such as
+  `--kubeconfig` (its value still counts) and the body of a quoted heredoc (`<<'EOF'`) whose line
+  runs only `cat`, `tee`, `gh` or `git commit` count as text; any other command on that line, an
+  unknown interpreter included, makes the body commands again. An `rtk` prefix, with `bypass` or its
+  flags, is looked through, by the allowed readers too. The Read tool is denied `cluster.toml` and the key files by `.claude/settings.json`.
 - **The UniFi window.** Node maintenance is refused from 02:45 to 03:30 local time. That covers
   `just talos apply`, `apply-node`, `drain`, `stop-node`, `reboot-node`, `upgrade-node`, `upgrade-k8s` and
   `reset-node`, the all-node `upgrade` and `reset`, `talosctl` with

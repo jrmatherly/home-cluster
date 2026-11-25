@@ -3,34 +3,10 @@ import type { Engine } from "claude-code/testing";
 import type { On } from "claude-code";
 
 const at = (h: number, m: number) => new Date(2026, 9, 10, h, m).getTime();
-function world(on: On, porcelain = "", now = at(10, 0)) {
-  const status: unknown[] = [];
-  const toasts: unknown[] = [];
-  const runs: unknown[] = [];
+function world(on: On, now = at(10, 0)) {
   mock.clock(on, { now });
   on("tool.call", () => ({ result: "ran" }));
   on("session.cwd", () => ({ value: "/work" }));
-  on("process.run", ($, e) => {
-    runs.push(e.argv);
-    return {
-      value: {
-        exitCode: 0,
-        stdout: porcelain,
-        stderr: "",
-        isStdoutTruncated: false,
-        isStderrTruncated: false,
-      },
-    };
-  });
-  on("ui.status", ($, e) => {
-    status.push(e.text);
-    return { value: undefined };
-  });
-  on("ui.toast", ($, e) => {
-    toasts.push(e.text);
-    return { value: undefined };
-  });
-  return { status, toasts, runs };
 }
 const bash = ($: Engine, command: string) => $.tool.call({ tool: "Bash", command });
 const denied = async ($: Engine, commands: string[], reason: RegExp) => {
@@ -41,7 +17,7 @@ const allowed = async ($: Engine, commands: string[]) => {
 };
 
 test("node maintenance is refused inside the UniFi window", async ($, on) => {
-  world(on, "", at(3, 0));
+  world(on, at(3, 0));
   await denied(
     $,
     [
@@ -66,7 +42,7 @@ for (const [h, m, open] of [
   [3, 31, true],
 ] as const) {
   test(`the window edge at ${h}:${String(m).padStart(2, "0")} is ${open ? "open" : "closed"}`, async ($, on) => {
-    world(on, "", at(h, m));
+    world(on, at(h, m));
     const result = await bash($, "just talos drain k8s-cp-2");
     if (open) expect(result.deny).toBeUndefined();
     else expect(String(result.deny)).toMatch(/02:45 to 03:30/);
@@ -205,7 +181,7 @@ test("op commands that print a secret are refused, the rest run", async ($, on) 
   ]);
 });
 test("just's flags and module path do not hide node maintenance", async ($, on) => {
-  world(on, "", at(3, 0));
+  world(on, at(3, 0));
   await denied(
     $,
     [
@@ -321,10 +297,86 @@ test("writing a rendered file is refused with the source hint", async ($, on) =>
     "ls kubernetes/apps 2>/dev/null",
   ]);
 });
-test("configure and git commands run no status check and pin no line", async ($, on) => {
-  const seen = world(on);
-  await allowed($, ["just configure", 'git commit -am "x"']);
-  expect(seen.runs).toEqual([]);
-  expect(seen.status).toEqual([]);
-  expect(seen.toasts).toEqual([]);
+test("talos/rendered machine configs count as secrets files", async ($, on) => {
+  world(on);
+  await denied(
+    $,
+    [
+      "cat talos/rendered/k8s-cp-1.yaml",
+      "yq .machine.token ./talos/rendered/k8s-cp-1.yaml",
+      "cat /work/talos/rendered/k8s-cp-1.yaml",
+      "ls talos/rendered",
+      "cat talos/re*/k8s-cp-1.yaml",
+      "grep -r token talos/*/*.yaml",
+    ],
+    /names a secrets file/,
+  );
+  await allowed($, ["just talos render", "cat talos/all/10.yaml"]);
+});
+test("an rtk prefix does not hide the real command", async ($, on) => {
+  world(on);
+  await allowed($, [
+    'rtk grep -n "secrets.yaml\\|x" talos/mod.just',
+    'rtk bypass grep -n "secrets.yaml" talos/mod.just',
+    'RTK_DISABLED=1 grep -n "secrets.yaml" talos/mod.just',
+  ]);
+  await denied(
+    $,
+    ["rtk cat talos/secrets.yaml", "rtk bypass cat cluster.toml", "RTK_DISABLED=1 cat age.key"],
+    /names a secrets file/,
+  );
+  await denied($, ["rtk op read op://vault/item/field"], /owner's to run/);
+  await denied($, ["rtk sed -i s/a/b/ kubernetes/a.yaml"], /writes a rendered file/);
+});
+test("a quoted heredoc written to a file is data unless an interpreter reads it", async ($, on) => {
+  world(on);
+  await allowed($, [
+    "cat > \"$TMPDIR/x\" <<'EOF'\ncat talos/secrets.yaml\nEOF",
+    "tee \"$TMPDIR/t.sh\" >/dev/null <<'EOF'\ndocker run -v ./kubeconfig:/k img\nEOF",
+  ]);
+  await denied(
+    $,
+    [
+      "bash <<'EOF'\ncat talos/secrets.yaml\nEOF",
+      "python3 - <<'EOF'\nopen('cluster.toml')\nEOF",
+      "uv run python - <<'EOF'\nopen('cluster.toml')\nEOF",
+      "node <<'EOF'\nrequire('fs').readFileSync('age.key')\nEOF",
+      "cat <<'EOF' | sh\ncat age.key\nEOF",
+      "xargs cat <<'EOF'\ntalos/secrets.yaml\nEOF",
+      'cat > "$TMPDIR/x" <<EOF\n$(cat cluster.toml)\nEOF',
+      "cat > \"$TMPDIR/x\" <<'EOF'\nok\nEOF\ncat cluster.toml",
+      "php <<'EOF'\n<?php readfile('talos/secrets.yaml');\nEOF",
+      "lua - <<'EOF'\nio.open('age.key')\nEOF",
+      "cat <<'EOF' | npx tsx -\nrequire('fs').readFileSync('cluster.toml')\nEOF",
+    ],
+    /names a secrets file/,
+  );
+  await denied(
+    $,
+    ["git add . && cat > \"$TMPDIR/n.md\" <<'EOF'\ncat cluster.toml\nEOF"],
+    /names a secrets file/,
+  );
+});
+test("rtk flags, rtk readers and talos/rendered look-alikes", async ($, on) => {
+  world(on);
+  await allowed($, [
+    "rtk uv run --locked --no-dev template/scripts/validate.py cluster.toml",
+    "rtk just template doctor",
+    "cat talos/rendered-notes.md",
+  ]);
+  await denied(
+    $,
+    ["rtk -u cat talos/secrets.yaml", "cat talos/rendered/k8s-cp-1.yaml"],
+    /names a secrets file/,
+  );
+  await denied($, ["rtk -u sed -i s/a/b/ kubernetes/apps/x.yaml"], /rendered/);
+});
+test("a flag name is not a file reference, its value may be", async ($, on) => {
+  world(on);
+  await allowed($, ["true --kubeconfig /dev/null", "talosctl --talosconfig=/tmp/x version"]);
+  await denied(
+    $,
+    ["kubectl --kubeconfig ./kubeconfig get nodes", "kubectl --kubeconfig=./kubeconfig get nodes"],
+    /names a secrets file/,
+  );
 });
