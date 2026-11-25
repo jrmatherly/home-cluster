@@ -1,8 +1,9 @@
 ---
-# Placeholder Secrets for flate's --supply in the Flate workflow. flate reads no
-# SOPS-encrypted value, and CloudNativePG generates the *-db-app Secrets in the
-# cluster, so a valuesFrom reference to either would block its HelmRelease.
-# Supplied objects only satisfy references; flate never renders or applies them.
+# Placeholder Secrets for flate's --supply in the Flate workflow, which reads them
+# through supply.sh (it adds one cluster-secrets per namespace). ExternalSecrets
+# and CloudNativePG build these Secrets only in the cluster, so a valuesFrom
+# reference to one would block its HelmRelease. Supplied objects only satisfy
+# references; flate never renders or applies them.
 apiVersion: v1
 kind: Secret
 metadata:

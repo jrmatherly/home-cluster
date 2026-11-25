@@ -44,10 +44,12 @@ jobs:
 
       - name: Run Flate
         id: flate
-        # flate reads no SOPS-encrypted value, and CloudNativePG generates the
-        # *-db-app Secrets in the cluster, so the supply file holds placeholders
-        # for the Secrets a valuesFrom names. Any other missing Secret blocks.
-        run: flate test all --supply .github/flate/supply.yaml -p ./kubernetes/flux/cluster
+        # ExternalSecrets and CloudNativePG build their Secrets only in the
+        # cluster, so supply.sh prints placeholders for the ones a valuesFrom or
+        # substituteFrom names. Any other missing Secret blocks.
+        run: |
+          .github/flate/supply.sh > "$RUNNER_TEMP/supply.yaml"
+          flate test all --supply "$RUNNER_TEMP/supply.yaml" -p ./kubernetes/flux/cluster
 
   success:
     if: ${{ !cancelled() }}
