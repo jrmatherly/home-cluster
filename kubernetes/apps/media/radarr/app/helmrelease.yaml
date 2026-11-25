@@ -33,7 +33,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/radarr
-              tag: 7.0.3.10918@sha256:55d3cf8a4c4c531bb8b5c1ba88eb270d4435e01e228fbdb16cdfc910a17e3b06
+              tag: 7.1.0.10948@sha256:d259bde2be6b1997c1832cf981d50017f919b305ed3dc9ce445c4661956553f3
             env:
               # The gateway's Pocket ID sign-in and the NetworkPolicy are the
               # login, so Radarr trusts whoever reaches it.
@@ -96,7 +96,7 @@ spec:
           app:
             image:
               repository: docker.io/alpine/k8s
-              tag: 1.37.2@sha256:dcb7185e112a453aa72f426754849a97357727ef8f40168fb208c8cf59952042
+              tag: 1.37.2@sha256:7a82aeefea3d554a43a8676b137f2b88bae6c1fe11c13862b191b3a086cc28c0
             envFrom:
               - secretRef:
                   name: media-keys
