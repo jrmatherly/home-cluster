@@ -127,7 +127,16 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   headless, and a web pod restarted right after the roll dialed the old pod address, exited once, and on
   its next start logged "Failed to detect ClickHouse version" and ran without the compatibility settings
   until a further restart (measured 2026-10-30). After a line change, list `system.tables` and add a
-  `<remove>` for any new log table that grows.
+  `<remove>` for any new log table that grows. 26.11 makes `toStartOfInterval` return its argument's
+  type (ClickHouse PR 122129), which re-types the partition key of `observations_batch_staging`
+  (a 48-hour staging buffer; empty in `events_only` write mode, Langfuse 4.86's default): 26.11 detached
+  every 26.10 part of it, and a return to 26.10 detached every part 26.11 wrote (measured in Docker,
+  2026-11-24; ClickHouse issue 130265, open, no fix). The way through is `<compatibility>26.10</compatibility>`
+  in the `users.d` default profile, landed first while still on 26.10, then the image bump alone: 0 parts
+  detached both ways and Langfuse's reads matched 26.10 (measured). The narrower
+  `to_start_of_interval_preserves_argument_type=0` also works, but 26.10 refuses to start with it
+  (`UNKNOWN_SETTING`), so a rollback would have to remove the file with the image. Check
+  `system.detached_parts` is empty after the roll. Hold 26.11 until Langfuse's CI runs it.
 
 ## Order when several are pending
 
