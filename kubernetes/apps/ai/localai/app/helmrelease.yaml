@@ -93,6 +93,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
         runAsGroup: 65534
+        fsGroup: 65534
         seccompProfile: { type: RuntimeDefault }
     service:
       app:
@@ -145,11 +146,16 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /configuration
-      # A client holding the key can upload files here; the limits keep a misbehaving
-      # client from filling the node.
+      # Since v5 the WebUI keeps chats, agents, skills and add-on state here, beside
+      # uploads from clients holding the key, so it outlives the pod.
       data:
-        type: emptyDir
-        sizeLimit: 1Gi
+        # The chart renames a lone claim when a second one appears.
+        forceRename: localai
+        retain: true
+        type: persistentVolumeClaim
+        storageClass: local-path
+        accessMode: ReadWriteOnce
+        size: 5Gi
         globalMounts:
           - path: /data
       tmp:
