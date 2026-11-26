@@ -298,8 +298,10 @@ The charts under `charts-mirror` are copies of the upstream chart, so the upstre
   change; 3.5 minutes from push to the restart and 11 seconds down on 2026-10-24, with AI KB reconnecting
   on its own), and the app's migrations only target the pg_search versions they pin (0.25.11 at
   v2026.10.23), so when the new image is past that, run the catalog step by hand:
-  `kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -U postgres -d app -c "SET ROLE app; ALTER EXTENSION pg_search UPDATE TO '<version>'"`
-  (peer auth refuses `-U app` on the socket), then check `SELECT extversion FROM pg_extension WHERE extname='pg_search'`
+  `kubectl -n ai-kb exec ai-kb-db-1 -c postgres -- psql -U postgres -d app -c "ALTER EXTENSION pg_search UPDATE TO '<version>'"`
+  as `postgres`, not `SET ROLE app`: the extension's owner is `app` but its 553 functions are owned by
+  `postgres`, so the 0.26.8 to 0.27.0 script's `DROP FUNCTION vector_info` failed as `app` and rolled back
+  (measured 2026-11-26; the update left the owner `app`). Peer auth refuses `-U app` on the socket. Then check `SELECT extversion FROM pg_extension WHERE extname='pg_search'`
   equals `SELECT * FROM paradedb.version_info()`. ParadeDB's upgrade page calls the step required even when
   the `pg_search--<old>--<new>.sql` script is empty. An extension build can need a newer Postgres minor than
   the catalog runs: pg_search 0.26.8 refuses to load on 18.6 (`undefined symbol: heap_datum_check`, measured
