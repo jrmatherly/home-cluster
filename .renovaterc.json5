@@ -108,6 +108,12 @@
       allowedVersions: "<3",
     },
     {
+      description: "Postgres 19 needs CloudNativePG 1.31 (1.30 supports 15 to 18), a major-version upgrade per cluster, and a ParadeDB build for ai-kb-db; stay on 18 until that is planned",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/cloudnative-pg/postgresql"],
+      allowedVersions: "<19",
+    },
+    {
       description: "The docs and career-ops images are rebuilt on every push to main, and Firecrawl publishes its Playwright and queue Postgres images as latest only: pin latest to its digest. pinDigests must sit in a rule without matchUpdateTypes, because update types are only known after the lookup that pinDigests steers",
       matchDatasources: ["docker"],
       matchPackageNames: [
