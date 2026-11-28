@@ -69,7 +69,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: clickhouse
-          image: docker.io/clickhouse/clickhouse-server:26.10.9.12@sha256:60bb5a5d7c0df82933d15dacf5a71e1384f8109cb158e6d0e4023b09cbaf72a3
+          image: docker.io/clickhouse/clickhouse-server:26.11.4.11@sha256:630693b4a8bce41954fe497ed371918aefe99434139d2da5786276459722fbb6
           env:
             - name: CLICKHOUSE_USER
               value: langfuse
