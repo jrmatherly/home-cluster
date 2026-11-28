@@ -31,7 +31,7 @@ spec:
             # database read-only once the app has stopped and removed its -shm file;
             # local-path keeps this pod on the app's node, so WAL locking holds.
             - name: snapshot
-              image: ghcr.io/pegaprox/pegaprox:1.5.0@sha256:67a0e4942a8e997f3b0b40063ed5d2ad457dd20e1fcae294f08528ee9e2f7c00
+              image: ghcr.io/pegaprox/pegaprox:1.5.1@sha256:c0b421c43e31840457d8d98aabef14a8adbc6cf4ea14e42708ae7de2ad481647
               command: ["sh", "-eu", "-c"]
               args:
                 - |
